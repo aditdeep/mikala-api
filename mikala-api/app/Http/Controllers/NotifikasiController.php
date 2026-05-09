@@ -2,63 +2,141 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Notifikasi;
 use Illuminate\Http\Request;
 
 class NotifikasiController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Get current user's notifications
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        try {
+            $user = auth()->user();
+
+            $query = Notifikasi::where('user_id', $user->id);
+
+            // Filter by type
+            if ($request->has('type')) {
+                $query->where('type', $request->type);
+            }
+
+            // Filter by read status
+            if ($request->has('is_read')) {
+                $query->where('is_read', $request->is_read === 'true' || $request->is_read === '1');
+            }
+
+            // Order by most recent first
+            $query->orderBy('created_at', 'desc');
+
+            $notifications = $query->paginate(20);
+
+            // Get unread count
+            $unreadCount = Notifikasi::where('user_id', $user->id)
+                ->where('is_read', false)
+                ->count();
+
+            return response()->json([
+                'success' => true,
+                'data' => $notifications,
+                'unread_count' => $unreadCount
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve notifications',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Mark single notification as read
      */
-    public function create()
+    public function markAsRead(Request $request, $id)
     {
-        //
+        try {
+            $user = auth()->user();
+
+            $notification = Notifikasi::where('id', $id)
+                ->where('user_id', $user->id)
+                ->first();
+
+            if (!$notification) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Notification not found or unauthorized'
+                ], 404);
+            }
+
+            $notification->markAsRead();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Notification marked as read',
+                'data' => $notification->fresh()
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark notification as read',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Mark all user's notifications as read
      */
-    public function store(Request $request)
+    public function markAllAsRead(Request $request)
     {
-        //
+        try {
+            $user = auth()->user();
+
+            $updated = Notifikasi::where('user_id', $user->id)
+                ->where('is_read', false)
+                ->update([
+                    'is_read' => true,
+                    'read_at' => now()
+                ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'All notifications marked as read',
+                'updated_count' => $updated
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to mark all notifications as read',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Display the specified resource.
+     * Get unread count only
      */
-    public function show(string $id)
+    public function unreadCount()
     {
-        //
-    }
+        try {
+            $user = auth()->user();
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
+            $count = Notifikasi::where('user_id', $user->id)
+                ->where('is_read', false)
+                ->count();
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+            return response()->json([
+                'success' => true,
+                'unread_count' => $count
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get unread count',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

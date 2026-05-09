@@ -3,63 +3,79 @@
 namespace App\Http\Controllers\Mitra;
 
 use App\Http\Controllers\Controller;
+use App\Models\Payroll;
 use Illuminate\Http\Request;
 
 class MitraPayrollController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List mitra payroll history
      */
-    public function index()
+    public function index(Request $request)
     {
-        //
+        try {
+            $user = $request->user();
+            $mitra = $user->mitra;
+
+            if (!$mitra) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mitra profile not found'
+                ], 404);
+            }
+
+            $query = Payroll::where('mitra_id', $mitra->id);
+
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+
+            if ($request->has('periode')) {
+                $query->where('periode', $request->periode);
+            }
+
+            $payrolls = $query->orderBy('periode', 'desc')->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => $payrolls->items(),
+                'pagination' => [
+                    'total' => $payrolls->total(),
+                    'per_page' => $payrolls->perPage(),
+                    'current_page' => $payrolls->currentPage(),
+                    'last_page' => $payrolls->lastPage()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve payroll: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show payroll detail
      */
-    public function create()
+    public function show(Request $request, $id)
     {
-        //
-    }
+        try {
+            $user = $request->user();
+            $mitra = $user->mitra;
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+            $payroll = Payroll::where('id', $id)
+                ->where('mitra_id', $mitra->id)
+                ->firstOrFail();
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
-
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
-
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+            return response()->json([
+                'success' => true,
+                'data' => $payroll
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Payroll not found or access denied'
+            ], 404);
+        }
     }
 }

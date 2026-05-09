@@ -3,63 +3,568 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Klien;
+use App\Models\Pasien;
+use App\Models\Mitra;
+use App\Models\Order;
+use App\Models\User;
+use App\Models\Feedback;
+use App\Services\NotifikasiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class CustomerCareController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
-    public function index()
+    protected $notifikasiService;
+
+    public function __construct(NotifikasiService $notifikasiService)
     {
-        //
+        $this->notifikasiService = $notifikasiService;
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Register new client
      */
-    public function create()
+    public function registrasiKlien(Request $request)
     {
-        //
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'email' => 'required|email|unique:users,email',
+            'phone' => 'required|string|max:20',
+            'password' => 'required|min:8',
+            'tipe_klien' => 'required|in:personal,corporate',
+            'alamat' => 'nullable|string',
+            'corporate_name' => 'nullable|string',
+            'corporate_pic' => 'nullable|string',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            // Create user account
+            $user = User::create([
+                'name' => $request->name,
+                'email' => $request->email,
+                'phone' => $request->phone,
+                'password' => Hash::make($request->password),
+                'role' => 'klien',
+                'status' => 'active',
+            ]);
+
+            // Create klien profile
+            $klien = Klien::create([
+                'user_id' => $user->id,
+                'tipe_klien' => $request->tipe_klien,
+                'alamat' => $request->alamat,
+                'corporate_name' => $request->corporate_name,
+                'corporate_pic' => $request->corporate_pic,
+                'status' => 'active',
+            ]);
+
+            // Send welcome notification
+            $this->notifikasiService->send(
+                $user->id,
+                'Welcome to Mikala! Your account has been created successfully.',
+                'welcome'
+            );
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client registered successfully',
+                'data' => $klien->load('user')
+            ], 201);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to register client: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Register patient for client
      */
-    public function store(Request $request)
+    public function registrasiPasien(Request $request)
     {
-        //
+        $request->validate([
+            'klien_id' => 'required|exists:kliens,id',
+            'nama_pasien' => 'required|string|max:255',
+            'tanggal_lahir' => 'nullable|date',
+            'jenis_kelamin' => 'nullable|in:L,P',
+            'kondisi_kesehatan' => 'nullable|string',
+            'catatan' => 'nullable|string',
+        ]);
+
+        try {
+            $pasien = Pasien::create($request->all());
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Patient registered successfully',
+                'data' => $pasien
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to register patient: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Display the specified resource.
+     * List all clients
      */
-    public function show(string $id)
+    public function indexKlien(Request $request)
     {
-        //
+        try {
+            $query = Klien::with('user');
+
+            // Filters
+            if ($request->has('tipe_klien')) {
+                $query->where('tipe_klien', $request->tipe_klien);
+            }
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->whereHas('user', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%")
+                      ->orWhere('email', 'like', "%{$search}%");
+                });
+            }
+
+            $klien = $query->orderBy('created_at', 'desc')->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => $klien->items(),
+                'pagination' => [
+                    'total' => $klien->total(),
+                    'per_page' => $klien->perPage(),
+                    'current_page' => $klien->currentPage(),
+                    'last_page' => $klien->lastPage()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve clients: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Show client detail with patients
      */
-    public function edit(string $id)
+    public function showKlien($id)
     {
-        //
+        try {
+            $klien = Klien::with(['user', 'pasiens', 'orders'])->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => $klien
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Client not found'
+            ], 404);
+        }
     }
 
     /**
-     * Update the specified resource in storage.
+     * Update client
      */
-    public function update(Request $request, string $id)
+    public function updateKlien(Request $request, $id)
     {
-        //
+        $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'email' => 'sometimes|email',
+            'phone' => 'sometimes|string|max:20',
+            'tipe_klien' => 'sometimes|in:personal,corporate',
+            'alamat' => 'nullable|string',
+            'status' => 'sometimes|in:active,inactive',
+        ]);
+
+        DB::beginTransaction();
+        try {
+            $klien = Klien::with('user')->findOrFail($id);
+
+            if ($request->has('name') || $request->has('email') || $request->has('phone')) {
+                $klien->user->update($request->only(['name', 'email', 'phone']));
+            }
+
+            $klien->update($request->only(['tipe_klien', 'alamat', 'status']));
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Client updated successfully',
+                'data' => $klien->load('user')
+            ], 200);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update client: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * List mitra for assignment
      */
-    public function destroy(string $id)
+    public function indexMitra(Request $request)
     {
-        //
+        try {
+            $query = Mitra::with('user')
+                ->where('status', 'aktif')
+                ->where('training_status', 'available');
+
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->whereHas('user', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%");
+                });
+            }
+
+            $mitra = $query->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $mitra
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve mitra: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Show mitra detail
+     */
+    public function showMitra($id)
+    {
+        try {
+            $mitra = Mitra::with(['user', 'orders', 'trainings'])->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => $mitra
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mitra not found'
+            ], 404);
+        }
+    }
+
+    /**
+     * List service orders
+     */
+    public function indexLayanan(Request $request)
+    {
+        try {
+            $query = Order::with(['klien.user', 'mitra.user', 'pasien']);
+
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+
+            $orders = $query->orderBy('created_at', 'desc')->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => $orders->items(),
+                'pagination' => [
+                    'total' => $orders->total(),
+                    'per_page' => $orders->perPage(),
+                    'current_page' => $orders->currentPage(),
+                    'last_page' => $orders->lastPage()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve orders: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create new service order
+     */
+    public function storeLayanan(Request $request)
+    {
+        $request->validate([
+            'klien_id' => 'required|exists:kliens,id',
+            'pasien_id' => 'nullable|exists:pasiens,id',
+            'mitra_id' => 'nullable|exists:mitras,id',
+            'layanan_type' => 'required|string',
+            'deskripsi' => 'nullable|string',
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'nullable|date|after:tanggal_mulai',
+            'durasi_shift' => 'nullable|string',
+            'lokasi' => 'nullable|string',
+            'harga_per_shift' => 'required|numeric',
+            'total_shift' => 'required|integer',
+        ]);
+
+        try {
+            // Auto-assign mitra if not provided
+            if (!$request->mitra_id) {
+                $availableMitra = Mitra::where('status', 'aktif')
+                    ->where('training_status', 'available')
+                    ->inRandomOrder()
+                    ->first();
+                
+                if ($availableMitra) {
+                    $request->merge(['mitra_id' => $availableMitra->id]);
+                }
+            }
+
+            $order = Order::create([
+                'klien_id' => $request->klien_id,
+                'pasien_id' => $request->pasien_id,
+                'mitra_id' => $request->mitra_id,
+                'layanan_type' => $request->layanan_type,
+                'deskripsi' => $request->deskripsi,
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'durasi_shift' => $request->durasi_shift,
+                'lokasi' => $request->lokasi,
+                'harga_per_shift' => $request->harga_per_shift,
+                'total_shift' => $request->total_shift,
+                'total_amount' => $request->harga_per_shift * $request->total_shift,
+                'status' => 'pending',
+            ]);
+
+            // Notify client
+            $klien = Klien::find($request->klien_id);
+            $this->notifikasiService->send(
+                $klien->user_id,
+                "New order #{$order->id} has been created.",
+                'order_created'
+            );
+
+            // Notify mitra if assigned
+            if ($order->mitra_id) {
+                $this->notifikasiService->send(
+                    $order->mitra->user_id,
+                    "You have been assigned to order #{$order->id}.",
+                    'order_assigned'
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Service order created successfully',
+                'data' => $order->load(['klien.user', 'mitra.user', 'pasien'])
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create order: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update order status
+     */
+    public function updateLayananStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,active,completed,cancelled',
+        ]);
+
+        try {
+            $order = Order::with(['klien.user', 'mitra.user'])->findOrFail($id);
+            $oldStatus = $order->status;
+            
+            $order->status = $request->status;
+            $order->save();
+
+            // Notify both parties
+            $this->notifikasiService->send(
+                $order->klien->user_id,
+                "Order #{$order->id} status changed to {$request->status}.",
+                'order_status_changed'
+            );
+
+            if ($order->mitra_id) {
+                $this->notifikasiService->send(
+                    $order->mitra->user_id,
+                    "Order #{$order->id} status changed to {$request->status}.",
+                    'order_status_changed'
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order status updated successfully',
+                'data' => $order
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update order status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit customer feedback
+     */
+    public function submitFeedback(Request $request)
+    {
+        $request->validate([
+            'order_id' => 'required|exists:orders,id',
+            'rating' => 'required|integer|min:1|max:5',
+            'komentar' => 'nullable|string',
+        ]);
+
+        try {
+            $feedback = Feedback::create([
+                'order_id' => $request->order_id,
+                'from_user_id' => $request->user()->id,
+                'to_user_id' => Order::find($request->order_id)->mitra->user_id ?? null,
+                'rating' => $request->rating,
+                'komentar' => $request->komentar,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Feedback submitted successfully',
+                'data' => $feedback
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit feedback: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ========== REPORTS ==========
+
+    /**
+     * Report: CC handling stats
+     */
+    public function reportHandling(Request $request)
+    {
+        try {
+            $startDate = $request->input('start_date', now()->startOfMonth());
+            $endDate = $request->input('end_date', now()->endOfMonth());
+
+            $stats = [
+                'total_inquiries' => Order::whereBetween('created_at', [$startDate, $endDate])->count(),
+                'deals' => Order::whereBetween('created_at', [$startDate, $endDate])
+                    ->whereIn('status', ['active', 'completed'])->count(),
+                'losses' => Order::whereBetween('created_at', [$startDate, $endDate])
+                    ->where('status', 'cancelled')->count(),
+                'pending' => Order::whereBetween('created_at', [$startDate, $endDate])
+                    ->where('status', 'pending')->count(),
+            ];
+
+            return response()->json([
+                'success' => true,
+                'data' => $stats
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Report: Deal conversion
+     */
+    public function reportDeal(Request $request)
+    {
+        try {
+            $deals = Order::whereIn('status', ['active', 'completed'])
+                ->with(['klien.user', 'mitra.user'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $deals->count(),
+                    'total_revenue' => $deals->sum('total_amount'),
+                    'orders' => $deals
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Report: Lost deals
+     */
+    public function reportLoss(Request $request)
+    {
+        try {
+            $losses = Order::where('status', 'cancelled')
+                ->with(['klien.user'])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $losses->count(),
+                    'potential_revenue_lost' => $losses->sum('total_amount'),
+                    'orders' => $losses
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Report: CC performance rating
+     */
+    public function reportCCRating(Request $request)
+    {
+        try {
+            $avgRating = Feedback::avg('rating');
+            $totalFeedback = Feedback::count();
+            $ratingDistribution = Feedback::select('rating', DB::raw('count(*) as count'))
+                ->groupBy('rating')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'average_rating' => round($avgRating, 2),
+                    'total_feedback' => $totalFeedback,
+                    'distribution' => $ratingDistribution
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

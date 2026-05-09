@@ -3,63 +3,370 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use App\Models\Mitra;
+use App\Models\Training;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TrainingController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * List mitra with training status
      */
-    public function index()
+    public function indexMitra(Request $request)
     {
-        //
+        try {
+            $query = Mitra::with(['user', 'trainings']);
+
+            if ($request->has('training_status')) {
+                $query->where('training_status', $request->training_status);
+            }
+
+            if ($request->has('search')) {
+                $search = $request->search;
+                $query->whereHas('user', function($q) use ($search) {
+                    $q->where('name', 'like', "%{$search}%");
+                });
+            }
+
+            $mitra = $query->orderBy('created_at', 'desc')->paginate(15);
+
+            return response()->json([
+                'success' => true,
+                'data' => $mitra->items(),
+                'pagination' => [
+                    'total' => $mitra->total(),
+                    'per_page' => $mitra->perPage(),
+                    'current_page' => $mitra->currentPage(),
+                    'last_page' => $mitra->lastPage()
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve mitra list: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Show training detail for mitra
      */
-    public function create()
+    public function showMitra($id)
     {
-        //
+        try {
+            $mitra = Mitra::with(['user', 'trainings.trainer'])->findOrFail($id);
+
+            return response()->json([
+                'success' => true,
+                'data' => $mitra
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Mitra not found'
+            ], 404);
+        }
     }
 
     /**
-     * Store a newly created resource in storage.
+     * Submit training checklist item
+     */
+    public function submitChecklist(Request $request, $id)
+    {
+        $request->validate([
+            'checklist_item' => 'required|integer',
+            'done' => 'required|boolean',
+        ]);
+
+        try {
+            $training = Training::findOrFail($id);
+            $checklist = $training->checklist ?? [];
+
+            // Update specific checklist item
+            if (isset($checklist[$request->checklist_item])) {
+                $checklist[$request->checklist_item]['done'] = $request->done;
+                if ($request->done) {
+                    $checklist[$request->checklist_item]['completed_at'] = now()->toDateTimeString();
+                }
+            }
+
+            $training->checklist = $checklist;
+            $training->save();
+            $training->updateChecklistProgress();
+
+            // Auto-complete training if all checklist done
+            $completed = collect($checklist)->where('done', true)->count();
+            if ($completed === count($checklist) && $training->status !== 'completed') {
+                $training->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                ]);
+                
+                // Update mitra training status
+                $training->mitra->training_status = 'available';
+                $training->mitra->save();
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Checklist updated successfully',
+                'data' => $training
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update checklist: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Submit training feedback
+     */
+    public function submitFeedback(Request $request, $id)
+    {
+        $request->validate([
+            'score' => 'required|integer|min:0|max:100',
+            'feedback' => 'required|string',
+        ]);
+
+        try {
+            $training = Training::findOrFail($id);
+            $training->update([
+                'score' => $request->score,
+                'feedback' => $request->feedback,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Feedback submitted successfully',
+                'data' => $training
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to submit feedback: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Update training status
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,in_progress,completed,cancelled',
+        ]);
+
+        try {
+            $training = Training::findOrFail($id);
+            $oldStatus = $training->status;
+            
+            $training->status = $request->status;
+            
+            if ($request->status === 'completed') {
+                $training->completed_at = now();
+            }
+            
+            $training->save();
+
+            // Update mitra training_status
+            $mitra = $training->mitra;
+            if ($request->status === 'in_progress') {
+                $mitra->training_status = 'on-job';
+            } elseif ($request->status === 'completed') {
+                $mitra->training_status = 'available';
+            }
+            $mitra->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Training status updated successfully',
+                'data' => $training->load('mitra.user')
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update training status: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Create new training for mitra
      */
     public function store(Request $request)
     {
-        //
+        $request->validate([
+            'mitra_id' => 'required|exists:mitras,id',
+            'tipe' => 'required|string',
+            'program_name' => 'required|string',
+            'deskripsi' => 'nullable|string',
+            'tanggal_mulai' => 'required|date',
+            'tanggal_selesai' => 'required|date|after:tanggal_mulai',
+            'durasi_hari' => 'required|integer',
+            'biaya' => 'required|numeric',
+            'trainer_id' => 'nullable|exists:users,id',
+        ]);
+
+        try {
+            $training = Training::create([
+                'mitra_id' => $request->mitra_id,
+                'tipe' => $request->tipe,
+                'program_name' => $request->program_name,
+                'deskripsi' => $request->deskripsi,
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'tanggal_selesai' => $request->tanggal_selesai,
+                'durasi_hari' => $request->durasi_hari,
+                'biaya' => $request->biaya,
+                'trainer_id' => $request->trainer_id,
+                'status' => 'pending',
+                'checklist' => [], // Default empty checklist
+                'checklist_completed' => 0,
+                'checklist_total' => 0,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Training created successfully',
+                'data' => $training->load('mitra.user')
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to create training: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    // ========== REPORTS ==========
+
+    /**
+     * Report: Available mitra count
+     */
+    public function reportAvailable(Request $request)
+    {
+        try {
+            $available = Mitra::where('training_status', 'available')
+                ->with('user')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $available->count(),
+                    'mitra' => $available
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Display the specified resource.
+     * Report: On-job mitra count
      */
-    public function show(string $id)
+    public function reportOnJob(Request $request)
     {
-        //
+        try {
+            $onJob = Mitra::where('training_status', 'on-job')
+                ->with(['user', 'trainings' => function($q) {
+                    $q->where('status', 'in_progress');
+                }])
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $onJob->count(),
+                    'mitra' => $onJob
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for editing the specified resource.
+     * Report: Re-training mitra
      */
-    public function edit(string $id)
+    public function reportReTraining(Request $request)
     {
-        //
+        try {
+            $reTraining = Mitra::where('training_status', 're-training')
+                ->with('user')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $reTraining->count(),
+                    'mitra' => $reTraining
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to generate report: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Update the specified resource in storage.
+     * List training pricing
      */
-    public function update(Request $request, string $id)
+    public function indexPricing(Request $request)
     {
-        //
+        try {
+            // Get distinct training types with pricing
+            $pricing = Training::select('tipe', 'program_name', DB::raw('AVG(biaya) as avg_biaya'))
+                ->groupBy('tipe', 'program_name')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $pricing
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve pricing: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Remove the specified resource from storage.
+     * Update training pricing (placeholder)
      */
-    public function destroy(string $id)
+    public function updatePricing(Request $request, $id)
     {
-        //
+        $request->validate([
+            'biaya' => 'required|numeric|min:0',
+        ]);
+
+        try {
+            $training = Training::findOrFail($id);
+            $training->biaya = $request->biaya;
+            $training->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Training pricing updated successfully',
+                'data' => $training
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update pricing: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }

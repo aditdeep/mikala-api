@@ -35,15 +35,15 @@ Route::prefix('auth')->group(function () {
 });
 
 // Public Website MGM & MGA
-Route::prefix('public')->group(function () {
+Route::prefix('public/mgm')->group(function () {
     Route::get('/layanan', [MGMController::class, 'layanan']);
     Route::get('/about', [MGMController::class, 'about']);
-    Route::post('/leads', [MGMController::class, 'submitLead']);
+    Route::post('/leads', [MGMController::class, 'submitLeads']);
 });
 
-Route::prefix('mga')->group(function () {
-    Route::get('/program-pelatihan', [MGAController::class, 'programs']);
-    Route::post('/daftar-pelatihan', [MGAController::class, 'register']);
+Route::prefix('public/mga')->group(function () {
+    Route::get('/programs', [MGAController::class, 'programPelatihan']);
+    Route::post('/register', [MGAController::class, 'daftarPelatihan']);
 });
 
 // ============================================================================
@@ -162,13 +162,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:klien')->prefix('klien')->group(function () {
         Route::get('profile', [KlienProfileController::class, 'show']);
         Route::patch('profile', [KlienProfileController::class, 'update']);
-        Route::get('pasien', [KlienProfileController::class, 'pasien']);
+        Route::get('pasien', [KlienLayananController::class, 'indexPasien']);
         Route::get('layanan', [KlienLayananController::class, 'index']);
         Route::get('layanan/{id}', [KlienLayananController::class, 'show']);
         Route::get('tagihan', [KlienBillingController::class, 'index']);
-        Route::post('tagihan/{id}/bayar', [KlienBillingController::class, 'pay']);
-        Route::get('mitra', [KlienLayananController::class, 'listMitra']);
-        Route::post('feedback', [KlienLayananController::class, 'submitFeedback']);
+        Route::get('tagihan/{id}', [KlienBillingController::class, 'show']);
+        Route::post('tagihan/{id}/bayar', [KlienBillingController::class, 'bayar']);
+        Route::get('mitra', [KlienLayananController::class, 'indexMitra']);
+        Route::post('layanan/{orderId}/feedback', [KlienLayananController::class, 'submitFeedback']);
         Route::get('notifikasi', [NotifikasiController::class, 'index']);
     });
 
@@ -177,6 +178,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     Route::prefix('notifikasi')->group(function () {
         Route::get('/', [NotifikasiController::class, 'index']);
-        Route::patch('{id}/read', [NotifikasiController::class, 'markAsRead']);
+        Route::get('/unread-count', [NotifikasiController::class, 'unreadCount']);
+        Route::patch('/{id}/read', [NotifikasiController::class, 'markAsRead']);
+        Route::post('/mark-all-read', [NotifikasiController::class, 'markAllAsRead']);
     });
 });

@@ -4,62 +4,104 @@ namespace App\Http\Controllers\Mitra;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Hash;
 
 class MitraProfileController extends Controller
 {
     /**
-     * Display a listing of the resource.
+     * Show mitra profile
      */
-    public function index()
+    public function show(Request $request)
     {
-        //
+        try {
+            $user = $request->user();
+            $mitra = $user->mitra()->with(['trainings', 'orders'])->first();
+
+            if (!$mitra) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mitra profile not found'
+                ], 404);
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'user' => $user,
+                    'profile' => $mitra,
+                    'stats' => [
+                        'total_orders' => $mitra->orders()->count(),
+                        'completed_orders' => $mitra->orders()->where('status', 'completed')->count(),
+                        'active_orders' => $mitra->orders()->where('status', 'active')->count(),
+                        'total_trainings' => $mitra->trainings()->count(),
+                    ]
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to retrieve profile: ' . $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Show the form for creating a new resource.
+     * Update mitra profile
      */
-    public function create()
+    public function update(Request $request)
     {
-        //
-    }
+        $request->validate([
+            'name' => 'sometimes|string|max:255',
+            'phone' => 'sometimes|string|max:20',
+            'alamat' => 'nullable|string',
+            'tanggal_lahir' => 'nullable|date',
+            'jenis_kelamin' => 'nullable|in:L,P',
+            'pendidikan' => 'nullable|string',
+            'pengalaman' => 'nullable|string',
+            'current_password' => 'required_with:new_password',
+            'new_password' => 'nullable|min:8|confirmed',
+        ]);
 
-    /**
-     * Store a newly created resource in storage.
-     */
-    public function store(Request $request)
-    {
-        //
-    }
+        try {
+            $user = $request->user();
+            $mitra = $user->mitra;
 
-    /**
-     * Display the specified resource.
-     */
-    public function show(string $id)
-    {
-        //
-    }
+            // Update user data
+            if ($request->has('name') || $request->has('phone')) {
+                $user->update($request->only(['name', 'phone']));
+            }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(string $id)
-    {
-        //
-    }
+            // Update password if provided
+            if ($request->has('new_password')) {
+                if (!Hash::check($request->current_password, $user->password)) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Current password is incorrect'
+                    ], 400);
+                }
+                $user->password = Hash::make($request->new_password);
+                $user->save();
+            }
 
-    /**
-     * Update the specified resource in storage.
-     */
-    public function update(Request $request, string $id)
-    {
-        //
-    }
+            // Update mitra profile
+            $mitra->update($request->only([
+                'alamat', 'tanggal_lahir', 'jenis_kelamin', 
+                'pendidikan', 'pengalaman'
+            ]));
 
-    /**
-     * Remove the specified resource from storage.
-     */
-    public function destroy(string $id)
-    {
-        //
+            return response()->json([
+                'success' => true,
+                'message' => 'Profile updated successfully',
+                'data' => [
+                    'user' => $user,
+                    'profile' => $mitra
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update profile: ' . $e->getMessage()
+            ], 500);
+        }
     }
 }
