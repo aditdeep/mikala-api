@@ -11,8 +11,10 @@ COPY . .
 
 RUN composer install --optimize-autoloader --no-dev
 
-RUN php artisan config:cache && php artisan route:cache
-
 EXPOSE 8000
 
-CMD php artisan migrate --seed --force && php artisan serve --host=0.0.0.0 --port=$PORT
+CMD php artisan config:clear && \
+    php artisan route:clear && \
+    php artisan cache:clear && \
+    php artisan migrate --force && \
+    php artisan serve --host=0.0.0.0 --port=$PORT
