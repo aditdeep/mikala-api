@@ -64,7 +64,7 @@ class RekrutmenController extends Controller
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'pendidikan_terakhir' => $request->pendidikan,
                 'pengalaman' => $request->pengalaman,
-                'status' => 'pending',
+                'status' => 'training',
                 'training_status' => 'pending',
                 'is_verified' => false,
             ]);
