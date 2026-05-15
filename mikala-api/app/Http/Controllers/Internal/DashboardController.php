@@ -21,27 +21,27 @@ class DashboardController extends Controller
         try {
             $stats = [
                 'total_mitra' => Mitra::count(),
-                'mitra_active' => Mitra::where('status', 'available')->count(),
-                'mitra_training' => Mitra::where('status', 'on_job')->count(),
+                'mitra_active' => Mitra::whereIn('status', ['available', 'on_job'])->count(),
+                'mitra_training' => Mitra::where('status', 'training')->count(),
                 'mitra_available' => Mitra::where('status', 'available')->count(),
-                
+
                 'total_klien' => Klien::count(),
                 'klien_active' => Klien::where('status', 'active')->count(),
-                
+
                 'total_orders' => Order::count(),
                 'orders_active' => Order::where('status', 'active')->count(),
                 'orders_completed' => Order::where('status', 'completed')->count(),
                 'orders_pending' => Order::where('status', 'pending')->count(),
-                
+
                 'total_revenue' => Tagihan::where('status', 'paid')->sum('total'),
                 'pending_revenue' => Tagihan::where('status', 'pending')->sum('total'),
-                'overdue_invoices' => Tagihan::where('status', 'pending')->count(),
-                
+                'overdue_invoices' => Tagihan::where('status', 'overdue')->count(),
+
                 'pending_items' => [
                     'new_applications' => Mitra::where('status', 'training')->count(),
                     'training_pending' => Mitra::where('training_status', 'pending')->count(),
                     'orders_pending_assignment' => Order::whereNull('mitra_id')->count(),
-                    'unpaid_invoices' => Tagihan::where('status', 'pending')->count(),
+                    'unpaid_invoices' => Tagihan::whereIn('status', ['pending', 'overdue'])->count(),
                 ],
             ];
 
