@@ -386,7 +386,7 @@ class CustomerCareController extends Controller
     public function updateLayananStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,active,completed,cancelled',
+            'status' => 'required|in:pending,confirmed,in_progress,completed,cancelled,on_hold',
         ]);
 
         try {
