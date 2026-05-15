@@ -95,7 +95,7 @@ class FinanceController extends Controller
                 'total' => $total,
                 'jumlah_bayar' => 0,
                 'sisa' => $total,
-                'status' => 'pending',
+                'status' => 'unpaid',
                 'catatan' => $request->catatan,
             ]);
 
