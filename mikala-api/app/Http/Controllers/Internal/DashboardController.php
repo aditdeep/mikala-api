@@ -21,9 +21,9 @@ class DashboardController extends Controller
         try {
             $stats = [
                 'total_mitra' => Mitra::count(),
-                'mitra_active' => Mitra::where('status', 'aktif')->count(),
-                'mitra_training' => Mitra::where('training_status', 'on-job')->count(),
-                'mitra_available' => Mitra::where('training_status', 'available')->count(),
+                'mitra_active' => Mitra::where('status', 'available')->count(),
+                'mitra_training' => Mitra::where('status', 'on_job')->count(),
+                'mitra_available' => Mitra::where('status', 'available')->count(),
                 
                 'total_klien' => Klien::count(),
                 'klien_active' => Klien::where('status', 'active')->count(),
@@ -33,14 +33,14 @@ class DashboardController extends Controller
                 'orders_completed' => Order::where('status', 'completed')->count(),
                 'orders_pending' => Order::where('status', 'pending')->count(),
                 
-                'total_revenue' => Tagihan::where('status', 'paid')->sum('total_amount'),
-                'pending_revenue' => Tagihan::where('status', 'pending')->sum('total_amount'),
+                'total_revenue' => Tagihan::where('status', 'paid')->sum('total'),
+                'pending_revenue' => Tagihan::where('status', 'pending')->sum('total'),
                 'overdue_invoices' => Tagihan::where('status', 'pending')
                     ->where('due_date', '<', now())
                     ->count(),
                 
                 'pending_items' => [
-                    'new_applications' => Mitra::where('status', 'pending')->count(),
+                    'new_applications' => Mitra::where('status', 'training')->count(),
                     'training_pending' => Mitra::where('training_status', 'pending')->count(),
                     'orders_pending_assignment' => Order::whereNull('mitra_id')->count(),
                     'unpaid_invoices' => Tagihan::where('status', 'pending')->count(),
