@@ -35,9 +35,7 @@ class DashboardController extends Controller
                 
                 'total_revenue' => Tagihan::where('status', 'paid')->sum('total'),
                 'pending_revenue' => Tagihan::where('status', 'pending')->sum('total'),
-                'overdue_invoices' => Tagihan::where('status', 'pending')
-                    ->where('due_date', '<', now())
-                    ->count(),
+                'overdue_invoices' => Tagihan::where('status', 'pending')->count(),
                 
                 'pending_items' => [
                     'new_applications' => Mitra::where('status', 'training')->count(),
