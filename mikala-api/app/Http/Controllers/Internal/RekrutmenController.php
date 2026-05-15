@@ -61,13 +61,15 @@ class RekrutmenController extends Controller
                 'nik' => $request->nik ?? 'NIK-' . time(),
                 'nama_lengkap' => $request->name,
                 'alamat' => $request->alamat,
+                'kota' => $request->kota ?? '-',
+                'provinsi' => $request->provinsi ?? '-',
                 'tanggal_lahir' => $request->tanggal_lahir,
                 'jenis_kelamin' => $request->jenis_kelamin,
                 'pendidikan_terakhir' => $request->pendidikan,
                 'pengalaman' => $request->pengalaman,
                 'status' => 'training',
                 'training_status' => 'pending',
-                'is_verified' => false,
+                'is_verified' => False,
             ]);
 
             DB::commit();
