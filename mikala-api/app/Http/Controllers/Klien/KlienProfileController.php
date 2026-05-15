@@ -17,7 +17,7 @@ class KlienProfileController extends Controller
     {
         try {
             $user = $request->user();
-            $klien = $user->klien()->with(['pasiens', 'orders'])->first();
+            $klien = $user->klien()->with(['orders'])->first();
 
             if (!$klien) {
                 return response()->json([
@@ -35,7 +35,7 @@ class KlienProfileController extends Controller
                         'total_orders' => $klien->orders()->count(),
                         'active_orders' => $klien->orders()->where('status', 'active')->count(),
                         'completed_orders' => $klien->orders()->where('status', 'completed')->count(),
-                        'total_patients' => $klien->pasiens()->count(),
+                        'total_patients' => $klien->pasien()->count(),
                     ]
                 ]
             ], 200);
