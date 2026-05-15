@@ -69,30 +69,45 @@ class FinanceController extends Controller
     public function storeTagihan(Request $request)
     {
         $request->validate([
-            'order_id' => 'required|exists:orders,id',
-            'due_date' => 'required|date',
-            'tax_percentage' => 'nullable|numeric|min:0|max:100',
-            'discount' => 'nullable|numeric|min:0',
+            'klien_id' => 'nullable|exists:klien,id',
+            'tanggal_jatuh_tempo' => 'required|date',
+            'subtotal' => 'required|numeric|min:0',
+            'pajak' => 'nullable|numeric|min:0',
+            'diskon' => 'nullable|numeric|min:0',
+            'catatan' => 'nullable|string',
         ]);
 
         try {
-            $order = Order::findOrFail($request->order_id);
-            
-            $tagihan = $this->billingService->generateInvoice($order, [
-                'due_date' => $request->due_date,
-                'tax_percentage' => $request->tax_percentage ?? 0,
-                'discount' => $request->discount ?? 0,
+            $subtotal = $request->subtotal;
+            $pajak = $request->pajak ?? 0;
+            $diskon = $request->diskon ?? 0;
+            $total = $subtotal + $pajak - $diskon;
+
+            $tagihan = Tagihan::create([
+                'invoice_number' => 'INV-' . date('Ymd') . '-' . str_pad(Tagihan::count() + 1, 4, '0', STR_PAD_LEFT),
+                'klien_id' => $request->klien_id ?? 1,
+                'order_id' => null,
+                'tanggal_invoice' => now()->toDateString(),
+                'tanggal_jatuh_tempo' => $request->tanggal_jatuh_tempo,
+                'subtotal' => $subtotal,
+                'pajak' => $pajak,
+                'diskon' => $diskon,
+                'total' => $total,
+                'jumlah_bayar' => 0,
+                'sisa' => $total,
+                'status' => 'pending',
+                'catatan' => $request->catatan,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Invoice generated successfully',
-                'data' => $tagihan->load('order.klien.user')
+                'message' => 'Tagihan berhasil dibuat',
+                'data' => $tagihan
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to generate invoice: ' . $e->getMessage()
+                'message' => 'Gagal membuat tagihan: ' . $e->getMessage()
             ], 500);
         }
     }
