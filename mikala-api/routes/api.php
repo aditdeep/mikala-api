@@ -96,33 +96,36 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Customer Care
         Route::prefix('cc')->group(function () {
-            Route::post('registrasi/klien', [CustomerCareController::class, 'registerKlien']);
+            Route::post('registrasi/klien', [CustomerCareController::class, 'registrasiKlien']);
             Route::post('registrasi/pasien', [CustomerCareController::class, 'registerPasien']);
-            Route::get('klien', [CustomerCareController::class, 'listKlien']);
+            Route::get('klien', [CustomerCareController::class, 'indexKlien']);
             Route::get('klien/{id}', [CustomerCareController::class, 'showKlien']);
             Route::patch('klien/{id}', [CustomerCareController::class, 'updateKlien']);
-            Route::get('mitra', [CustomerCareController::class, 'listMitra']);
+            Route::get('mitra', [CustomerCareController::class, 'indexMitra']);
             Route::get('mitra/{id}', [CustomerCareController::class, 'showMitra']);
-            Route::get('layanan', [CustomerCareController::class, 'listLayanan']);
-            Route::post('layanan', [CustomerCareController::class, 'createLayanan']);
+            Route::get('layanan', [CustomerCareController::class, 'indexLayanan']);
+            Route::post('layanan', [CustomerCareController::class, 'storeLayanan']);
             Route::patch('layanan/{id}/status', [CustomerCareController::class, 'updateLayananStatus']);
             Route::get('report', [CustomerCareController::class, 'report']);
             Route::get('report/handling', [CustomerCareController::class, 'reportHandling']);
             Route::get('report/deal', [CustomerCareController::class, 'reportDeal']);
             Route::get('report/loss', [CustomerCareController::class, 'reportLoss']);
-            Route::get('report/cc-rating', [CustomerCareController::class, 'reportRating']);
+            Route::get('report/cc-rating', [CustomerCareController::class, 'reportCCRating']);
             Route::post('feedback', [CustomerCareController::class, 'submitFeedback']);
         });
 
         // Finance
         Route::prefix('finance')->group(function () {
-            Route::apiResource('tagihan', FinanceController::class);
-            Route::patch('tagihan/{id}/status', [FinanceController::class, 'updateStatus']);
-            Route::get('payroll', [FinanceController::class, 'listPayroll']);
+            Route::get('tagihan', [FinanceController::class, 'indexTagihan']);
+            Route::post('tagihan', [FinanceController::class, 'storeTagihan']);
+            Route::get('tagihan/{id}', [FinanceController::class, 'showTagihan']);
+            Route::patch('tagihan/{id}/status', [FinanceController::class, 'updateStatusTagihan']);
+            Route::get('payroll', [FinanceController::class, 'indexPayroll']);
             Route::post('payroll/generate', [FinanceController::class, 'generatePayroll']);
             Route::get('payroll/{id}', [FinanceController::class, 'showPayroll']);
-            Route::patch('payroll/{id}/status', [FinanceController::class, 'updatePayrollStatus']);
-            Route::apiResource('jurnal', FinanceController::class);
+            Route::patch('payroll/{id}/status', [FinanceController::class, 'updateStatusPayroll']);
+            Route::get('jurnal', [FinanceController::class, 'indexJurnal']);
+            Route::post('jurnal', [FinanceController::class, 'storeJurnal']);
             Route::get('jurnal/balancing', [FinanceController::class, 'balancing']);
             Route::get('report/income', [FinanceController::class, 'reportIncome']);
             Route::get('report/outcome', [FinanceController::class, 'reportOutcome']);
@@ -133,9 +136,15 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Marketing
         Route::prefix('marketing')->group(function () {
-            Route::apiResource('leads', MarketingController::class);
-            Route::patch('leads/{id}/status', [MarketingController::class, 'updateStatus']);
-            Route::apiResource('kerjasama', MarketingController::class);
+            Route::get('leads', [MarketingController::class, 'indexLeads']);
+            Route::post('leads', [MarketingController::class, 'storeLeads']);
+            Route::get('leads/{id}', [MarketingController::class, 'showLeads']);
+            Route::put('leads/{lead}', [MarketingController::class, 'indexLeads']);
+            Route::delete('leads/{lead}', [MarketingController::class, 'indexLeads']);
+            Route::patch('leads/{id}/status', [MarketingController::class, 'updateLeadsStatus']);
+            Route::get('kerjasama', [MarketingController::class, 'indexKerjasama']);
+            Route::post('kerjasama', [MarketingController::class, 'storeKerjasama']);
+            Route::get('kerjasama/{id}', [MarketingController::class, 'showKerjasama']);
             Route::get('report/order-in', [MarketingController::class, 'reportOrderIn']);
             Route::get('report/deal', [MarketingController::class, 'reportDeal']);
             Route::get('report/gap-analysis', [MarketingController::class, 'reportGapAnalysis']);
