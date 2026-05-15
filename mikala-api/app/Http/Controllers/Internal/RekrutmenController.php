@@ -57,7 +57,8 @@ class RekrutmenController extends Controller
             ]);
 
             $mitra = Mitra::create([
-                'user_id' => $user->id,n                'nik' => $request->nik ?? 'NIK-' . time(),
+                'user_id' => $user->id,
+                'nik' => $request->nik ?? 'NIK-' . time(),
                 'nama_lengkap' => $request->name,
                 'alamat' => $request->alamat,
                 'tanggal_lahir' => $request->tanggal_lahir,
