@@ -325,9 +325,10 @@ class KlienLayananController extends Controller
     {
         $request->validate([
             'service_type' => 'required|string',
+            'pasien_id' => 'required|exists:pasien,id',
             'tanggal_mulai' => 'required|date',
+            'harga_per_hari' => 'nullable|numeric|min:0',
             'catatan' => 'nullable|string',
-            'pasien_id' => 'nullable|exists:pasien,id',
         ]);
 
         try {
@@ -336,12 +337,19 @@ class KlienLayananController extends Controller
                 return response()->json(['success' => false, 'message' => 'Profil klien tidak ditemukan'], 404);
             }
 
+            $harga = $request->harga_per_hari ?? 0;
+            $orderNumber = 'ORD-' . date('Ymd') . '-' . str_pad(\App\Models\Order::count() + 1, 4, '0', STR_PAD_LEFT);
+
             $order = \App\Models\Order::create([
+                'order_number' => $orderNumber,
                 'klien_id' => $klien->id,
                 'pasien_id' => $request->pasien_id,
-                'service_type' => $request->service_type,
-                'start_date' => $request->tanggal_mulai,
-                'notes' => $request->catatan,
+                'tipe_layanan' => $request->service_type,
+                'tanggal_mulai' => $request->tanggal_mulai,
+                'harga_per_hari' => $harga,
+                'subtotal' => $harga,
+                'total' => $harga,
+                'catatan' => $request->catatan,
                 'status' => 'pending',
             ]);
 
@@ -360,11 +368,8 @@ class KlienLayananController extends Controller
         $request->validate([
             'nama_lengkap' => 'required|string|max:255',
             'tanggal_lahir' => 'required|date',
-            'jenis_kelamin' => 'nullable|in:L,P',
-            'alamat' => 'nullable|string',
-            'diagnosa' => 'nullable|string',
-            'catatan' => 'nullable|string',
-            'hubungan' => 'nullable|string',
+            'jenis_kelamin' => 'required|in:L,P',
+            'alamat' => 'required|string',
         ]);
 
         try {
@@ -377,15 +382,17 @@ class KlienLayananController extends Controller
                 'klien_id' => $klien->id,
                 'nama_lengkap' => $request->nama_lengkap,
                 'tanggal_lahir' => $request->tanggal_lahir,
-                'jenis_kelamin' => $request->jenis_kelamin ?? 'L',
+                'jenis_kelamin' => $request->jenis_kelamin,
                 'alamat' => $request->alamat,
-                'diagnosa' => $request->diagnosa,
-                'catatan' => $request->catatan,
-                'hubungan' => $request->hubungan ?? 'keluarga',
+                'riwayat_penyakit' => $request->riwayat_penyakit,
+                'alergi' => $request->alergi,
+                'catatan_khusus' => $request->catatan,
+                'kontak_darurat_nama' => $request->kontak_darurat_nama,
+                'kontak_darurat_phone' => $request->kontak_darurat_phone,
+                'kontak_darurat_relasi' => $request->kontak_darurat_relasi ?? 'keluarga',
                 'status' => 'active',
             ]);
 
-            // Update total pasien klien
             $klien->increment('total_pasien');
 
             return response()->json([
