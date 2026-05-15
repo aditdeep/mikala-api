@@ -33,10 +33,10 @@ class CustomerCareController extends Controller
             'email' => 'required|email|unique:users,email',
             'phone' => 'required|string|max:20',
             'password' => 'required|min:8',
-            'tipe_klien' => 'required|in:personal,corporate',
-            'alamat' => 'nullable|string',
-            'corporate_name' => 'nullable|string',
-            'corporate_pic' => 'nullable|string',
+            'tipe' => 'required|in:individu,keluarga,rumah_sakit,panti_jompo,klinik',
+            'alamat' => 'required|string',
+            'kota' => 'required|string',
+            'provinsi' => 'required|string',
         ]);
 
         DB::beginTransaction();
@@ -55,12 +55,12 @@ class CustomerCareController extends Controller
             $klien = Klien::create([
                 'user_id' => $user->id,
                 'nama_lengkap' => $request->name,
-                'tipe_klien' => $request->tipe_klien ?? 'individu',
+                'tipe' => $request->tipe ?? 'individu',
                 'alamat' => $request->alamat,
                 'kota' => $request->kota,
-                'corporate_name' => $request->corporate_name,
-                'corporate_pic' => $request->corporate_pic,
+                'provinsi' => $request->provinsi,
                 'status' => 'active',
+                'is_verified' => false,
             ]);
 
             // Send welcome notification
