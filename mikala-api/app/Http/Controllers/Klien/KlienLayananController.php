@@ -320,4 +320,82 @@ class KlienLayananController extends Controller
             ], 500);
         }
     }
+
+    public function store(Request $request)
+    {
+        $request->validate([
+            'service_type' => 'required|string',
+            'tanggal_mulai' => 'required|date',
+            'catatan' => 'nullable|string',
+            'pasien_id' => 'nullable|exists:pasien,id',
+        ]);
+
+        try {
+            $klien = $request->user()->klien;
+            if (!$klien) {
+                return response()->json(['success' => false, 'message' => 'Profil klien tidak ditemukan'], 404);
+            }
+
+            $order = \App\Models\Order::create([
+                'klien_id' => $klien->id,
+                'pasien_id' => $request->pasien_id,
+                'service_type' => $request->service_type,
+                'start_date' => $request->tanggal_mulai,
+                'notes' => $request->catatan,
+                'status' => 'pending',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Permintaan layanan berhasil dikirim',
+                'data' => $order
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function storePasien(Request $request)
+    {
+        $request->validate([
+            'nama_lengkap' => 'required|string|max:255',
+            'tanggal_lahir' => 'required|date',
+            'jenis_kelamin' => 'nullable|in:L,P',
+            'alamat' => 'nullable|string',
+            'diagnosa' => 'nullable|string',
+            'catatan' => 'nullable|string',
+            'hubungan' => 'nullable|string',
+        ]);
+
+        try {
+            $klien = $request->user()->klien;
+            if (!$klien) {
+                return response()->json(['success' => false, 'message' => 'Profil klien tidak ditemukan'], 404);
+            }
+
+            $pasien = \App\Models\Pasien::create([
+                'klien_id' => $klien->id,
+                'nama_lengkap' => $request->nama_lengkap,
+                'tanggal_lahir' => $request->tanggal_lahir,
+                'jenis_kelamin' => $request->jenis_kelamin ?? 'L',
+                'alamat' => $request->alamat,
+                'diagnosa' => $request->diagnosa,
+                'catatan' => $request->catatan,
+                'hubungan' => $request->hubungan ?? 'keluarga',
+                'status' => 'active',
+            ]);
+
+            // Update total pasien klien
+            $klien->increment('total_pasien');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Pasien berhasil ditambahkan',
+                'data' => $pasien
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
 }
