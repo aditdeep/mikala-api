@@ -54,8 +54,10 @@ class CustomerCareController extends Controller
             // Create klien profile
             $klien = Klien::create([
                 'user_id' => $user->id,
-                'tipe_klien' => $request->tipe_klien,
+                'nama_lengkap' => $request->name,
+                'tipe_klien' => $request->tipe_klien ?? 'individu',
                 'alamat' => $request->alamat,
+                'kota' => $request->kota,
                 'corporate_name' => $request->corporate_name,
                 'corporate_pic' => $request->corporate_pic,
                 'status' => 'active',
