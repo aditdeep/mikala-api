@@ -183,3 +183,38 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/mark-all-read', [NotifikasiController::class, 'markAllAsRead']);
     });
 });
+
+// TEMPORARY SETUP ROUTE - DELETE AFTER USE
+Route::get('/setup', function() {
+    $user = \App\Models\User::firstOrCreate(
+        ['email' => 'admin@mikala.com'],
+        [
+            'name' => 'Admin Mikala',
+            'phone' => '081234567890',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'role' => 'manajemen',
+            'status' => 'active',
+        ]
+    );
+    $mitra = \App\Models\User::firstOrCreate(
+        ['email' => 'siti@example.com'],
+        [
+            'name' => 'Siti Nurhaliza',
+            'phone' => '081298765431',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'role' => 'mitra',
+            'status' => 'active',
+        ]
+    );
+    $klien = \App\Models\User::firstOrCreate(
+        ['email' => 'klien@example.com'],
+        [
+            'name' => 'Klien Test',
+            'phone' => '081298765432',
+            'password' => \Illuminate\Support\Facades\Hash::make('password'),
+            'role' => 'klien',
+            'status' => 'active',
+        ]
+    );
+    return response()->json(['success' => true, 'admin' => $user, 'mitra' => $mitra, 'klien' => $klien]);
+});
