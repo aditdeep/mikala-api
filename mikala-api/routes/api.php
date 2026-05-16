@@ -8,6 +8,7 @@ use App\Http\Controllers\Internal\TrainingController;
 use App\Http\Controllers\Internal\CustomerCareController;
 use App\Http\Controllers\Internal\FinanceController;
 use App\Http\Controllers\Internal\MarketingController;
+use App\Http\Controllers\Internal\SettingController;
 use App\Http\Controllers\Mitra\MitraProfileController;
 use App\Http\Controllers\Mitra\MitraJobController;
 use App\Http\Controllers\Mitra\MitraPayrollController;
@@ -63,6 +64,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // INTERNAL ROUTES (Staff Only)
     // ========================================================================
     Route::middleware('internal')->prefix('internal')->group(function () {
+        Route::get('settings', [SettingController::class, 'index']);
+        Route::patch('settings', [SettingController::class, 'update']);
 
         // Dashboard
         Route::prefix('dashboard')->group(function () {
@@ -168,6 +171,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     // KLIEN ROUTES
     // ========================================================================
+    Route::get('payment-settings', [SettingController::class, 'publicPayment']);
     Route::middleware('role:klien')->prefix('klien')->group(function () {
         Route::get('profile', [KlienProfileController::class, 'show']);
         Route::patch('profile', [KlienProfileController::class, 'update']);
