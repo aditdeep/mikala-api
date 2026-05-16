@@ -16,7 +16,7 @@ class TrainingController extends Controller
     public function indexMitra(Request $request)
     {
         try {
-            $query = Mitra::with(['user', 'trainings']);
+            $query = Mitra::with(['user']);
 
             if ($request->has('training_status')) {
                 $query->where('training_status', $request->training_status);
@@ -55,7 +55,7 @@ class TrainingController extends Controller
     public function showMitra($id)
     {
         try {
-            $mitra = Mitra::with(['user', 'trainings.trainer'])->findOrFail($id);
+            $mitra = Mitra::with(['user'])->findOrFail($id);
 
             return response()->json([
                 'success' => true,
@@ -157,34 +157,24 @@ class TrainingController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:pending,in_progress,completed,cancelled',
+            'training_status' => 'required|in:pending,in_progress,completed,failed',
         ]);
 
         try {
-            $training = Training::findOrFail($id);
-            $oldStatus = $training->status;
-            
-            $training->status = $request->status;
-            
-            if ($request->status === 'completed') {
-                $training->completed_at = now();
-            }
-            
-            $training->save();
+            $mitra = Mitra::with('user')->findOrFail($id);
+            $mitra->training_status = $request->training_status;
 
-            // Update mitra training_status
-            $mitra = $training->mitra;
-            if ($request->status === 'in_progress') {
-                $mitra->training_status = 'on-job';
-            } elseif ($request->status === 'completed') {
-                $mitra->training_status = 'available';
+            if ($request->training_status === 'completed') {
+                $mitra->training_completed_at = now();
+                $mitra->status = 'available';
             }
+
             $mitra->save();
 
             return response()->json([
                 'success' => true,
-                'message' => 'Training status updated successfully',
-                'data' => $training->load('mitra.user')
+                'message' => 'Status training berhasil diupdate',
+                'data' => $mitra
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
@@ -243,6 +233,33 @@ class TrainingController extends Controller
 
     // ========== REPORTS ==========
 
+
+    /**
+     * Report: General training summary
+     */
+    public function report(Request $request)
+    {
+        try {
+            $total = Mitra::count();
+            $byStatus = Mitra::selectRaw('training_status, count(*) as total')
+                ->groupBy('training_status')
+                ->pluck('total', 'training_status');
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total' => $total,
+                    'by_status' => $byStatus,
+                ]
+            ], 200);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+
     /**
      * Report: Available mitra count
      */
@@ -274,11 +291,7 @@ class TrainingController extends Controller
     public function reportOnJob(Request $request)
     {
         try {
-            $onJob = Mitra::where('training_status', 'on-job')
-                ->with(['user', 'trainings' => function($q) {
-                    $q->where('status', 'in_progress');
-                }])
-                ->get();
+            $onJob = Mitra::where('status', 'on_job')->with('user')->get();
 
             return response()->json([
                 'success' => true,
@@ -327,9 +340,8 @@ class TrainingController extends Controller
     {
         try {
             // Get distinct training types with pricing
-            $pricing = Training::select('tipe', 'program_name', DB::raw('AVG(biaya) as avg_biaya'))
-                ->groupBy('tipe', 'program_name')
-                ->get();
+            $tipeLayanan = ['homecare_harian','homecare_live_in','medical_checkup','konsultasi','fisioterapi','perawatan_luka','vaksinasi','lainnya'];
+            $pricing = collect($tipeLayanan)->map(fn($t) => ['tipe_layanan' => $t, 'harga_per_jam' => 0, 'harga_per_hari' => 0, 'id' => $t]);
 
             return response()->json([
                 'success' => true,
