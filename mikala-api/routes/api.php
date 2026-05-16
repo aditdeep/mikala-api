@@ -349,6 +349,13 @@ Route::get('/fix-feedback-nullable', function() {
     }
 });
 
+
+// TEMPORARY - Check klien table ids
+Route::get('/check-klien-ids', function() {
+    $klien = \App\Models\Klien::with('user')->get()->map(fn($k) => ['id'=>$k->id,'user_id'=>$k->user_id,'nama'=>$k->nama_lengkap]);
+    return response()->json(['data' => $klien]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
