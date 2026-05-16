@@ -200,6 +200,36 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 });
 
+
+// TEMPORARY MIGRATE ROUTE - DELETE AFTER USE
+Route::get('/migrate-settings', function() {
+    try {
+        if (!\Illuminate\Support\Facades\Schema::hasTable('settings')) {
+            \Illuminate\Support\Facades\Schema::create('settings', function ($table) {
+                $table->id();
+                $table->string('key')->unique();
+                $table->text('value')->nullable();
+                $table->string('group')->default('general');
+                $table->timestamps();
+            });
+
+            \Illuminate\Support\Facades\DB::table('settings')->insert([
+                ['key' => 'bank_name',         'value' => 'BCA',                     'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+                ['key' => 'bank_account',      'value' => '1234567890',              'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+                ['key' => 'bank_account_name', 'value' => 'PT Mikala Global Medika', 'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+                ['key' => 'xendit_enabled',    'value' => 'false',                   'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+                ['key' => 'xendit_secret_key', 'value' => '',                        'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+                ['key' => 'xendit_public_key', 'value' => '',                        'group' => 'payment', 'created_at' => now(), 'updated_at' => now()],
+            ]);
+
+            return response()->json(['success' => true, 'message' => 'Tabel settings berhasil dibuat & di-seed!']);
+        }
+        return response()->json(['success' => true, 'message' => 'Tabel settings sudah ada, skip.']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
