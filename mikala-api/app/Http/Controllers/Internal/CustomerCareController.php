@@ -334,7 +334,9 @@ class CustomerCareController extends Controller
                 }
             }
 
+            $orderNumber = 'ORD-' . date('Ymd') . '-' . str_pad(Order::count() + 1, 4, '0', STR_PAD_LEFT);
             $order = Order::create([
+                'order_number' => $orderNumber,
                 'klien_id' => $request->klien_id,
                 'pasien_id' => $request->pasien_id,
                 'mitra_id' => $request->mitra_id,
