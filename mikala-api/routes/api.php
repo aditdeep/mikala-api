@@ -80,6 +80,16 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/notifikasi', [DashboardController::class, 'notifikasi']);
         });
 
+        // Shared - semua divisi internal bisa akses
+        Route::get('klien-list', function(\Illuminate\Http\Request $request) {
+            $klien = \App\Models\Klien::with('user')->orderBy('created_at','desc')->get();
+            return response()->json(['success' => true, 'data' => $klien]);
+        });
+        Route::get('mitra-list', function(\Illuminate\Http\Request $request) {
+            $mitra = \App\Models\Mitra::with('user')->orderBy('created_at','desc')->get();
+            return response()->json(['success' => true, 'data' => $mitra]);
+        });
+
         // Rekrutmen
         Route::middleware('role:manajemen,rekrutmen')->prefix('rekrutmen')->group(function () {
             Route::apiResource('mitra', RekrutmenController::class);
