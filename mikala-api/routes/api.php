@@ -116,12 +116,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('layanan', [CustomerCareController::class, 'indexLayanan']);
             Route::post('layanan', [CustomerCareController::class, 'storeLayanan']);
             Route::patch('layanan/{id}/status', [CustomerCareController::class, 'updateLayananStatus']);
+            Route::get('feedback', [CustomerCareController::class, 'indexFeedback']);
+            Route::post('feedback', [CustomerCareController::class, 'submitFeedback']);
             Route::get('report', [CustomerCareController::class, 'report']);
             Route::get('report/handling', [CustomerCareController::class, 'reportHandling']);
             Route::get('report/deal', [CustomerCareController::class, 'reportDeal']);
             Route::get('report/loss', [CustomerCareController::class, 'reportLoss']);
-            Route::get('report/cc-rating', [CustomerCareController::class, 'reportCCRating']);
-            Route::post('feedback', [CustomerCareController::class, 'submitFeedback']);
         });
 
         // Finance
