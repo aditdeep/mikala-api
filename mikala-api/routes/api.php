@@ -476,6 +476,31 @@ Route::get('/debug-payroll-create', function() {
     return response()->json(['existing' => $existing, 'count' => $existing->count()]);
 });
 
+
+// TEMPORARY - Fix payroll total
+Route::get('/fix-payroll-total', function() {
+    $payroll = \App\Models\Payroll::find(1);
+    if (!$payroll) return response()->json(['error' => 'not found']);
+    
+    $order = \App\Models\Order::find($payroll->order_id);
+    $mulai   = \Carbon\Carbon::parse($order->tanggal_mulai);
+    $selesai = \Carbon\Carbon::parse($order->tanggal_selesai ?? now());
+    $hari    = $mulai->diffInDays($selesai) + 1;
+    $tarif   = floatval($order->harga_per_hari ?? $order->harga_per_shift ?? 150000);
+    $gaji    = $tarif * $hari;
+    $total   = $gaji * 0.8;
+
+    $payroll->update([
+        'jumlah_hari_kerja' => $hari,
+        'tarif_per_hari'    => $tarif,
+        'gaji_pokok'        => $gaji,
+        'total'             => $total,
+        'catatan'           => 'Fixed - '.$hari.' hari x Rp '.number_format($tarif),
+    ]);
+
+    return response()->json(['success' => true, 'hari' => $hari, 'tarif' => $tarif, 'total' => $total, 'payroll' => $payroll->fresh()]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(

@@ -269,7 +269,7 @@ class FinanceController extends Controller
 
                 $payrollNumber = 'PAY-'.date('Ym').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
 
-                $payroll = \App\Models\Payroll::firstOrCreate(
+                $payroll = \App\Models\Payroll::updateOrCreate(
                     ['order_id' => $order->id, 'mitra_id' => $mitra->id, 'periode_mulai' => $periodeStart],
                     [
                         'payroll_number'    => $payrollNumber,
