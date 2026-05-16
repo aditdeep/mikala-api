@@ -67,6 +67,11 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role:manajemen')->group(function () {
             Route::get('settings', [SettingController::class, 'index']);
             Route::patch('settings', [SettingController::class, 'update']);
+            // User management
+            Route::get('users', [SettingController::class, 'indexUsers']);
+            Route::post('users', [SettingController::class, 'storeUser']);
+            Route::patch('users/{id}', [SettingController::class, 'updateUser']);
+            Route::delete('users/{id}', [SettingController::class, 'deleteUser']);
         });
 
         // Dashboard
