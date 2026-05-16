@@ -338,6 +338,17 @@ Route::get('/test-training-query', function() {
     }
 });
 
+
+// TEMPORARY - Make feedback order_id nullable
+Route::get('/fix-feedback-nullable', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement('ALTER TABLE feedback ALTER COLUMN order_id DROP NOT NULL');
+        return response()->json(['success' => true, 'message' => 'order_id sekarang nullable!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
