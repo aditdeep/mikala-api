@@ -92,7 +92,7 @@ class CustomerCareController extends Controller
     public function registrasiPasien(Request $request)
     {
         $request->validate([
-            'klien_id' => 'required|exists:kliens,id',
+            'klien_id' => 'required|exists:klien,id',
             'nama_pasien' => 'required|string|max:255',
             'tanggal_lahir' => 'nullable|date',
             'jenis_kelamin' => 'nullable|in:L,P',
@@ -308,9 +308,9 @@ class CustomerCareController extends Controller
     public function storeLayanan(Request $request)
     {
         $request->validate([
-            'klien_id' => 'required|exists:kliens,id',
-            'pasien_id' => 'nullable|exists:pasiens,id',
-            'mitra_id' => 'nullable|exists:mitras,id',
+            'klien_id' => 'required|exists:klien,id',
+            'pasien_id' => 'nullable|exists:pasien,id',
+            'mitra_id' => 'nullable|exists:mitra,id',
             'layanan_type' => 'required|string',
             'deskripsi' => 'nullable|string',
             'tanggal_mulai' => 'required|date',
@@ -324,7 +324,7 @@ class CustomerCareController extends Controller
         try {
             // Auto-assign mitra if not provided
             if (!$request->mitra_id) {
-                $availableMitra = Mitra::where('status', 'aktif')
+                $availableMitra = Mitra::where('status', 'available')
                     ->where('training_status', 'available')
                     ->inRandomOrder()
                     ->first();
