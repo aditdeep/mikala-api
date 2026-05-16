@@ -419,6 +419,31 @@ Route::get('/fix-orders-nullable2', function() {
     }
 });
 
+
+// TEMPORARY - Fix ALL orders nullable
+Route::get('/fix-orders-all', function() {
+    try {
+        $result = \Illuminate\Support\Facades\DB::select("
+            SELECT column_name, is_nullable
+            FROM information_schema.columns
+            WHERE table_name = 'orders'
+            AND table_schema = 'public'
+            AND is_nullable = 'NO'
+            AND column_name NOT IN ('id', 'order_number', 'klien_id', 'status', 'created_at', 'updated_at')
+        ");
+        $fixed = [];
+        foreach ($result as $col) {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE orders ALTER COLUMN {$col->column_name} DROP NOT NULL");
+                $fixed[] = $col->column_name;
+            } catch (\Exception $e) {}
+        }
+        return response()->json(['success' => true, 'fixed' => $fixed]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
