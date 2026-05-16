@@ -28,7 +28,7 @@ class MitraProfileController extends Controller
                 'success' => true,
                 'data' => [
                     'user' => $user,
-                    'profile' => $mitra,
+                    'mitra' => $mitra,
                     'stats' => [
                         'total_orders' => $mitra->orders()->count(),
                         'completed_orders' => $mitra->orders()->where('status', 'completed')->count(),
@@ -58,6 +58,11 @@ class MitraProfileController extends Controller
             'jenis_kelamin' => 'nullable|in:L,P',
             'pendidikan' => 'nullable|string',
             'pengalaman' => 'nullable|string',
+            'kota'              => 'nullable|string|max:100',
+            'provinsi'          => 'nullable|string|max:100',
+            'bank_name'         => 'nullable|string|max:100',
+            'bank_account'      => 'nullable|string|max:50',
+            'bank_account_name' => 'nullable|string|max:255',
             'current_password' => 'required_with:new_password',
             'new_password' => 'nullable|min:8|confirmed',
         ]);
@@ -85,16 +90,17 @@ class MitraProfileController extends Controller
 
             // Update mitra profile
             $mitra->update($request->only([
-                'alamat', 'tanggal_lahir', 'jenis_kelamin', 
-                'pendidikan', 'pengalaman'
+                'alamat', 'kota', 'provinsi', 'tanggal_lahir', 'jenis_kelamin',
+                'pendidikan', 'pengalaman',
+                'bank_name', 'bank_account', 'bank_account_name'
             ]));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Profile updated successfully',
                 'data' => [
-                    'user' => $user,
-                    'profile' => $mitra
+                    'user' => $user->fresh(),
+                    'mitra' => $mitra->fresh()
                 ]
             ], 200);
         } catch (\Exception $e) {
