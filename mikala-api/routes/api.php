@@ -501,6 +501,17 @@ Route::get('/fix-payroll-total', function() {
     return response()->json(['success' => true, 'hari' => $hari, 'tarif' => $tarif, 'total' => $total, 'payroll' => $payroll->fresh()]);
 });
 
+
+// TEMPORARY - Check mitra table columns
+Route::get('/check-mitra-columns', function() {
+    $cols = \Illuminate\Support\Facades\DB::select("
+        SELECT column_name FROM information_schema.columns
+        WHERE table_name = 'mitra' AND table_schema = 'public'
+        ORDER BY column_name
+    ");
+    return response()->json(['columns' => array_column($cols, 'column_name')]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
