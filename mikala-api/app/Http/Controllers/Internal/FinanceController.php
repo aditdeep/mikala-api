@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Mitra;
 use App\Services\BillingService;
 use App\Services\PayrollService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -228,12 +229,54 @@ class FinanceController extends Controller
         ]);
 
         try {
-            // Get all active mitra
-            $mitras = Mitra::where('status', 'aktif')->get();
-            $generated = [];
+            [$tahun, $bulan] = explode('-', $request->periode);
+            $periodeStart = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
+            $periodeEnd   = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth();
 
-            foreach ($mitras as $mitra) {
-                $payroll = $this->payrollService->calculate($mitra, $request->periode);
+            // Get semua mitra yang punya order in_progress di periode ini
+            $orders = \App\Models\Order::whereIn('status', ['in_progress','completed'])
+                ->where('tanggal_mulai', '<=', $periodeEnd)
+                ->where(function($q) use ($periodeStart) {
+                    $q->whereNull('tanggal_selesai')
+                      ->orWhere('tanggal_selesai', '>=', $periodeStart);
+                })
+                ->whereNotNull('mitra_id')
+                ->with('mitra')
+                ->get();
+
+            $generated = [];
+            foreach ($orders as $order) {
+                $mitra = $order->mitra;
+                if (!$mitra) continue;
+
+                // Hitung hari kerja di periode ini
+                $mulai  = max(\Carbon\Carbon::parse($order->tanggal_mulai), $periodeStart);
+                $selesai = $order->tanggal_selesai
+                    ? min(\Carbon\Carbon::parse($order->tanggal_selesai), $periodeEnd)
+                    : $periodeEnd;
+                $jumlahHari = max(1, $mulai->diffInDays($selesai) + 1);
+
+                $tarifPerHari = floatval($order->harga_per_hari ?? ($order->harga_per_shift ?? 0));
+                $gajiPokok    = $tarifPerHari * $jumlahHari;
+                $total        = $gajiPokok * 0.8; // 80% untuk mitra
+
+                $payrollNumber = 'PAY-'.date('Ym').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
+
+                $payroll = \App\Models\Payroll::firstOrCreate(
+                    ['order_id' => $order->id, 'mitra_id' => $mitra->id, 'periode_mulai' => $periodeStart],
+                    [
+                        'payroll_number'    => $payrollNumber,
+                        'periode_selesai'   => $periodeEnd,
+                        'jumlah_hari_kerja' => $jumlahHari,
+                        'tarif_per_hari'    => $tarifPerHari,
+                        'gaji_pokok'        => $gajiPokok,
+                        'bonus'             => 0,
+                        'potongan'          => 0,
+                        'total'             => $total,
+                        'status'            => 'pending',
+                        'catatan'           => 'Generate periode '.$request->periode.' - Order #'.$order->order_number,
+                    ]
+                );
                 $generated[] = $payroll;
             }
 

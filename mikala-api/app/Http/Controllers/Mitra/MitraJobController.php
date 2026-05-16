@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Mitra;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use App\Models\Order;
 use Illuminate\Http\Request;
 
@@ -83,7 +84,7 @@ class MitraJobController extends Controller
     public function updateStatus(Request $request, $id)
     {
         $request->validate([
-            'status' => 'required|in:active,completed',
+            'status' => 'required|in:pending,confirmed,in_progress,completed,cancelled,on_hold',
             'notes' => 'nullable|string',
         ]);
 
@@ -95,20 +96,35 @@ class MitraJobController extends Controller
                 ->where('mitra_id', $mitra->id)
                 ->firstOrFail();
 
-            // Validate status transition
-            if ($order->status === 'pending' && $request->status === 'active') {
-                // Accept job
-                $order->status = 'active';
+            $order->status = $request->status;
+            if ($request->status === 'in_progress') {
                 $order->started_at = now();
-            } elseif ($order->status === 'active' && $request->status === 'completed') {
-                // Complete job
-                $order->status = 'completed';
+            } elseif ($request->status === 'completed') {
                 $order->completed_at = now();
-            } else {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Invalid status transition'
-                ], 400);
+                // Auto generate payroll saat selesai
+                $total = floatval($order->total ?? $order->total_amount ?? $order->total_harga ?? 0);
+                $mitraShare = $total * 0.8;
+                $tanggalMulai = $order->tanggal_mulai ?? now();
+                $tanggalSelesai = $order->completed_at ?? now();
+                $jumlahHari = max(1, \Carbon\Carbon::parse($tanggalMulai)->diffInDays($tanggalSelesai));
+                $payrollNumber = 'PAY-'.date('Ymd').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
+
+                \App\Models\Payroll::firstOrCreate(
+                    ['order_id' => $order->id, 'mitra_id' => $mitra->id],
+                    [
+                        'payroll_number'   => $payrollNumber,
+                        'periode_mulai'    => $tanggalMulai,
+                        'periode_selesai'  => $tanggalSelesai,
+                        'jumlah_hari_kerja'=> $jumlahHari,
+                        'tarif_per_hari'   => $jumlahHari > 0 ? $mitraShare / $jumlahHari : 0,
+                        'gaji_pokok'       => $mitraShare,
+                        'bonus'            => 0,
+                        'potongan'         => 0,
+                        'total'            => $mitraShare,
+                        'status'           => 'pending',
+                        'catatan'          => 'Auto dari Order #'.$order->order_number,
+                    ]
+                );
             }
 
             if ($request->has('notes')) {
