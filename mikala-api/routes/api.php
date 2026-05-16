@@ -64,8 +64,10 @@ Route::middleware('auth:sanctum')->group(function () {
     // INTERNAL ROUTES (Staff Only)
     // ========================================================================
     Route::middleware('internal')->prefix('internal')->group(function () {
-        Route::get('settings', [SettingController::class, 'index']);
-        Route::patch('settings', [SettingController::class, 'update']);
+        Route::middleware('role:manajemen')->group(function () {
+            Route::get('settings', [SettingController::class, 'index']);
+            Route::patch('settings', [SettingController::class, 'update']);
+        });
 
         // Dashboard
         Route::prefix('dashboard')->group(function () {
@@ -74,7 +76,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Rekrutmen
-        Route::prefix('rekrutmen')->group(function () {
+        Route::middleware('role:manajemen,rekrutmen')->prefix('rekrutmen')->group(function () {
             Route::apiResource('mitra', RekrutmenController::class);
             Route::get('report', [RekrutmenController::class, 'report']);
             Route::get('report/mitra-baru', [RekrutmenController::class, 'reportMitraBaru']);
@@ -83,7 +85,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Training Center
-        Route::prefix('training')->group(function () {
+        Route::middleware('role:manajemen,training_center')->prefix('training')->group(function () {
             Route::get('mitra', [TrainingController::class, 'index']);
             Route::get('mitra/{id}', [TrainingController::class, 'show']);
             Route::post('mitra/{id}/checklist', [TrainingController::class, 'updateChecklist']);
@@ -98,7 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Customer Care
-        Route::prefix('cc')->group(function () {
+        Route::middleware('role:manajemen,customer_care')->prefix('cc')->group(function () {
             Route::post('registrasi/klien', [CustomerCareController::class, 'registrasiKlien']);
             Route::post('registrasi/pasien', [CustomerCareController::class, 'registerPasien']);
             Route::get('klien', [CustomerCareController::class, 'indexKlien']);
@@ -118,7 +120,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Finance
-        Route::prefix('finance')->group(function () {
+        Route::middleware('role:manajemen,finance')->prefix('finance')->group(function () {
             Route::get('tagihan', [FinanceController::class, 'indexTagihan']);
             Route::post('tagihan', [FinanceController::class, 'storeTagihan']);
             Route::get('tagihan/{id}', [FinanceController::class, 'showTagihan']);
@@ -138,7 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         // Marketing
-        Route::prefix('marketing')->group(function () {
+        Route::middleware('role:manajemen,marketing')->prefix('marketing')->group(function () {
             Route::get('leads', [MarketingController::class, 'indexLeads']);
             Route::post('leads', [MarketingController::class, 'storeLeads']);
             Route::get('leads/{id}', [MarketingController::class, 'showLeads']);
