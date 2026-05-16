@@ -256,9 +256,16 @@ class FinanceController extends Controller
                     : $periodeEnd;
                 $jumlahHari = max(1, $mulai->diffInDays($selesai) + 1);
 
-                $tarifPerHari = floatval($order->harga_per_hari ?? ($order->harga_per_shift ?? 0));
-                $gajiPokok    = $tarifPerHari * $jumlahHari;
-                $total        = $gajiPokok * 0.8; // 80% untuk mitra
+                // Hitung tarif - fallback ke berbagai field
+                $tarifPerHari = floatval(
+                    $order->harga_per_hari ??
+                    $order->harga_per_shift ??
+                    ($order->subtotal ? $order->subtotal / max(1, $jumlahHari) : 0)
+                );
+                // Kalau masih 0, pakai default 150000/hari
+                if ($tarifPerHari == 0) $tarifPerHari = 150000;
+                $gajiPokok = $tarifPerHari * $jumlahHari;
+                $total     = $gajiPokok * 0.8;
 
                 $payrollNumber = 'PAY-'.date('Ym').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
+use Carbon\Carbon;
 use App\Models\Klien;
 use App\Models\Pasien;
 use App\Models\Mitra;
@@ -336,19 +337,23 @@ class CustomerCareController extends Controller
 
             $orderNumber = 'ORD-' . date('Ymd') . '-' . str_pad(Order::count() + 1, 4, '0', STR_PAD_LEFT);
             $order = Order::create([
-                'order_number'  => $orderNumber,
-                'klien_id'      => $request->klien_id,
-                'pasien_id'     => $request->pasien_id,
-                'mitra_id'      => $request->mitra_id,
-                'tipe_layanan'  => $request->layanan_type,
-                'catatan'       => $request->deskripsi,
-                'tanggal_mulai' => $request->tanggal_mulai,
-                'tanggal_selesai' => $request->tanggal_selesai,
-                'lokasi'        => $request->lokasi,
-                'harga_per_shift' => $request->harga_per_shift ?? 0,
-                'total_shift'   => $request->total_shift ?? 1,
-                'total_amount'  => ($request->harga_per_shift ?? 0) * ($request->total_shift ?? 1),
-                'status'        => 'pending',
+                'order_number'   => $orderNumber,
+                'klien_id'       => $request->klien_id,
+                'pasien_id'      => $request->pasien_id,
+                'mitra_id'       => $request->mitra_id,
+                'tipe_layanan'   => $request->layanan_type,
+                'catatan'        => $request->deskripsi,
+                'tanggal_mulai'  => $request->tanggal_mulai,
+                'tanggal_selesai'=> $request->tanggal_selesai,
+                'lokasi'         => $request->lokasi,
+                'harga_per_hari' => $request->harga_per_shift ?? 0,
+                'harga_per_shift'=> $request->harga_per_shift ?? 0,
+                'durasi_hari'    => $request->tanggal_selesai
+                    ? \Carbon\Carbon::parse($request->tanggal_mulai)->diffInDays(\Carbon\Carbon::parse($request->tanggal_selesai)) + 1
+                    : 1,
+                'total_shift'    => $request->total_shift ?? 1,
+                'total'          => ($request->harga_per_shift ?? 0) * ($request->total_shift ?? 1),
+                'status'         => 'pending',
             ]);
 
             // Notify client
