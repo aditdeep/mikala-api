@@ -252,6 +252,15 @@ Route::get('/list-mitra-users', function() {
     return response()->json(['total' => $users->count(), 'data' => $users]);
 });
 
+
+// TEMPORARY - List internal users & roles
+Route::get('/list-internal-users', function() {
+    $users = \App\Models\User::whereNotIn('role', ['mitra','klien'])
+        ->select('id','name','email','role','status')
+        ->get();
+    return response()->json(['total' => $users->count(), 'data' => $users]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
