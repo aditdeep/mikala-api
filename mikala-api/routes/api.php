@@ -356,6 +356,22 @@ Route::get('/check-klien-ids', function() {
     return response()->json(['data' => $klien]);
 });
 
+
+// TEMPORARY - Fix feedback nullable columns
+Route::get('/fix-feedback-all-nullable', function() {
+    try {
+        $cols = ['order_id', 'mitra_id', 'klien_id', 'from_user_id', 'to_user_id'];
+        foreach ($cols as $col) {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE feedback ALTER COLUMN {$col} DROP NOT NULL");
+            } catch (\Exception $e) {}
+        }
+        return response()->json(['success' => true, 'message' => 'Semua kolom feedback sekarang nullable!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
