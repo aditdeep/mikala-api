@@ -512,6 +512,19 @@ Route::get('/check-mitra-columns', function() {
     return response()->json(['columns' => array_column($cols, 'column_name')]);
 });
 
+
+// TEMPORARY - Add bank columns to mitra table
+Route::get('/add-mitra-bank-columns', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS bank_name VARCHAR(100)");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS bank_account VARCHAR(50)");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS bank_account_name VARCHAR(255)");
+        return response()->json(['success' => true, 'message' => 'Bank columns added!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
