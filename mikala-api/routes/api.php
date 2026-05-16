@@ -382,6 +382,24 @@ Route::get('/fix-feedback-all-nullable', function() {
     }
 });
 
+
+// TEMPORARY - Fix orders nullable columns
+Route::get('/fix-orders-nullable', function() {
+    try {
+        $cols = ['pasien_id', 'mitra_id', 'tanggal_selesai', 'catatan', 'lokasi',
+                 'layanan_type', 'deskripsi', 'durasi_shift', 'harga_per_shift',
+                 'total_shift', 'total_amount', 'rating', 'feedback'];
+        foreach ($cols as $col) {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE orders ALTER COLUMN {$col} DROP NOT NULL");
+            } catch (\Exception $e) {}
+        }
+        return response()->json(['success' => true, 'message' => 'Orders columns nullable!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
