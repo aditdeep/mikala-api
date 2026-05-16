@@ -245,6 +245,13 @@ Route::get('/reset-mitra-password', function() {
     }
 });
 
+
+// TEMPORARY - List semua user mitra
+Route::get('/list-mitra-users', function() {
+    $users = \App\Models\User::where('role', 'mitra')->select('id','name','email','status','created_at')->get();
+    return response()->json(['total' => $users->count(), 'data' => $users]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
