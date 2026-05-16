@@ -31,10 +31,10 @@ class MitraPayrollController extends Controller
             }
 
             if ($request->has('periode')) {
-                $query->where('periode', $request->periode);
+                $query->where('periode_mulai', 'like', $request->periode.'%');
             }
 
-            $payrolls = $query->orderBy('periode', 'desc')->paginate(15);
+            $payrolls = $query->orderBy('periode_mulai', 'desc')->paginate(15);
 
             return response()->json([
                 'success' => true,

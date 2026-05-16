@@ -196,10 +196,10 @@ class FinanceController extends Controller
             }
 
             if ($request->has('periode')) {
-                $query->where('periode', $request->periode);
+                $query->where('periode_mulai', 'like', $request->periode.'%');
             }
 
-            $payroll = $query->orderBy('periode', 'desc')->paginate(15);
+            $payroll = $query->orderBy('periode_mulai', 'desc')->paginate(15);
 
             return response()->json([
                 'success' => true,
@@ -292,7 +292,7 @@ class FinanceController extends Controller
                 'message' => 'Payroll generated successfully',
                 'data' => [
                     'total_generated' => count($generated),
-                    'periode' => $request->periode,
+                    
                     'payrolls' => $generated
                 ]
             ], 201);
@@ -346,7 +346,7 @@ class FinanceController extends Controller
                 JurnalKeuangan::create([
                     'tanggal' => now(),
                     'kategori' => 'outcome',
-                    'deskripsi' => "Payroll payment for mitra #{$payroll->mitra_id} - {$payroll->periode}",
+                    'deskripsi' => "Payroll payment for mitra #{$payroll->mitra_id}",
                     'debit' => 0,
                     'kredit' => $payroll->net_salary,
                     'saldo' => JurnalKeuangan::getCurrentBalance() - $payroll->net_salary,
