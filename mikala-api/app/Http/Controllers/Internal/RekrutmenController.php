@@ -49,7 +49,7 @@ class RekrutmenController extends Controller
         try {
             $user = User::create([
                 'name' => $request->name,
-                'email' => $request->email,
+                'email' => strtolower($request->email),
                 'phone' => $request->phone,
                 'password' => Hash::make($request->password),
                 'role' => 'mitra',
