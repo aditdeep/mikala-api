@@ -430,23 +430,31 @@ class CustomerCareController extends Controller
     public function submitFeedback(Request $request)
     {
         $request->validate([
-            'order_id' => 'required|exists:orders,id',
-            'rating' => 'required|integer|min:1|max:5',
+            'klien_id' => 'nullable|exists:klien,id',
+            'order_id' => 'nullable|exists:orders,id',
+            'rating'   => 'required|integer|min:1|max:5',
             'komentar' => 'nullable|string',
+            'catatan'  => 'nullable|string',
+            'tipe'     => 'nullable|string',
         ]);
 
         try {
+            $rating = (int) $request->rating;
             $feedback = Feedback::create([
-                'order_id' => $request->order_id,
-                'from_user_id' => $request->user()->id,
-                'to_user_id' => Order::find($request->order_id)->mitra->user_id ?? null,
-                'rating' => $request->rating,
-                'komentar' => $request->komentar,
+                'order_id'               => $request->order_id,
+                'klien_id'               => $request->klien_id,
+                'mitra_id'               => $request->order_id ? (\App\Models\Order::find($request->order_id)?->mitra_id) : null,
+                'rating_kualitas'        => $rating,
+                'rating_profesionalisme' => $rating,
+                'rating_komunikasi'      => $rating,
+                'rating_average'         => $rating,
+                'komentar'               => $request->komentar ?? $request->catatan,
+                'is_published'           => true,
             ]);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Feedback submitted successfully',
+                'message' => 'Feedback berhasil disimpan',
                 'data' => $feedback
             ], 201);
         } catch (\Exception $e) {
