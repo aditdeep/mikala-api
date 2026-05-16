@@ -327,6 +327,17 @@ Route::get('/migrate-trainings', function() {
     }
 });
 
+
+// TEMPORARY - Test training query
+Route::get('/test-training-query', function() {
+    try {
+        $mitra = \App\Models\Mitra::with(['user', 'trainings'])->paginate(15);
+        return response()->json(['success' => true, 'total' => $mitra->total(), 'data' => $mitra->items()]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
