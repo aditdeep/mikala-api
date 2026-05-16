@@ -401,6 +401,24 @@ Route::get('/fix-orders-nullable', function() {
     }
 });
 
+
+// TEMPORARY - Fix orders harga_per_hari nullable
+Route::get('/fix-orders-nullable2', function() {
+    try {
+        $cols = ['harga_per_hari', 'harga_per_shift', 'total_shift', 'total_amount',
+                 'total_harga', 'jam_per_hari', 'durasi_hari', 'alamat_layanan',
+                 'kebutuhan_khusus', 'rating', 'feedback', 'catatan', 'lokasi'];
+        foreach ($cols as $col) {
+            try {
+                \Illuminate\Support\Facades\DB::statement("ALTER TABLE orders ALTER COLUMN {$col} DROP NOT NULL");
+            } catch (\Exception $e) {}
+        }
+        return response()->json(['success' => true, 'message' => 'Done!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
