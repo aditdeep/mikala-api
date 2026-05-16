@@ -310,6 +310,23 @@ Route::get('/check-mitra-table', function() {
     return response()->json(['total' => $mitra->count(), 'data' => $mitra]);
 });
 
+
+// TEMPORARY - Check & migrate trainings table
+Route::get('/migrate-trainings', function() {
+    try {
+        $tables = \Illuminate\Support\Facades\DB::select("SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'");
+        $tableNames = array_map(fn($t) => $t->table_name, $tables);
+
+        if (!in_array('trainings', $tableNames)) {
+            \Illuminate\Support\Facades\Artisan::call('migrate', ['--path' => 'database/migrations/2024_01_01_000009_create_trainings_table.php', '--force' => true]);
+            return response()->json(['success' => true, 'message' => 'Tabel trainings berhasil dibuat!', 'tables' => $tableNames]);
+        }
+        return response()->json(['success' => true, 'message' => 'Tabel trainings sudah ada', 'tables' => $tableNames]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
