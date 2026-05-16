@@ -430,7 +430,7 @@ class CustomerCareController extends Controller
     public function submitFeedback(Request $request)
     {
         $request->validate([
-            'klien_id' => 'nullable|exists:klien,id',
+            'klien_id' => 'nullable|integer',
             'order_id' => 'nullable|exists:orders,id',
             'rating'   => 'required|integer|min:1|max:5',
             'komentar' => 'nullable|string',
