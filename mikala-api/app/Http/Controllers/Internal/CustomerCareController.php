@@ -336,20 +336,19 @@ class CustomerCareController extends Controller
 
             $orderNumber = 'ORD-' . date('Ymd') . '-' . str_pad(Order::count() + 1, 4, '0', STR_PAD_LEFT);
             $order = Order::create([
-                'order_number' => $orderNumber,
-                'klien_id' => $request->klien_id,
-                'pasien_id' => $request->pasien_id,
-                'mitra_id' => $request->mitra_id,
-                'layanan_type' => $request->layanan_type,
-                'deskripsi' => $request->deskripsi,
+                'order_number'  => $orderNumber,
+                'klien_id'      => $request->klien_id,
+                'pasien_id'     => $request->pasien_id,
+                'mitra_id'      => $request->mitra_id,
+                'tipe_layanan'  => $request->layanan_type,
+                'catatan'       => $request->deskripsi,
                 'tanggal_mulai' => $request->tanggal_mulai,
                 'tanggal_selesai' => $request->tanggal_selesai,
-                'durasi_shift' => $request->durasi_shift,
-                'lokasi' => $request->lokasi,
-                'harga_per_shift' => $request->harga_per_shift,
-                'total_shift' => $request->total_shift,
-                'total_amount' => $request->harga_per_shift * $request->total_shift,
-                'status' => 'pending',
+                'lokasi'        => $request->lokasi,
+                'harga_per_shift' => $request->harga_per_shift ?? 0,
+                'total_shift'   => $request->total_shift ?? 1,
+                'total_amount'  => ($request->harga_per_shift ?? 0) * ($request->total_shift ?? 1),
+                'status'        => 'pending',
             ]);
 
             // Notify client

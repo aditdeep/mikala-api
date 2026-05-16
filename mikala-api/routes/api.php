@@ -387,8 +387,9 @@ Route::get('/fix-feedback-all-nullable', function() {
 Route::get('/fix-orders-nullable', function() {
     try {
         $cols = ['pasien_id', 'mitra_id', 'tanggal_selesai', 'catatan', 'lokasi',
-                 'layanan_type', 'deskripsi', 'durasi_shift', 'harga_per_shift',
-                 'total_shift', 'total_amount', 'rating', 'feedback'];
+                 'tipe_layanan', 'layanan_type', 'deskripsi', 'durasi_shift', 'harga_per_shift',
+                 'total_shift', 'total_amount', 'rating', 'feedback', 'alamat_layanan',
+                 'kebutuhan_khusus', 'harga_per_jam', 'total_harga', 'jam_per_hari'];
         foreach ($cols as $col) {
             try {
                 \Illuminate\Support\Facades\DB::statement("ALTER TABLE orders ALTER COLUMN {$col} DROP NOT NULL");
