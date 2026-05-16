@@ -91,8 +91,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Training Center
         Route::middleware('role:manajemen,training_center')->prefix('training')->group(function () {
-            Route::get('mitra', [TrainingController::class, 'index']);
-            Route::get('mitra/{id}', [TrainingController::class, 'show']);
+            Route::get('mitra', [TrainingController::class, 'indexMitra']);
+            Route::get('mitra/{id}', [TrainingController::class, 'showMitra']);
             Route::post('mitra/{id}/checklist', [TrainingController::class, 'updateChecklist']);
             Route::post('mitra/{id}/feedback', [TrainingController::class, 'submitFeedback']);
             Route::patch('mitra/{id}/status', [TrainingController::class, 'updateStatus']);
@@ -100,7 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('report/available', [TrainingController::class, 'reportAvailable']);
             Route::get('report/on-job', [TrainingController::class, 'reportOnJob']);
             Route::get('report/re-training', [TrainingController::class, 'reportReTraining']);
-            Route::get('pricing', [TrainingController::class, 'pricing']);
+            Route::get('pricing', [TrainingController::class, 'indexPricing']);
             Route::patch('pricing/{id}', [TrainingController::class, 'updatePricing']);
         });
 
