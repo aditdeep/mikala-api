@@ -263,6 +263,27 @@ Route::get('/list-internal-users', function() {
     return response()->json(['total' => $users->count(), 'data' => $users]);
 });
 
+
+// TEMPORARY - Setup user per divisi untuk testing
+Route::get('/setup-divisi', function() {
+    $divisi = ['rekrutmen', 'training_center', 'customer_care', 'finance', 'marketing'];
+    $created = [];
+    foreach ($divisi as $role) {
+        $user = \App\Models\User::firstOrCreate(
+            ['email' => $role.'@mikala.com'],
+            [
+                'name' => ucfirst(str_replace('_', ' ', $role)),
+                'phone' => '08100000000',
+                'password' => \Illuminate\Support\Facades\Hash::make('password'),
+                'role' => $role,
+                'status' => 'active',
+            ]
+        );
+        $created[] = ['email' => $user->email, 'role' => $user->role, 'password' => 'password'];
+    }
+    return response()->json(['success' => true, 'users' => $created]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
