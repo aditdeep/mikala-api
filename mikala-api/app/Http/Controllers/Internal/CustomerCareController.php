@@ -612,37 +612,4 @@ class CustomerCareController extends Controller
         }
     }
 
-    public function reportHandling(Request $request)
-    {
-        try {
-            $data = \App\Models\Order::whereIn('status', ['pending','confirmed','in_progress'])
-                ->with(['klien.user'])->get();
-            return response()->json(['success' => true, 'data' => ['total' => $data->count(), 'orders' => $data]]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function reportDeal(Request $request)
-    {
-        try {
-            $data = \App\Models\Order::where('status', 'completed')
-                ->with(['klien.user'])->get();
-            return response()->json(['success' => true, 'data' => ['total' => $data->count(), 'orders' => $data]]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
-    public function reportLoss(Request $request)
-    {
-        try {
-            $data = \App\Models\Order::where('status', 'cancelled')
-                ->with(['klien.user'])->get();
-            return response()->json(['success' => true, 'data' => ['total' => $data->count(), 'orders' => $data]]);
-        } catch (\Exception $e) {
-            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-        }
-    }
-
 }
