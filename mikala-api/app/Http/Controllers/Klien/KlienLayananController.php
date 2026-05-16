@@ -405,4 +405,44 @@ class KlienLayananController extends Controller
         }
     }
 
+
+    /**
+     * Update pasien data
+     */
+    public function updatePasien(Request $request, $id)
+    {
+        try {
+            $klien = auth()->user()->klien;
+            $pasien = Pasien::where('id', $id)->where('klien_id', $klien->id)->firstOrFail();
+
+            $request->validate([
+                'golongan_darah'       => 'nullable|in:A,B,AB,O',
+                'riwayat_penyakit'     => 'nullable|string',
+                'alergi'               => 'nullable|string',
+                'obat_rutin'           => 'nullable|string',
+                'catatan_khusus'       => 'nullable|string',
+                'kontak_darurat_nama'  => 'nullable|string|max:255',
+                'kontak_darurat_phone' => 'nullable|string|max:20',
+                'kontak_darurat_relasi'=> 'nullable|string|max:50',
+            ]);
+
+            $pasien->update($request->only([
+                'golongan_darah', 'riwayat_penyakit', 'alergi',
+                'obat_rutin', 'catatan_khusus',
+                'kontak_darurat_nama', 'kontak_darurat_phone', 'kontak_darurat_relasi',
+            ]));
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Data pasien berhasil diperbarui',
+                'data'    => $pasien->fresh(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
+        }
+    }
+
 }

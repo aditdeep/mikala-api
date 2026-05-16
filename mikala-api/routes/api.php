@@ -173,6 +173,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::patch('profile', [KlienProfileController::class, 'update']);
         Route::get('pasien', [KlienLayananController::class, 'indexPasien']);
         Route::post('pasien', [KlienLayananController::class, 'storePasien']);
+        Route::patch('pasien/{id}', [KlienLayananController::class, 'updatePasien']);
         Route::get('layanan', [KlienLayananController::class, 'index']);
         Route::post('layanan', [KlienLayananController::class, 'store']);
         Route::get('layanan/{id}', [KlienLayananController::class, 'show']);
