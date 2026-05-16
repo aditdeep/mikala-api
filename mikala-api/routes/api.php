@@ -295,6 +295,21 @@ Route::get('/setup-divisi', function() {
     return response()->json(['success' => true, 'users' => $created]);
 });
 
+
+// TEMPORARY - Check mitra table
+Route::get('/check-mitra-table', function() {
+    $mitra = \App\Models\Mitra::with('user')->get()->map(function($m) {
+        return [
+            'id' => $m->id,
+            'user_id' => $m->user_id,
+            'name' => $m->user?->name,
+            'status' => $m->status,
+            'training_status' => $m->training_status,
+        ];
+    });
+    return response()->json(['total' => $mitra->count(), 'data' => $mitra]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
