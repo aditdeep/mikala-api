@@ -165,7 +165,7 @@ class CustomerCareController extends Controller
     public function showKlien($id)
     {
         try {
-            $klien = Klien::with(['user', 'pasiens', 'orders'])->findOrFail($id);
+            $klien = Klien::with(['user', 'pasien', 'orders'])->findOrFail($id);
 
             return response()->json([
                 'success' => true,
