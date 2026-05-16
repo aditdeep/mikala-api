@@ -236,7 +236,7 @@ Route::get('/reset-mitra-password', function() {
     try {
         $email = request('email');
         $password = request('password', 'password123');
-        $user = \App\Models\User::where('email', $email)->first();
+        $user = \App\Models\User::whereRaw('LOWER(email) = ?', [strtolower($email)])->first();
         if (!$user) return response()->json(['success' => false, 'message' => 'User tidak ditemukan']);
         $user->update(['password' => \Illuminate\Support\Facades\Hash::make($password)]);
         return response()->json(['success' => true, 'message' => 'Password berhasil direset', 'email' => $email, 'password' => $password]);
