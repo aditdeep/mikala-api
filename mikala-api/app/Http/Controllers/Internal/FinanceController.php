@@ -340,19 +340,23 @@ class FinanceController extends Controller
             
             if ($request->status === 'paid') {
                 $payroll->paid_at = now();
-                $payroll->payment_method = $request->payment_method;
+                $payroll->metode_pembayaran = $request->payment_method ?? 'transfer';
+                $payroll->approved_at = now();
+                $payroll->approved_by = $request->user()->id;
 
-                // Create journal entry for outcome
-                JurnalKeuangan::create([
-                    'tanggal' => now(),
-                    'kategori' => 'outcome',
-                    'deskripsi' => "Payroll payment for mitra #{$payroll->mitra_id}",
-                    'debit' => 0,
-                    'kredit' => $payroll->net_salary,
-                    'saldo' => JurnalKeuangan::getCurrentBalance() - $payroll->net_salary,
-                    'reference_type' => 'App\Models\Payroll',
-                    'reference_id' => $payroll->id,
-                ]);
+                // Create journal entry
+                try {
+                    \App\Models\JurnalKeuangan::create([
+                        'tanggal'    => now(),
+                        'tipe'       => 'outcome',
+                        'kategori'   => 'payroll',
+                        'deskripsi'  => 'Payroll #'.$payroll->payroll_number.' - Mitra #'.$payroll->mitra_id,
+                        'jumlah'     => $payroll->total,
+                        'created_by' => $request->user()->id,
+                    ]);
+                } catch (\Exception $je) {
+                    // Jurnal gagal tidak batalkan update status
+                }
             }
             
             $payroll->save();
