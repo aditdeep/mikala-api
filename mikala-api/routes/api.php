@@ -266,16 +266,22 @@ Route::get('/list-internal-users', function() {
 
 // TEMPORARY - Setup user per divisi untuk testing
 Route::get('/setup-divisi', function() {
-    $divisi = ['rekrutmen', 'training_center', 'customer_care', 'finance', 'marketing'];
+    $divisi = [
+        ['role' => 'rekrutmen',       'phone' => '08100000001'],
+        ['role' => 'training_center', 'phone' => '08100000002'],
+        ['role' => 'customer_care',   'phone' => '08100000003'],
+        ['role' => 'finance',         'phone' => '08100000004'],
+        ['role' => 'marketing',       'phone' => '08100000005'],
+    ];
     $created = [];
-    foreach ($divisi as $role) {
+    foreach ($divisi as $d) {
         $user = \App\Models\User::firstOrCreate(
-            ['email' => $role.'@mikala.com'],
+            ['email' => $d['role'].'@mikala.com'],
             [
-                'name' => ucfirst(str_replace('_', ' ', $role)),
-                'phone' => '08100000000',
+                'name' => ucfirst(str_replace('_', ' ', $d['role'])),
+                'phone' => $d['phone'],
                 'password' => \Illuminate\Support\Facades\Hash::make('password'),
-                'role' => $role,
+                'role' => $d['role'],
                 'status' => 'active',
             ]
         );
