@@ -230,6 +230,21 @@ Route::get('/migrate-settings', function() {
     }
 });
 
+
+// TEMPORARY - Reset password mitra
+Route::get('/reset-mitra-password', function() {
+    try {
+        $email = request('email');
+        $password = request('password', 'password123');
+        $user = \App\Models\User::where('email', $email)->first();
+        if (!$user) return response()->json(['success' => false, 'message' => 'User tidak ditemukan']);
+        $user->update(['password' => \Illuminate\Support\Facades\Hash::make($password)]);
+        return response()->json(['success' => true, 'message' => 'Password berhasil direset', 'email' => $email, 'password' => $password]);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
