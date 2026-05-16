@@ -469,6 +469,13 @@ Route::get('/debug-payroll', function() {
     ]);
 });
 
+
+// TEMPORARY - Debug payroll create
+Route::get('/debug-payroll-create', function() {
+    $existing = \App\Models\Payroll::where('order_id', 13)->get(['id','order_id','mitra_id','periode_mulai','total','status']);
+    return response()->json(['existing' => $existing, 'count' => $existing->count()]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
