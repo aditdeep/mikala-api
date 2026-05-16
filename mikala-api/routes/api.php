@@ -444,6 +444,31 @@ Route::get('/fix-orders-all', function() {
     }
 });
 
+
+// TEMPORARY - Debug generate payroll
+Route::get('/debug-payroll', function() {
+    $periode = request('periode', '2026-04');
+    [$tahun, $bulan] = explode('-', $periode);
+    $start = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
+    $end   = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth();
+
+    $orders = \App\Models\Order::whereIn('status', ['in_progress','completed'])
+        ->where('tanggal_mulai', '<=', $end)
+        ->where(function($q) use ($start) {
+            $q->whereNull('tanggal_selesai')->orWhere('tanggal_selesai', '>=', $start);
+        })
+        ->whereNotNull('mitra_id')
+        ->get(['id','order_number','status','mitra_id','tanggal_mulai','tanggal_selesai','harga_per_hari']);
+
+    return response()->json([
+        'periode' => $periode,
+        'start' => $start,
+        'end' => $end,
+        'orders_found' => $orders->count(),
+        'orders' => $orders
+    ]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
