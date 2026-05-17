@@ -63,6 +63,8 @@ class MitraProfileController extends Controller
             'bank_name'         => 'nullable|string|max:100',
             'bank_account'      => 'nullable|string|max:50',
             'bank_account_name' => 'nullable|string|max:255',
+            'foto_url'          => 'nullable|string',
+            'cv_file'           => 'nullable|string',
             'current_password' => 'required_with:new_password',
             'new_password' => 'nullable|min:8|confirmed',
         ]);
@@ -92,7 +94,7 @@ class MitraProfileController extends Controller
             $mitra->update($request->only([
                 'alamat', 'kota', 'provinsi', 'tanggal_lahir', 'jenis_kelamin',
                 'pendidikan', 'pengalaman',
-                'bank_name', 'bank_account', 'bank_account_name'
+                'bank_name', 'bank_account', 'bank_account_name', 'foto_url', 'cv_file'
             ]));
 
             return response()->json([
