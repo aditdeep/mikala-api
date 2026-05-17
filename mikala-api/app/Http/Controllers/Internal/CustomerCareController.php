@@ -618,4 +618,28 @@ class CustomerCareController extends Controller
         }
     }
 
+
+    public function assignMitra(Request $request, $id)
+    {
+        $request->validate([
+            'mitra_id' => 'required|exists:mitra,id',
+        ]);
+
+        try {
+            $order = Order::findOrFail($id);
+            $order->update([
+                'mitra_id' => $request->mitra_id,
+                'status'   => 'confirmed',
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Mitra berhasil di-assign',
+                'data'    => $order->fresh(['mitra.user', 'klien.user'])
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
 }

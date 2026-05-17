@@ -129,6 +129,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('layanan/{id}/status', [CustomerCareController::class, 'updateLayananStatus']);
             Route::get('feedback', [CustomerCareController::class, 'indexFeedback']);
             Route::post('feedback', [CustomerCareController::class, 'submitFeedback']);
+            Route::patch('layanan/{id}/assign', [CustomerCareController::class, 'assignMitra']);
             Route::get('report', [CustomerCareController::class, 'report']);
             Route::get('report/handling', [CustomerCareController::class, 'reportHandling']);
             Route::get('report/deal', [CustomerCareController::class, 'reportDeal']);
