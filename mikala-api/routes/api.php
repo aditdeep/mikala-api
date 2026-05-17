@@ -573,6 +573,18 @@ Route::get('/fix-tagihan-constraints', function() {
     }
 });
 
+
+// TEMPORARY - Fix notifikasi type constraint
+Route::get('/fix-notifikasi-constraints', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE notifikasi DROP CONSTRAINT IF EXISTS notifikasi_type_check");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE notifikasi ALTER COLUMN type TYPE VARCHAR(50)");
+        return response()->json(['success' => true, 'message' => 'Notifikasi constraints fixed!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
