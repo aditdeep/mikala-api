@@ -462,7 +462,7 @@ class FinanceController extends Controller
         try {
             $income = JurnalKeuangan::where('kategori', 'income')->sum('debit');
             $outcome = JurnalKeuangan::where('kategori', 'outcome')->sum('kredit');
-            $currentBalance = JurnalKeuangan::getCurrentBalance();
+            $currentBalance = JurnalKeuangan::where("tipe","income")->sum("jumlah") - JurnalKeuangan::where("tipe","outcome")->sum("jumlah");
 
             return response()->json([
                 'success' => true,
@@ -548,7 +548,7 @@ class FinanceController extends Controller
     public function reportSaldo(Request $request)
     {
         try {
-            $currentBalance = JurnalKeuangan::getCurrentBalance();
+            $currentBalance = JurnalKeuangan::where("tipe","income")->sum("jumlah") - JurnalKeuangan::where("tipe","outcome")->sum("jumlah");
             $lastEntry = JurnalKeuangan::orderBy('tanggal', 'desc')->first();
 
             return response()->json([
@@ -580,7 +580,7 @@ class FinanceController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'total_piutang' => $piutang->sum('total_amount'),
+                    'total_piutang' => $piutang->sum('total'),
                     'count' => $piutang->count(),
                     'invoices' => $piutang
                 ]
@@ -606,7 +606,7 @@ class FinanceController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'total_utang' => $utang->sum('net_salary'),
+                    'total_utang' => $utang->sum('total'),
                     'count' => $utang->count(),
                     'payrolls' => $utang
                 ]
