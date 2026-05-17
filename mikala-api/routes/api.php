@@ -627,6 +627,17 @@ Route::get('/fix-leads-columns', function() {
     }
 });
 
+
+// TEMPORARY - Add rekomendasi column to trainings
+Route::get('/fix-training-columns', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE trainings ADD COLUMN IF NOT EXISTS rekomendasi VARCHAR(50) DEFAULT 'lanjut'");
+        return response()->json(['success' => true, 'message' => 'Training columns fixed!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(

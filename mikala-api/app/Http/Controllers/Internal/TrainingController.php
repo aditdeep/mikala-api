@@ -146,8 +146,9 @@ class TrainingController extends Controller
             );
 
             $training->update([
-                'score'    => $request->score,
-                'feedback' => $request->feedback,
+                'score'       => $request->score,
+                'feedback'    => $request->feedback,
+                'rekomendasi' => $request->rekomendasi ?? 'lanjut',
             ]);
 
             // Update mitra training_score juga

@@ -25,6 +25,7 @@ class Training extends Model
         'status',
         'score',
         'feedback',
+        'rekomendasi',
         'sertifikat_file',
         'completed_at',
         'trainer_id',
