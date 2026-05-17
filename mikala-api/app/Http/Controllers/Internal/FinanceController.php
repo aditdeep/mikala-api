@@ -33,7 +33,7 @@ class FinanceController extends Controller
     public function indexTagihan(Request $request)
     {
         try {
-            $query = Tagihan::with(['order.klien.user']);
+            $query = Tagihan::with(['klien.user', 'order.klien.user']);
 
             if ($request->has('status')) {
                 $query->where('status', $request->status);
