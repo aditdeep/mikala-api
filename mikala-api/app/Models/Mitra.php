@@ -24,6 +24,8 @@ class Mitra extends Model
         'pendidikan_terakhir',
         'sertifikasi',
         'pengalaman',
+        'foto_url',
+        'cv_file',
         'bank_name',
         'bank_account',
         'bank_account_name',

@@ -663,6 +663,18 @@ Route::get('/fix-mitra-status', function() {
     return response()->json(['success' => true, 'fixed' => $activeMitraIds]);
 });
 
+
+// TEMPORARY - Add foto_url column to mitra
+Route::get('/add-mitra-foto-columns', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS foto_url TEXT");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS cv_file TEXT");
+        return response()->json(['success' => true, 'message' => 'Foto columns added!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
