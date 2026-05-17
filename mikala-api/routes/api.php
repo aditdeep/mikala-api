@@ -590,6 +590,42 @@ Route::get('/fix-notifikasi-constraints', function() {
     }
 });
 
+
+// TEMPORARY - Create kerjasama table
+Route::get('/migrate-kerjasama', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE IF NOT EXISTS kerjasama (
+                id BIGSERIAL PRIMARY KEY,
+                partner_name VARCHAR(255) NOT NULL,
+                partner_type VARCHAR(100),
+                contact_person VARCHAR(255),
+                phone VARCHAR(20),
+                email VARCHAR(255),
+                notes TEXT,
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                deleted_at TIMESTAMP NULL
+            )
+        ");
+        return response()->json(['success' => true, 'message' => 'Tabel kerjasama dibuat!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
+// TEMPORARY - Fix leads tipe_layanan column
+Route::get('/fix-leads-columns', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE leads ADD COLUMN IF NOT EXISTS tipe_layanan VARCHAR(100)");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE leads ADD COLUMN IF NOT EXISTS pesan TEXT");
+        return response()->json(['success' => true, 'message' => 'Leads columns fixed!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(

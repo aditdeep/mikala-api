@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Internal;
 
 use App\Http\Controllers\Controller;
 use App\Models\Leads;
+use App\Models\Kerjasama;
 use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -161,6 +162,16 @@ class MarketingController extends Controller
     public function indexKerjasama(Request $request)
     {
         try {
+            $data = Kerjasama::orderBy('created_at','desc')->get();
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    public function indexKerjasama_old(Request $request)
+    {
+        try {
             // This is a placeholder - would need a Kerjasama model
             // For now, returning empty structure
             return response()->json([
@@ -190,11 +201,19 @@ class MarketingController extends Controller
         ]);
 
         try {
-            // Placeholder - would create Kerjasama model entry
+            $kerjasama = Kerjasama::create([
+                'partner_name'   => $request->partner_name,
+                'partner_type'   => $request->partner_type ?? $request->tipe,
+                'contact_person' => $request->contact_person,
+                'phone'          => $request->phone,
+                'email'          => $request->email,
+                'notes'          => $request->notes ?? $request->catatan,
+                'status'         => 'active',
+            ]);
             return response()->json([
                 'success' => true,
-                'message' => 'Partnership created successfully (placeholder)',
-                'data' => $request->all()
+                'message' => 'Kerjasama berhasil disimpan',
+                'data'    => $kerjasama
             ], 201);
         } catch (\Exception $e) {
             return response()->json([
