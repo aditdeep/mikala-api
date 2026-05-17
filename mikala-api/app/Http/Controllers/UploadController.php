@@ -3,29 +3,44 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use CloudinaryLabs\CloudinaryLaravel\Facades\Cloudinary;
+use Cloudinary\Cloudinary;
+use Cloudinary\Configuration\Configuration;
 
 class UploadController extends Controller
 {
+    private function getCloudinary()
+    {
+        Configuration::instance([
+            'cloud' => [
+                'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
+                'api_key'    => env('CLOUDINARY_API_KEY'),
+                'api_secret' => env('CLOUDINARY_API_SECRET'),
+            ],
+            'url' => ['secure' => true]
+        ]);
+        return new Cloudinary();
+    }
+
     public function upload(Request $request)
     {
-        $request->validate([
-            'file'   => 'required|file|max:10240',
-            'folder' => 'nullable|string',
-            'type'   => 'nullable|string',
-        ]);
-
         try {
+            if (!$request->hasFile('file')) {
+                return response()->json(['success' => false, 'message' => 'No file uploaded'], 400);
+            }
+
+            $file   = $request->file('file');
             $folder = 'mikala/' . ($request->folder ?? 'general');
-            $result = Cloudinary::upload($request->file('file')->getRealPath(), [
-                'folder'    => $folder,
+
+            $cloudinary = $this->getCloudinary();
+            $result = $cloudinary->uploadApi()->upload($file->getRealPath(), [
+                'folder'        => $folder,
                 'resource_type' => 'auto',
             ]);
 
             return response()->json([
                 'success'   => true,
-                'url'       => $result->getSecurePath(),
-                'public_id' => $result->getPublicId(),
+                'url'       => $result['secure_url'],
+                'public_id' => $result['public_id'],
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -37,22 +52,18 @@ class UploadController extends Controller
 
     public function uploadBase64(Request $request)
     {
-        $request->validate([
-            'data'   => 'required|string',
-            'folder' => 'nullable|string',
-        ]);
-
         try {
-            $folder = 'mikala/' . ($request->folder ?? 'general');
-            $result = Cloudinary::upload($request->data, [
+            $folder     = 'mikala/' . ($request->folder ?? 'general');
+            $cloudinary = $this->getCloudinary();
+            $result     = $cloudinary->uploadApi()->upload($request->data, [
                 'folder'        => $folder,
                 'resource_type' => 'auto',
             ]);
 
             return response()->json([
                 'success'   => true,
-                'url'       => $result->getSecurePath(),
-                'public_id' => $result->getPublicId(),
+                'url'       => $result['secure_url'],
+                'public_id' => $result['public_id'],
             ]);
         } catch (\Exception $e) {
             return response()->json([
