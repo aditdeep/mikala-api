@@ -29,6 +29,8 @@ class CmsController extends Controller
     }
     public function showArtikel($slug) {
         $a = \App\Models\CmsArtikel::where('slug',$slug)->where('status','published')->firstOrFail();
+        // Clean literal \n from content
+        $a->konten = str_replace(['\\n', '\\r', '\n\n\n'], ['', '', '\n'], $a->konten ?? '');
         return response()->json(['success'=>true,'data'=>$a]);
     }
 
