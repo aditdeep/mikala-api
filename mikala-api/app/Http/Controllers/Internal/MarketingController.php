@@ -61,23 +61,23 @@ class MarketingController extends Controller
     public function storeLeads(Request $request)
     {
         $request->validate([
-            'nama' => 'required|string|max:255',
-            'email' => 'required|email',
-            'phone' => 'required|string|max:20',
-            'source' => 'nullable|string',
-            'layanan_interest' => 'nullable|string',
-            'message' => 'nullable|string',
+            'nama'          => 'required|string|max:255',
+            'email'         => 'nullable|email',
+            'phone'         => 'required|string|max:20',
+            'source'        => 'nullable|string',
+            'tipe_layanan'  => 'nullable|string',
+            'pesan'         => 'nullable|string',
         ]);
 
         try {
             $lead = Leads::create([
-                'nama' => $request->nama,
-                'email' => $request->email,
-                'phone' => $request->phone,
-                'source' => $request->source ?? 'website',
-                'layanan_interest' => $request->layanan_interest,
-                'message' => $request->message,
-                'status' => 'new',
+                'nama'         => $request->nama,
+                'email'        => $request->email,
+                'phone'        => $request->phone,
+                'source'       => $request->source ?? 'website_mgm',
+                'tipe_layanan' => $request->tipe_layanan ?? $request->layanan_interest,
+                'pesan'        => $request->pesan ?? $request->message,
+                'status'       => 'new',
                 'contacted_at' => null,
             ]);
 
