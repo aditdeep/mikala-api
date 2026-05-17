@@ -169,27 +169,6 @@ class MarketingController extends Controller
         }
     }
 
-    public function indexKerjasama_old(Request $request)
-    {
-        try {
-            // This is a placeholder - would need a Kerjasama model
-            // For now, returning empty structure
-            return response()->json([
-                'success' => true,
-                'data' => [],
-                'message' => 'Partnership feature coming soon'
-            ], 200);
-        } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to retrieve partnerships: ' . $e->getMessage()
-            ], 500);
-        }
-    }
-
-    /**
-     * Create partnership
-     */
     public function storeKerjasama(Request $request)
     {
         $request->validate([
