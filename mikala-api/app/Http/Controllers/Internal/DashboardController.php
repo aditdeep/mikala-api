@@ -29,7 +29,7 @@ class DashboardController extends Controller
                 'klien_active' => Klien::where('status', 'active')->count(),
 
                 'total_orders' => Order::count(),
-                'orders_active' => Order::where('status', 'active')->count(),
+                'orders_active' => Order::whereIn('status', ['confirmed','in_progress'])->count(),
                 'orders_completed' => Order::where('status', 'completed')->count(),
                 'orders_pending' => Order::where('status', 'pending')->count(),
 
@@ -38,11 +38,17 @@ class DashboardController extends Controller
                 'overdue_invoices' => Tagihan::where('status', 'overdue')->count(),
 
                 'pending_items' => [
-                    'new_applications' => Mitra::where('status', 'training')->count(),
-                    'training_pending' => Mitra::where('training_status', 'pending')->count(),
+                    'new_applications'          => Mitra::where('status', 'training')->count(),
+                    'training_pending'          => Mitra::where('training_status', 'pending')->count(),
                     'orders_pending_assignment' => Order::whereNull('mitra_id')->count(),
-                    'unpaid_invoices' => Tagihan::whereIn('status', ['pending', 'overdue'])->count(),
+                    'unpaid_invoices'           => Tagihan::whereIn('status', ['pending', 'overdue'])->count(),
                 ],
+                'recent_orders'       => Order::with(['klien.user','mitra.user'])
+                    ->whereIn('status', ['confirmed','in_progress','pending'])
+                    ->orderBy('created_at','desc')->limit(5)->get(),
+                'recent_applications' => Mitra::with('user')
+                    ->orderBy('created_at','desc')->limit(5)->get(),
+                'mitra_on_job'        => Mitra::where('status', 'on_job')->count(),
             ];
 
             return response()->json([
