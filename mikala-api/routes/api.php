@@ -546,6 +546,19 @@ Route::get('/add-mitra-bank-columns', function() {
     }
 });
 
+
+// TEMPORARY - Fix jurnal_keuangan constraints
+Route::get('/fix-jurnal-constraints', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE jurnal_keuangan DROP CONSTRAINT IF EXISTS jurnal_keuangan_kategori_check");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE jurnal_keuangan DROP CONSTRAINT IF EXISTS jurnal_keuangan_tipe_check");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE jurnal_keuangan ALTER COLUMN kategori TYPE VARCHAR(100)");
+        return response()->json(['success' => true, 'message' => 'Constraints removed!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(

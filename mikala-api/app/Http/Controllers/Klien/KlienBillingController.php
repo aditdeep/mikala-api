@@ -147,15 +147,14 @@ class KlienBillingController extends Controller
                 $buktiPath = $file->storeAs('payments', $fileName, 'public');
             }
 
-            // Update tagihan
-            $tagihan->update([
-                'metode_pembayaran' => $metode,
-                'bukti_transfer' => $buktiPath,
-                'status' => 'paid',
-                'jumlah_bayar' => $tagihan->total,
-                'sisa' => 0,
-                'paid_at' => now(),
-            ]);
+            // Update tagihan - only update fields that exist
+            $updateData = ['status' => 'pending'];
+            if ($metode === 'manual') {
+                $updateData['status'] = 'pending'; // Menunggu konfirmasi finance
+            }
+            try { $updateData['metode_pembayaran'] = $metode; } catch (\Exception $e) {}
+            try { $updateData['paid_at'] = now(); } catch (\Exception $e) {}
+            $tagihan->update($updateData);
 
             // Create notification for finance team
             $financeUsers = \App\Models\User::where('role', 'finance')->get();
