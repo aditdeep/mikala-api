@@ -159,8 +159,13 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('leads', [MarketingController::class, 'indexLeads']);
             Route::post('leads', [MarketingController::class, 'storeLeads']);
             Route::get('leads/{id}', [MarketingController::class, 'showLeads']);
-            Route::put('leads/{lead}', [MarketingController::class, 'indexLeads']);
-            Route::delete('leads/{lead}', [MarketingController::class, 'indexLeads']);
+            Route::patch('leads/{id}/status', [MarketingController::class, 'updateLeadsStatus']);
+            Route::get('kerjasama', [MarketingController::class, 'indexKerjasama']);
+            Route::post('kerjasama', [MarketingController::class, 'storeKerjasama']);
+            Route::get('kerjasama/{id}', [MarketingController::class, 'showKerjasama']);
+            Route::get('report/order-in', [MarketingController::class, 'reportOrderIn']);
+            Route::get('report/deal', [MarketingController::class, 'reportDeal']);
+            Route::get('report/gap-analysis', [MarketingController::class, 'reportGapAnalysis']);
             Route::patch('leads/{id}/status', [MarketingController::class, 'updateLeadsStatus']);
             Route::get('kerjasama', [MarketingController::class, 'indexKerjasama']);
             Route::post('kerjasama', [MarketingController::class, 'storeKerjasama']);
