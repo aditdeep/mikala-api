@@ -132,16 +132,26 @@ class TrainingController extends Controller
         ]);
 
         try {
-            $training = Training::findOrFail($id);
+            // $id adalah mitra_id, cari atau buat training record
+            $mitra = \App\Models\Mitra::findOrFail($id);
+
+            $training = Training::firstOrCreate(
+                ['mitra_id' => $id],
+                ['status' => 'in_progress', 'tanggal_mulai' => now()]
+            );
+
             $training->update([
-                'score' => $request->score,
+                'score'    => $request->score,
                 'feedback' => $request->feedback,
             ]);
 
+            // Update mitra training_score juga
+            try { $mitra->update(['training_score' => $request->score]); } catch (\Exception $e) {}
+
             return response()->json([
                 'success' => true,
-                'message' => 'Feedback submitted successfully',
-                'data' => $training
+                'message' => 'Feedback berhasil disimpan',
+                'data'    => $training
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
