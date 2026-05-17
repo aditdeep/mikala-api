@@ -106,6 +106,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('mitra/{id}/checklist', [TrainingController::class, 'updateChecklist']);
             Route::post('mitra/{id}/feedback', [TrainingController::class, 'submitFeedback']);
             Route::patch('mitra/{id}/status', [TrainingController::class, 'updateStatus']);
+            Route::get('feedback', [TrainingController::class, 'indexFeedback']);
             Route::get('report', [TrainingController::class, 'report']);
             Route::get('report/available', [TrainingController::class, 'reportAvailable']);
             Route::get('report/on-job', [TrainingController::class, 'reportOnJob']);

@@ -351,6 +351,21 @@ class TrainingController extends Controller
     /**
      * List training pricing
      */
+
+    public function indexFeedback(Request $request)
+    {
+        try {
+            $trainings = Training::with(['mitra.user'])
+                ->whereNotNull('feedback')
+                ->where('feedback', '!=', '')
+                ->orderBy('updated_at', 'desc')
+                ->get();
+            return response()->json(['success' => true, 'data' => $trainings]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     public function indexPricing(Request $request)
     {
         try {
