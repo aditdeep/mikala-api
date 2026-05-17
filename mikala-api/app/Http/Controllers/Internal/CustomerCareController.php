@@ -402,6 +402,15 @@ class CustomerCareController extends Controller
             $order->status = $request->status;
             $order->save();
 
+            // Update status mitra berdasarkan status order
+            if ($order->mitra_id) {
+                if (in_array($request->status, ['completed', 'cancelled'])) {
+                    \App\Models\Mitra::where('id', $order->mitra_id)->update(['status' => 'available']);
+                } elseif (in_array($request->status, ['confirmed', 'in_progress'])) {
+                    \App\Models\Mitra::where('id', $order->mitra_id)->update(['status' => 'on_job']);
+                }
+            }
+
             // Notify both parties
             $this->notifikasiService->send(
                 $order->klien->user_id,
@@ -631,6 +640,9 @@ class CustomerCareController extends Controller
                 'mitra_id' => $request->mitra_id,
                 'status'   => 'confirmed',
             ]);
+
+            // Update status mitra jadi on_job
+            \App\Models\Mitra::where('id', $request->mitra_id)->update(['status' => 'on_job']);
 
             return response()->json([
                 'success' => true,

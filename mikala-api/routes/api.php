@@ -643,6 +643,20 @@ Route::get('/fix-training-columns', function() {
     }
 });
 
+
+// TEMPORARY - Fix mitra status based on active orders
+Route::get('/fix-mitra-status', function() {
+    // Set on_job untuk mitra yang punya order aktif
+    $activeOrders = \App\Models\Order::whereIn('status', ['confirmed','in_progress'])->whereNotNull('mitra_id')->get();
+    foreach ($activeOrders as $order) {
+        \App\Models\Mitra::where('id', $order->mitra_id)->update(['status' => 'on_job']);
+    }
+    // Set available untuk mitra yang tidak punya order aktif
+    $activeMitraIds = $activeOrders->pluck('mitra_id')->unique();
+    \App\Models\Mitra::whereNotIn('id', $activeMitraIds)->where('status', 'on_job')->update(['status' => 'available']);
+    return response()->json(['success' => true, 'fixed' => $activeMitraIds]);
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(

@@ -99,8 +99,12 @@ class MitraJobController extends Controller
             $order->status = $request->status;
             if ($request->status === 'in_progress') {
                 $order->started_at = now();
+                // Pastikan status mitra on_job
+                $mitra->update(['status' => 'on_job']);
             } elseif ($request->status === 'completed') {
                 $order->completed_at = now();
+                // Kembalikan status mitra ke available
+                $mitra->update(['status' => 'available']);
                 // Auto generate payroll saat selesai
                 $total = floatval($order->total ?? $order->total_amount ?? $order->total_harga ?? 0);
                 $mitraShare = $total * 0.8;
