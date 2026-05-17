@@ -6,6 +6,7 @@ use App\Http\Controllers\Internal\DashboardController;
 use App\Http\Controllers\Internal\RekrutmenController;
 use App\Http\Controllers\Internal\TrainingController;
 use App\Http\Controllers\Internal\CustomerCareController;
+use App\Http\Controllers\Internal\CmsController;
 use App\Http\Controllers\UploadController;
 use App\Http\Controllers\Internal\FinanceController;
 use App\Http\Controllers\Internal\MarketingController;
@@ -51,6 +52,89 @@ Route::prefix('public/mga')->group(function () {
 // ============================================================================
 // PROTECTED ROUTES (Require Authentication)
 // ============================================================================
+
+// CMS Public Routes (untuk frontend MGM)
+Route::prefix('cms')->group(function () {
+    Route::get('artikel', [CmsController::class, 'indexArtikel']);
+    Route::get('artikel/{slug}', [CmsController::class, 'showArtikel']);
+    Route::get('layanan', [CmsController::class, 'indexLayanan']);
+    Route::get('galeri', [CmsController::class, 'indexGaleri']);
+    Route::get('testimoni', [CmsController::class, 'indexTestimoni']);
+    Route::get('settings', [CmsController::class, 'getSettings']);
+    Route::post('testimoni', [CmsController::class, 'storeTestimoni']);
+});
+
+
+// TEMPORARY - Create CMS tables
+Route::get('/migrate-cms', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE IF NOT EXISTS cms_artikel (
+                id BIGSERIAL PRIMARY KEY,
+                judul VARCHAR(255) NOT NULL,
+                slug VARCHAR(255) UNIQUE NOT NULL,
+                konten TEXT,
+                excerpt TEXT,
+                thumbnail TEXT,
+                kategori VARCHAR(100),
+                status VARCHAR(20) DEFAULT 'draft',
+                author_id BIGINT,
+                meta_title VARCHAR(255),
+                meta_description TEXT,
+                tags TEXT,
+                views INT DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW(),
+                deleted_at TIMESTAMP NULL
+            )
+        ");
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE IF NOT EXISTS cms_layanan (
+                id BIGSERIAL PRIMARY KEY,
+                nama VARCHAR(255) NOT NULL,
+                deskripsi TEXT,
+                deskripsi_panjang TEXT,
+                icon VARCHAR(100),
+                gambar TEXT,
+                urutan INT DEFAULT 0,
+                wa_link VARCHAR(255),
+                is_active BOOLEAN DEFAULT true,
+                meta_title VARCHAR(255),
+                meta_description TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ");
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE IF NOT EXISTS cms_galeri (
+                id BIGSERIAL PRIMARY KEY,
+                judul VARCHAR(255),
+                url TEXT NOT NULL,
+                thumbnail TEXT,
+                kategori VARCHAR(100),
+                deskripsi TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ");
+        \Illuminate\Support\Facades\DB::statement("
+            CREATE TABLE IF NOT EXISTS cms_testimoni (
+                id BIGSERIAL PRIMARY KEY,
+                nama VARCHAR(255) NOT NULL,
+                layanan VARCHAR(255),
+                rating INT DEFAULT 5,
+                komentar TEXT,
+                foto TEXT,
+                status VARCHAR(20) DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        ");
+        return response()->json(['success'=>true,'message'=>'CMS tables created!']);
+    } catch (\Exception $e) {
+        return response()->json(['success'=>false,'message'=>$e->getMessage()]);
+    }
+});
 
 Route::middleware('auth:sanctum')->group(function () {
 
@@ -163,6 +247,25 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('report/saldo', [FinanceController::class, 'reportSaldo']);
             Route::get('report/piutang', [FinanceController::class, 'reportPiutang']);
             Route::get('report/utang', [FinanceController::class, 'reportUtang']);
+        });
+
+        // CMS Management
+        Route::middleware('role:manajemen,marketing')->prefix('cms')->group(function () {
+            Route::get('artikel', [CmsController::class, 'indexArtikel']);
+            Route::post('artikel', [CmsController::class, 'storeArtikel']);
+            Route::patch('artikel/{id}', [CmsController::class, 'updateArtikel']);
+            Route::delete('artikel/{id}', [CmsController::class, 'deleteArtikel']);
+            Route::get('layanan', [CmsController::class, 'indexLayanan']);
+            Route::post('layanan', [CmsController::class, 'storeLayanan']);
+            Route::patch('layanan/{id}', [CmsController::class, 'updateLayanan']);
+            Route::delete('layanan/{id}', [CmsController::class, 'deleteLayanan']);
+            Route::get('galeri', [CmsController::class, 'indexGaleri']);
+            Route::post('galeri', [CmsController::class, 'storeGaleri']);
+            Route::delete('galeri/{id}', [CmsController::class, 'deleteGaleri']);
+            Route::get('testimoni', [CmsController::class, 'indexTestimoni']);
+            Route::patch('testimoni/{id}', [CmsController::class, 'updateTestimoni']);
+            Route::get('settings', [CmsController::class, 'getSettings']);
+            Route::post('settings', [CmsController::class, 'updateSettings']);
         });
 
         // Marketing
