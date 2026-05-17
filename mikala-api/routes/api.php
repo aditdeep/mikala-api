@@ -6,6 +6,7 @@ use App\Http\Controllers\Internal\DashboardController;
 use App\Http\Controllers\Internal\RekrutmenController;
 use App\Http\Controllers\Internal\TrainingController;
 use App\Http\Controllers\Internal\CustomerCareController;
+use App\Http\Controllers\UploadController;
 use App\Http\Controllers\Internal\FinanceController;
 use App\Http\Controllers\Internal\MarketingController;
 use App\Http\Controllers\Internal\SettingController;
@@ -79,6 +80,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/summary', [DashboardController::class, 'summary']);
             Route::get('/notifikasi', [DashboardController::class, 'notifikasi']);
         });
+
+        // Upload
+        Route::post('upload', [UploadController::class, 'upload']);
+        Route::post('upload/base64', [UploadController::class, 'uploadBase64']);
 
         // Shared - semua divisi internal bisa akses
         Route::get('klien-list', function(\Illuminate\Http\Request $request) {
@@ -186,6 +191,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // MITRA ROUTES
     // ========================================================================
     Route::middleware('role:mitra')->prefix('mitra')->group(function () {
+        Route::post('upload', [UploadController::class, 'upload']);
         Route::get('dashboard', function(\Illuminate\Http\Request $request) {
             try {
                 $user = $request->user();
