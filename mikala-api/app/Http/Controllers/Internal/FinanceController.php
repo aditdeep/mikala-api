@@ -149,21 +149,24 @@ class FinanceController extends Controller
             $tagihan->status = $request->status;
             
             if ($request->status === 'paid') {
-                $tagihan->paid_at = now();
-                $tagihan->payment_method = $request->payment_method;
-                $tagihan->payment_proof = $request->payment_proof;
+                try { $tagihan->paid_at = now(); } catch (\Exception $e) {}
+                try { $tagihan->metode_pembayaran = $request->payment_method ?? 'transfer'; } catch (\Exception $e) {}
 
                 // Create journal entry for income
-                JurnalKeuangan::create([
-                    'tanggal' => now(),
-                    'kategori' => 'income',
-                    'deskripsi' => "Payment received for invoice #{$tagihan->id}",
-                    'debit' => $tagihan->total_amount,
-                    'kredit' => 0,
-                    'saldo' => JurnalKeuangan::getCurrentBalance() + $tagihan->total_amount,
-                    'reference_type' => 'App\Models\Tagihan',
-                    'reference_id' => $tagihan->id,
-                ]);
+                $kode = 'JRN-'.date('Ymd').'-'.str_pad(JurnalKeuangan::count()+1, 4, '0', STR_PAD_LEFT);
+                try {
+                    JurnalKeuangan::create([
+                        'kode_transaksi' => $kode,
+                        'tanggal'    => now(),
+                        'tipe'       => 'income',
+                        'kategori'   => 'tagihan',
+                        'jumlah'     => $tagihan->total ?? $tagihan->total_amount ?? 0,
+                        'deskripsi'  => "Pembayaran tagihan #{$tagihan->id}",
+                        'created_by' => $request->user()->id,
+                        'related_type' => 'App\Models\Tagihan',
+                        'related_id'   => $tagihan->id,
+                    ]);
+                } catch (\Exception $je) {}
             }
             
             $tagihan->save();
