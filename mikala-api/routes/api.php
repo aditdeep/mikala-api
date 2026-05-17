@@ -86,7 +86,11 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['success' => true, 'data' => $klien]);
         });
         Route::get('mitra-list', function(\Illuminate\Http\Request $request) {
-            $mitra = \App\Models\Mitra::with('user')->orderBy('created_at','desc')->get();
+            $query = \App\Models\Mitra::with('user')->orderBy('created_at','desc');
+            if ($request->has('status')) {
+                $query->where('status', $request->status);
+            }
+            $mitra = $query->get();
             return response()->json(['success' => true, 'data' => $mitra]);
         });
 

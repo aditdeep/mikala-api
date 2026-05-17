@@ -48,7 +48,7 @@ class DashboardController extends Controller
                     ->orderBy('created_at','desc')->limit(5)->get(),
                 'recent_applications' => Mitra::with('user')
                     ->orderBy('created_at','desc')->limit(5)->get(),
-                'mitra_on_job'        => Mitra::where('status', 'on_job')->count(),
+                'mitra_on_job'        => \App\Models\Order::whereIn('status', ['confirmed','in_progress'])->whereNotNull('mitra_id')->distinct('mitra_id')->count('mitra_id'),
             ];
 
             return response()->json([
