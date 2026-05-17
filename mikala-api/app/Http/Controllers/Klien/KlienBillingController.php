@@ -104,9 +104,11 @@ class KlienBillingController extends Controller
     {
         try {
             $request->validate([
-                'metode_pembayaran' => 'required|in:transfer,cash,credit_card,ewallet',
-                'bukti_transfer' => 'nullable|file|mimes:jpg,jpeg,png,pdf|max:2048',
+                'method'           => 'nullable|string',
+                'metode_pembayaran'=> 'nullable|string',
             ]);
+            // Support both 'method' and 'metode_pembayaran'
+            $metode = $request->method ?? $request->metode_pembayaran ?? 'transfer';
 
             $klien = auth()->user()->klien;
 
@@ -147,7 +149,7 @@ class KlienBillingController extends Controller
 
             // Update tagihan
             $tagihan->update([
-                'metode_pembayaran' => $request->metode_pembayaran,
+                'metode_pembayaran' => $metode,
                 'bukti_transfer' => $buktiPath,
                 'status' => 'paid',
                 'jumlah_bayar' => $tagihan->total,

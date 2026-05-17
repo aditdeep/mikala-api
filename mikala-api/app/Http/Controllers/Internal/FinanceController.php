@@ -418,24 +418,24 @@ class FinanceController extends Controller
     public function storeJurnal(Request $request)
     {
         $request->validate([
-            'tanggal' => 'required|date',
-            'kategori' => 'required|in:income,outcome',
-            'deskripsi' => 'required|string',
-            'debit' => 'required|numeric|min:0',
-            'kredit' => 'required|numeric|min:0',
+            'tanggal'   => 'required|date',
+            'tipe'      => 'required|in:income,outcome',
+            'kategori'  => 'required|string|max:100',
+            'deskripsi' => 'nullable|string',
+            'jumlah'    => 'required|numeric|min:0',
         ]);
 
         try {
-            $currentBalance = JurnalKeuangan::getCurrentBalance();
-            $newBalance = $currentBalance + $request->debit - $request->kredit;
+            $kode = 'JRN-'.date('Ymd').'-'.str_pad(\App\Models\JurnalKeuangan::count()+1, 4, '0', STR_PAD_LEFT);
 
             $jurnal = JurnalKeuangan::create([
-                'tanggal' => $request->tanggal,
-                'kategori' => $request->kategori,
-                'deskripsi' => $request->deskripsi,
-                'debit' => $request->debit,
-                'kredit' => $request->kredit,
-                'saldo' => $newBalance,
+                'kode_transaksi' => $kode,
+                'tanggal'        => $request->tanggal,
+                'tipe'           => $request->tipe,
+                'kategori'       => $request->kategori,
+                'jumlah'         => $request->jumlah,
+                'deskripsi'      => $request->deskripsi,
+                'created_by'     => $request->user()->id,
             ]);
 
             return response()->json([
