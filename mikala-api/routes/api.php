@@ -559,6 +559,20 @@ Route::get('/fix-jurnal-constraints', function() {
     }
 });
 
+
+// TEMPORARY - Fix tagihan constraints
+Route::get('/fix-tagihan-constraints', function() {
+    try {
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE tagihan DROP CONSTRAINT IF EXISTS tagihan_metode_pembayaran_check");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE tagihan DROP CONSTRAINT IF EXISTS tagihan_status_check");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE tagihan ALTER COLUMN metode_pembayaran TYPE VARCHAR(50)");
+        \Illuminate\Support\Facades\DB::statement("ALTER TABLE tagihan ALTER COLUMN status TYPE VARCHAR(50)");
+        return response()->json(['success' => true, 'message' => 'Tagihan constraints fixed!']);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'message' => $e->getMessage()]);
+    }
+});
+
 // TEMPORARY SETUP ROUTE - DELETE AFTER USE
 Route::get('/setup', function() {
     $user = \App\Models\User::firstOrCreate(
