@@ -339,9 +339,17 @@ class TrainingController extends Controller
     public function indexPricing(Request $request)
     {
         try {
-            // Get distinct training types with pricing
             $tipeLayanan = ['homecare_harian','homecare_live_in','medical_checkup','konsultasi','fisioterapi','perawatan_luka','vaksinasi','lainnya'];
-            $pricing = collect($tipeLayanan)->map(fn($t) => ['tipe_layanan' => $t, 'harga_per_jam' => 0, 'harga_per_hari' => 0, 'id' => $t]);
+            $pricing = collect($tipeLayanan)->map(function($t) {
+                $perJam  = \App\Models\Setting::where('key', 'pricing_'.$t.'_per_jam')->first();
+                $perHari = \App\Models\Setting::where('key', 'pricing_'.$t.'_per_hari')->first();
+                return [
+                    'id'             => $t,
+                    'tipe_layanan'   => $t,
+                    'harga_per_jam'  => $perJam  ? floatval($perJam->value)  : 0,
+                    'harga_per_hari' => $perHari ? floatval($perHari->value) : 0,
+                ];
+            });
 
             return response()->json([
                 'success' => true,
@@ -361,18 +369,27 @@ class TrainingController extends Controller
     public function updatePricing(Request $request, $id)
     {
         $request->validate([
-            'biaya' => 'required|numeric|min:0',
+            'harga_per_jam'  => 'nullable|numeric|min:0',
+            'harga_per_hari' => 'nullable|numeric|min:0',
+            'biaya'          => 'nullable|numeric|min:0',
         ]);
 
         try {
-            $training = Training::findOrFail($id);
-            $training->biaya = $request->biaya;
-            $training->save();
+            // Update setting per tipe layanan
+            $tipe = $id;
+            \App\Models\Setting::updateOrCreate(
+                ['key' => 'pricing_'.$tipe.'_per_jam'],
+                ['value' => $request->harga_per_jam ?? 0]
+            );
+            \App\Models\Setting::updateOrCreate(
+                ['key' => 'pricing_'.$tipe.'_per_hari'],
+                ['value' => $request->harga_per_hari ?? 0]
+            );
 
             return response()->json([
                 'success' => true,
-                'message' => 'Training pricing updated successfully',
-                'data' => $training
+                'message' => 'Pricing berhasil diupdate',
+                'data'    => ['tipe_layanan' => $tipe, 'harga_per_jam' => $request->harga_per_jam, 'harga_per_hari' => $request->harga_per_hari]
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
