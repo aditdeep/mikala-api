@@ -137,7 +137,12 @@ class TrainingController extends Controller
 
             $training = Training::firstOrCreate(
                 ['mitra_id' => $id],
-                ['status' => 'in_progress', 'tanggal_mulai' => now()]
+                [
+                    'tipe'         => 'initial',
+                    'program_name' => 'Training Awal',
+                    'status'       => 'in_progress',
+                    'tanggal_mulai'=> now(),
+                ]
             );
 
             $training->update([
