@@ -529,3 +529,16 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
 // ── PUBLIC: Register Mitra (dari Apps Mitra) ─────────────────────────────────
 use App\Http\Controllers\Auth\MitraRegisterController;
 Route::post('/auth/mitra/register', [MitraRegisterController::class, 'register']);
+
+// TEMPORARY — jalankan migration via HTTP (hapus setelah dipakai!)
+Route::get('/run-migrations', function() {
+    try {
+        \Illuminate\Support\Facades\Artisan::call('migrate', ['--force' => true]);
+        return response()->json(['success'=>true,'output'=>\Illuminate\Support\Facades\Artisan::output()]);
+    } catch (\Exception $e) {
+        return response()->json(['success'=>false,'message'=>$e->getMessage()],500);
+    }
+});
+
+// Public register mitra
+Route::post('/auth/mitra/register', [\App\Http\Controllers\Auth\MitraRegisterController::class, 'register']);
