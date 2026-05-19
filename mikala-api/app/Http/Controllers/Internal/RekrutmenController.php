@@ -107,7 +107,7 @@ class RekrutmenController extends Controller
     {
         try {
             $mitra = Mitra::findOrFail($id);
-            $mitra->update(['status'=>'keluar']);
+            $mitra->update(['status'=>'inactive']);
             $mitra->user->update(['status'=>'inactive']);
             return response()->json(['success'=>true,'message'=>'Mitra dinonaktifkan']);
         } catch (\Exception $e) {

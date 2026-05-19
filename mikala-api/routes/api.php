@@ -525,3 +525,7 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
     });
 });
 
+
+// ── PUBLIC: Register Mitra (dari Apps Mitra) ─────────────────────────────────
+use App\Http\Controllers\Auth\MitraRegisterController;
+Route::post('/auth/mitra/register', [MitraRegisterController::class, 'register']);
