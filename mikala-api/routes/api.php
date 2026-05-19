@@ -490,3 +490,38 @@ Route::middleware('auth:sanctum')->group(function () {
 });
 
 
+
+// ── REKRUTMEN: Verifikasi routes (injected) ──────────────────────────────────
+Route::middleware(['auth:sanctum','internal','role:manajemen,rekrutmen'])->prefix('internal/rekrutmen')->group(function () {
+    Route::post('mitra/{id}/terima',       [RekrutmenController::class, 'terima']);
+    Route::post('mitra/{id}/tolak',        [RekrutmenController::class, 'tolak']);
+    Route::post('mitra/{id}/interview',    [RekrutmenController::class, 'buatJadwalInterview']);
+    Route::get('interview/list',           [RekrutmenController::class, 'jadwalInterviewList']);
+    Route::post('interview/{id}/selesai',  [RekrutmenController::class, 'selesaiInterview']);
+    Route::get('kredit',                   [RekrutmenController::class, 'kreditPelatihanList']);
+    Route::put('kredit/{id}',              [RekrutmenController::class, 'updateKredit']);
+});
+
+// ── MITRA: Status Rekrutmen & Data ──────────────────────────────────────────
+Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(function () {
+    Route::get('status-rekrutmen', function () {
+        $mitra = auth()->user()->mitra;
+        $jadwal = $mitra?->jadwalInterview()->where('status','scheduled')->orderBy('jadwal_at')->first();
+        return response()->json(['success'=>true,'data'=>[
+            'status_rekrutmen'=>$mitra?->status_rekrutmen,
+            'jadwal_interview'=>$jadwal,
+            'catatan'=>$mitra?->catatan_rekrutmen,
+        ]]);
+    });
+    Route::get('kredit-pelatihan', function () {
+        $mitra = auth()->user()->mitra;
+        $kredit = $mitra?->kreditPelatihan()->with('potongan.order:id,kode_order,created_at')->first();
+        return response()->json(['success'=>true,'data'=>$kredit]);
+    });
+    Route::get('jadwal-interview', function () {
+        $mitra = auth()->user()->mitra;
+        $jadwal = $mitra?->jadwalInterview()->with('interviewer:id,name')->orderBy('jadwal_at','desc')->get();
+        return response()->json(['success'=>true,'data'=>$jadwal]);
+    });
+});
+

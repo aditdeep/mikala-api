@@ -66,3 +66,11 @@ class Mitra extends Model
         ]);
     }
 }
+
+// Auto-appended by deploy.sh
+// Relations for rekrutmen flow
+// (paste these inside the class if not auto-merged)
+/*
+public function kreditPelatihan() { return $this->hasOne(\App\Models\MitraKreditPelatihan::class); }
+public function jadwalInterview() { return $this->hasMany(\App\Models\MitraJadwalInterview::class); }
+*/
