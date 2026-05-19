@@ -542,3 +542,98 @@ Route::get('/run-migrations', function() {
 
 // Public register mitra
 Route::post('/auth/mitra/register', [\App\Http\Controllers\Auth\MitraRegisterController::class, 'register']);
+
+// TEMPORARY — Fix DB langsung via SQL (hapus setelah dipakai!)
+Route::get('/fix-db', function() {
+    $results = [];
+    $errors  = [];
+
+    // 1. Fix status constraint
+    try {
+        \DB::statement("ALTER TABLE mitra DROP CONSTRAINT IF EXISTS mitra_status_check");
+        \DB::statement("ALTER TABLE mitra ADD CONSTRAINT mitra_status_check CHECK (status IN (
+            'pending','training','re_training','available','on_job','inactive','keluar','cuti','suspend'
+        ))");
+        $results[] = "✓ status_check constraint fixed";
+    } catch (\Exception $e) { $errors[] = "status_check: " . $e->getMessage(); }
+
+    // 2. Tambah kolom yang belum ada
+    $cols = array_column(\DB::select("SELECT column_name FROM information_schema.columns WHERE table_name='mitra'"), 'column_name');
+
+    $toAdd = [
+        'status_rekrutmen'   => "VARCHAR(20) DEFAULT 'pending'",
+        'payment_type'       => "VARCHAR(10) DEFAULT 'cash'",
+        'price_rate'         => "DECIMAL(10,2) NULL",
+        'catatan_rekrutmen'  => "TEXT NULL",
+        'verified_at'        => "TIMESTAMP NULL",
+        'verified_by'        => "BIGINT NULL",
+        'contract_agreed_at' => "TIMESTAMP NULL",
+    ];
+
+    foreach ($toAdd as $col => $def) {
+        if (!in_array($col, $cols)) {
+            try {
+                \DB::statement("ALTER TABLE mitra ADD COLUMN {$col} {$def}");
+                $results[] = "✓ kolom {$col} ditambahkan";
+            } catch (\Exception $e) { $errors[] = "{$col}: " . $e->getMessage(); }
+        } else {
+            $results[] = "- kolom {$col} sudah ada";
+        }
+    }
+
+    // 3. Buat tabel baru jika belum ada
+    $tables = [
+        'mitra_kredit_pelatihan' => "CREATE TABLE IF NOT EXISTS mitra_kredit_pelatihan (
+            id BIGSERIAL PRIMARY KEY,
+            mitra_id BIGINT NOT NULL,
+            total_biaya DECIMAL(12,2) DEFAULT 0,
+            total_terbayar DECIMAL(12,2) DEFAULT 0,
+            sisa_tagihan DECIMAL(12,2) DEFAULT 0,
+            cicilan_per_job DECIMAL(12,2) DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'active',
+            keterangan TEXT,
+            lunas_at TIMESTAMP,
+            created_by BIGINT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )",
+        'mitra_jadwal_interview' => "CREATE TABLE IF NOT EXISTS mitra_jadwal_interview (
+            id BIGSERIAL PRIMARY KEY,
+            mitra_id BIGINT NOT NULL,
+            jadwal_at TIMESTAMP NOT NULL,
+            lokasi VARCHAR(255),
+            link_online VARCHAR(255),
+            tipe VARCHAR(10) DEFAULT 'offline',
+            status VARCHAR(20) DEFAULT 'scheduled',
+            catatan TEXT,
+            interviewer_id BIGINT,
+            done_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )",
+        'mitra_kredit_potongan' => "CREATE TABLE IF NOT EXISTS mitra_kredit_potongan (
+            id BIGSERIAL PRIMARY KEY,
+            kredit_id BIGINT NOT NULL,
+            mitra_id BIGINT NOT NULL,
+            order_id BIGINT NOT NULL,
+            jumlah_potongan DECIMAL(12,2) NOT NULL,
+            sisa_setelah_potong DECIMAL(12,2) NOT NULL,
+            keterangan TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )",
+    ];
+
+    foreach ($tables as $name => $sql) {
+        try {
+            \DB::statement($sql);
+            $results[] = "✓ tabel {$name} OK";
+        } catch (\Exception $e) { $errors[] = "{$name}: " . $e->getMessage(); }
+    }
+
+    return response()->json([
+        'success' => empty($errors),
+        'results' => $results,
+        'errors'  => $errors,
+    ]);
+});
