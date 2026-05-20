@@ -323,6 +323,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('report/agen-institusi', [RekrutmenController::class, 'reportAgenInstitusi']);
         });
 
+        // Lembaga (Rekrutmen & Manajemen)
+        Route::middleware('role:manajemen,rekrutmen')->prefix('lembaga')->group(function () {
+            Route::get('/',               [\App\Http\Controllers\Internal\LembagaController::class, 'index']);
+            Route::post('/',              [\App\Http\Controllers\Internal\LembagaController::class, 'store']);
+            Route::get('/{id}',           [\App\Http\Controllers\Internal\LembagaController::class, 'show']);
+            Route::put('/{id}',           [\App\Http\Controllers\Internal\LembagaController::class, 'update']);
+            Route::delete('/{id}',        [\App\Http\Controllers\Internal\LembagaController::class, 'destroy']);
+            Route::get('/fee/list',       [\App\Http\Controllers\Internal\LembagaController::class, 'feeList']);
+            Route::post('/fee/{id}/bayar',[\App\Http\Controllers\Internal\LembagaController::class, 'bayarFee']);
+        });
+
         // Training Center
         Route::middleware('role:manajemen,training_center')->prefix('training')->group(function () {
             Route::get('mitra', [TrainingController::class, 'indexMitra']);
