@@ -441,7 +441,7 @@ class TrainingController extends Controller
             ], 500);
         }
     }
-}
+
 
     // ── Checklist Materi ──────────────────────────────────────────────────────
     public function materiList() {
@@ -487,3 +487,5 @@ class TrainingController extends Controller
         ]);
         return response()->json(['success'=>true,'action'=>'checked']);
     }
+
+}
