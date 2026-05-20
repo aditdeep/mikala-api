@@ -637,3 +637,101 @@ Route::get('/fix-db', function() {
         'errors'  => $errors,
     ]);
 });
+
+// TEMPORARY — Fix DB referral tables (hapus setelah dipakai!)
+Route::get('/fix-db2', function() {
+    $results = [];
+    $errors  = [];
+
+    // 1. Buat tabel lembaga
+    try {
+        \DB::statement("CREATE TABLE IF NOT EXISTS lembaga (
+            id BIGSERIAL PRIMARY KEY,
+            nama VARCHAR(255) NOT NULL,
+            tipe VARCHAR(50) DEFAULT 'lpk',
+            kontak_nama VARCHAR(255),
+            kontak_hp VARCHAR(50),
+            kontak_email VARCHAR(255),
+            alamat TEXT,
+            kota VARCHAR(100),
+            provinsi VARCHAR(100),
+            fee_per_mitra DECIMAL(12,2) DEFAULT 0,
+            status VARCHAR(20) DEFAULT 'aktif',
+            catatan TEXT,
+            created_by BIGINT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )");
+        $results[] = "✓ tabel lembaga OK";
+    } catch (\Exception $e) { $errors[] = "lembaga: " . $e->getMessage(); }
+
+    // 2. Buat tabel mitra_referral
+    try {
+        \DB::statement("CREATE TABLE IF NOT EXISTS mitra_referral (
+            id BIGSERIAL PRIMARY KEY,
+            mitra_id BIGINT NOT NULL,
+            sumber_tipe VARCHAR(20) NOT NULL DEFAULT 'sendiri',
+            sumber_detail VARCHAR(100),
+            lembaga_id BIGINT,
+            referrer_mitra_id BIGINT,
+            lead_source VARCHAR(100),
+            fee_amount DECIMAL(12,2) DEFAULT 0,
+            fee_status VARCHAR(20) DEFAULT 'pending',
+            fee_paid_at TIMESTAMP,
+            fee_paid_by BIGINT,
+            catatan TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )");
+        $results[] = "✓ tabel mitra_referral OK";
+    } catch (\Exception $e) { $errors[] = "mitra_referral: " . $e->getMessage(); }
+
+    // 3. Buat tabel fee_log
+    try {
+        \DB::statement("CREATE TABLE IF NOT EXISTS fee_log (
+            id BIGSERIAL PRIMARY KEY,
+            referral_id BIGINT NOT NULL,
+            penerima_tipe VARCHAR(20) NOT NULL,
+            penerima_id BIGINT NOT NULL,
+            jumlah DECIMAL(12,2) NOT NULL,
+            status VARCHAR(20) DEFAULT 'pending',
+            keterangan TEXT,
+            paid_at TIMESTAMP,
+            paid_by BIGINT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )");
+        $results[] = "✓ tabel fee_log OK";
+    } catch (\Exception $e) { $errors[] = "fee_log: " . $e->getMessage(); }
+
+    // 4. Tambah kolom sumber ke tabel mitra
+    $cols = array_column(\DB::select(
+        "SELECT column_name FROM information_schema.columns WHERE table_name='mitra'"
+    ), 'column_name');
+
+    $toAdd = [
+        'sumber_tipe'        => "VARCHAR(20) DEFAULT 'sendiri'",
+        'sumber_detail'      => "VARCHAR(100)",
+        'lembaga_id'         => "BIGINT NULL",
+        'referrer_mitra_id'  => "BIGINT NULL",
+    ];
+
+    foreach ($toAdd as $col => $def) {
+        if (!in_array($col, $cols)) {
+            try {
+                \DB::statement("ALTER TABLE mitra ADD COLUMN {$col} {$def}");
+                $results[] = "✓ kolom mitra.{$col} ditambahkan";
+            } catch (\Exception $e) {
+                $errors[] = "mitra.{$col}: " . $e->getMessage();
+            }
+        } else {
+            $results[] = "- kolom mitra.{$col} sudah ada";
+        }
+    }
+
+    return response()->json([
+        'success' => empty($errors),
+        'results' => $results,
+        'errors'  => $errors,
+    ]);
+});
