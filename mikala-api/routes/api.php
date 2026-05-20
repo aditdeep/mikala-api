@@ -829,3 +829,25 @@ Route::get('/backfill-referral', function() {
     }
     return response()->json(['success'=>true,'created'=>$created,'total'=>$mitras->count()]);
 });
+
+// TEMPORARY — cek semua referral records
+Route::get('/check-referral', function() {
+    try {
+        $refs = \DB::table('mitra_referral')
+            ->leftJoin('mitra as m', 'm.id', '=', 'mitra_referral.mitra_id')
+            ->leftJoin('mitra as r', 'r.id', '=', 'mitra_referral.referrer_mitra_id')
+            ->select(
+                'mitra_referral.id',
+                'mitra_referral.mitra_id',
+                'mitra_referral.sumber_tipe',
+                'mitra_referral.referrer_mitra_id',
+                'mitra_referral.fee_amount',
+                'mitra_referral.fee_status',
+                'm.nama_lengkap as mitra_nama',
+                'r.nama_lengkap as referrer_nama'
+            )->get();
+        return response()->json(['success'=>true,'count'=>$refs->count(),'data'=>$refs]);
+    } catch(\Exception $e) {
+        return response()->json(['error'=>$e->getMessage()]);
+    }
+});
