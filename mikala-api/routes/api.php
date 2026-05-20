@@ -803,3 +803,29 @@ Route::get('/public/mitra-list', function() {
         ->orderBy('nama_lengkap')->get();
     return response()->json(['success'=>true,'data'=>$data]);
 });
+
+// TEMPORARY — backfill referral untuk mitra yang sudah verified
+Route::get('/backfill-referral', function() {
+    $mitras = \App\Models\Mitra::where('status_rekrutmen','verified')
+        ->whereNotNull('sumber_tipe')
+        ->get();
+    $created = 0;
+    foreach ($mitras as $mitra) {
+        if ($mitra->referral) continue;
+        $fee = 0;
+        $data = ['mitra_id'=>$mitra->id,'sumber_tipe'=>$mitra->sumber_tipe??'sendiri','sumber_detail'=>$mitra->sumber_detail,'fee_status'=>'pending'];
+        if ($mitra->sumber_tipe==='lembaga' && $mitra->lembaga_id) {
+            $lembaga = \App\Models\Lembaga::find($mitra->lembaga_id);
+            $fee = $lembaga?->fee_per_mitra ?? 0;
+            $data['lembaga_id'] = $mitra->lembaga_id;
+        } elseif ($mitra->sumber_tipe==='orang_terdekat' && $mitra->referrer_mitra_id) {
+            $data['referrer_mitra_id'] = $mitra->referrer_mitra_id;
+        } elseif ($mitra->sumber_tipe==='sendiri') {
+            $data['lead_source'] = $mitra->sumber_detail;
+        }
+        $data['fee_amount'] = $fee;
+        \App\Models\MitraReferral::create($data);
+        $created++;
+    }
+    return response()->json(['success'=>true,'created'=>$created,'total'=>$mitras->count()]);
+});
