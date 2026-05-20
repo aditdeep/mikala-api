@@ -859,3 +859,11 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,rekrutmen,finance']
     $ref->update(['fee_amount'=>$req->fee_amount]);
     return response()->json(['success'=>true,'data'=>$ref]);
 });
+
+// TEMPORARY — reset password user tertentu
+Route::get('/reset-pw/{email}/{newpass}', function($email, $newpass) {
+    $user = \App\Models\User::where('email', $email)->first();
+    if (!$user) return response()->json(['error'=>'User not found']);
+    $user->update(['password' => \Illuminate\Support\Facades\Hash::make($newpass)]);
+    return response()->json(['success'=>true,'email'=>$user->email,'message'=>'Password updated']);
+});
