@@ -243,7 +243,6 @@ class RekrutmenController extends Controller
             return response()->json(['success'=>false,'message'=>$e->getMessage()],500);
         }
     }
-}
 
     // ── Tambahan: helper create referral saat mitra TERIMA ──
     private function createReferralFee(\App\Models\Mitra $mitra): void
@@ -274,3 +273,5 @@ class RekrutmenController extends Controller
 
         \App\Models\MitraReferral::create($referralData);
     }
+
+}
