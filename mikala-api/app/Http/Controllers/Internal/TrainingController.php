@@ -16,7 +16,8 @@ class TrainingController extends Controller
     public function indexMitra(Request $request)
     {
         try {
-            $query = Mitra::with(['user']);
+            $query = Mitra::with(['user'])
+                ->whereIn('status_rekrutmen', ['verified']);
 
             if ($request->has('training_status')) {
                 $query->where('training_status', $request->training_status);
@@ -24,22 +25,33 @@ class TrainingController extends Controller
 
             if ($request->has('search')) {
                 $search = $request->search;
-                $query->whereHas('user', function($q) use ($search) {
-                    $q->where('name', 'like', "%{$search}%");
+                $query->where(function($q) use ($search) {
+                    $q->where('nama_lengkap', 'like', "%{$search}%")
+                      ->orWhereHas('user', fn($u) => $u->where('name', 'like', "%{$search}%"));
                 });
             }
 
-            $mitra = $query->orderBy('created_at', 'desc')->paginate(15);
+            $mitra = $query->orderBy('nama_lengkap')->paginate(20);
+            $total = \App\Models\TrainingMateri::where('is_active', true)->count();
+
+            $items = collect($mitra->items())->map(function($m) use ($total) {
+                $selesai = \App\Models\TrainingChecklist::where('mitra_id', $m->id)->count();
+                return array_merge($m->toArray(), [
+                    'training_total'   => $total,
+                    'training_selesai' => $selesai,
+                    'training_persen'  => $total > 0 ? round($selesai / $total * 100) : 0,
+                ]);
+            });
 
             return response()->json([
                 'success' => true,
-                'data' => $mitra->items(),
+                'data'    => $items,
                 'pagination' => [
-                    'total' => $mitra->total(),
-                    'per_page' => $mitra->perPage(),
+                    'total'        => $mitra->total(),
+                    'per_page'     => $mitra->perPage(),
                     'current_page' => $mitra->currentPage(),
-                    'last_page' => $mitra->lastPage()
-                ]
+                    'last_page'    => $mitra->lastPage(),
+                ],
             ], 200);
         } catch (\Exception $e) {
             return response()->json([
