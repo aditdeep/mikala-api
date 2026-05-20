@@ -747,3 +747,11 @@ Route::get('/check-mitra', function() {
         'data'     => $all->map(fn($m) => ['id'=>$m->id,'nama'=>$m->nama_lengkap,'status'=>$m->status,'rekrutmen'=>$m->status_rekrutmen,'deleted'=>$m->deleted_at]),
     ]);
 });
+
+// TEMPORARY — debug rekrutmen index tanpa auth
+Route::get('/debug-rekrutmen', function() {
+    $mitra = \App\Models\Mitra::with('user')
+        ->orderBy('created_at','desc')
+        ->get(['id','user_id','nama_lengkap','status','status_rekrutmen','kota','pendidikan_terakhir','foto_url']);
+    return response()->json(['success'=>true,'count'=>$mitra->count(),'data'=>$mitra]);
+});
