@@ -458,16 +458,16 @@ class TrainingController extends Controller
         $selesai = $checks->count();
         $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
             'kategori'=>$kat,'total'=>$items->count(),
-            'selesai'=>$items->filter(fn($m)=>isset($checks[$m->id]))->count(),
-            'persen'=>$items->count()>0?round($items->filter(fn($m)=>isset($checks[$m->id]))->count()/$items->count()*100):0,
+            'selesai'=>$items->filter(fn($m)=>$checks->has($m->id))->count(),
+            'persen'=>$items->count()>0?round($items->filter(fn($m)=>$checks->has($m->id))->count()/$items->count()*100):0,
         ])->values();
         $result = $materi->map(fn($m)=>[
             'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'kategori'=>$m->kategori,
             'parent_kode'=>$m->parent_kode,'urutan'=>$m->urutan,
-            'checked'=>isset($checks[$m->id]),
-            'tanggal_dapat'=>$checks[$m->id]?->tanggal_dapat?->format('Y-m-d'),
-            'pengajar'=>$checks[$m->id]?->pengajar,
-            'checked_by'=>$checks[$m->id]?->checker?->name,
+            'checked'=>$checks->has($m->id),
+            'tanggal_dapat'=>$checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
+            'pengajar'=>$checks->get($m->id)?->pengajar,
+            'checked_by'=>$checks->get($m->id)?->checker?->name,
         ]);
         return response()->json([
             'success'=>true,'mitra'=>['id'=>$mitra->id,'nama'=>$mitra->nama_lengkap,'foto'=>$mitra->foto_url],
