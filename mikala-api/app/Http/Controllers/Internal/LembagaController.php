@@ -59,7 +59,7 @@ class LembagaController extends Controller
         $data = MitraReferral::with(['mitra:id,nama_lengkap,foto_url','lembaga:id,nama','referrerMitra:id,nama_lengkap,foto_url'])
             ->when($request->fee_status, fn($q) => $q->where('fee_status',$request->fee_status))
             ->when($request->sumber_tipe, fn($q) => $q->where('sumber_tipe',$request->sumber_tipe))
-            ->where('fee_amount','>',0)
+            
             ->orderBy('created_at','desc')
             ->paginate(20);
         return response()->json(['success'=>true,'data'=>$data->items(),'pagination'=>['total'=>$data->total(),'last_page'=>$data->lastPage()]]);
