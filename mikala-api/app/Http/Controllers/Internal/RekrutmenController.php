@@ -134,6 +134,7 @@ class RekrutmenController extends Controller
                     'status'=>'active','created_by'=>auth()->id(),
                 ]);
             }
+            $this->createReferralFee($mitra->fresh());
             DB::commit();
             return response()->json(['success'=>true,'message'=>'Mitra diterima','data'=>$mitra->fresh(['kreditPelatihan'])]);
         } catch (\Exception $e) {
