@@ -905,13 +905,13 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     $selesai = $checks->count();
     $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
         'kategori'=>$kat,'total'=>$items->count(),
-        'selesai'=>$items->filter(fn($m)=>isset($checks[$m->id]))->count(),
+        'selesai'=>$items->filter(fn($m)=>$checks->has($m->id))->count(),
         'persen'=>$items->count()>0?round($items->filter(fn($m)=>isset($checks[$m->id]))->count()/$items->count()*100):0,
         'materi'=>$items->map(fn($m)=>[
             'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'parent_kode'=>$m->parent_kode,
-            'checked'=>isset($checks[$m->id]),
-            'tanggal_dapat'=>$checks[$m->id]?->tanggal_dapat,
-            'pengajar'=>$checks[$m->id]?->pengajar,
+            'checked'=>$checks->has($m->id),
+            'tanggal_dapat'=>$checks->get($m->id)?->tanggal_dapat,
+            'pengajar'=>$checks->get($m->id)?->pengajar,
         ])->values(),
     ])->values();
     return response()->json(['success'=>true,'total'=>$total,'selesai'=>$selesai,'persen'=>$total>0?round($selesai/$total*100):0,'by_kategori'=>$byKat]);
