@@ -430,3 +430,48 @@ class TrainingController extends Controller
         }
     }
 }
+
+    // ── Checklist Materi ──────────────────────────────────────────────────────
+    public function materiList() {
+        $materi = \App\Models\TrainingMateri::where('is_active',true)
+            ->orderBy('kategori')->orderBy('urutan')->get();
+        return response()->json(['success'=>true,'data'=>$materi]);
+    }
+
+    public function mitraProgress($mitraId) {
+        $mitra   = \App\Models\Mitra::with('user')->findOrFail($mitraId);
+        $materi  = \App\Models\TrainingMateri::where('is_active',true)->orderBy('kategori')->orderBy('urutan')->get();
+        $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->with('checker:id,name')->get()->keyBy('materi_id');
+        $total   = $materi->count();
+        $selesai = $checks->count();
+        $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
+            'kategori'=>$kat,'total'=>$items->count(),
+            'selesai'=>$items->filter(fn($m)=>isset($checks[$m->id]))->count(),
+            'persen'=>$items->count()>0?round($items->filter(fn($m)=>isset($checks[$m->id]))->count()/$items->count()*100):0,
+        ])->values();
+        $result = $materi->map(fn($m)=>[
+            'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'kategori'=>$m->kategori,
+            'parent_kode'=>$m->parent_kode,'urutan'=>$m->urutan,
+            'checked'=>isset($checks[$m->id]),
+            'tanggal_dapat'=>$checks[$m->id]?->tanggal_dapat?->format('Y-m-d'),
+            'pengajar'=>$checks[$m->id]?->pengajar,
+            'checked_by'=>$checks[$m->id]?->checker?->name,
+        ]);
+        return response()->json([
+            'success'=>true,'mitra'=>['id'=>$mitra->id,'nama'=>$mitra->nama_lengkap,'foto'=>$mitra->foto_url],
+            'total'=>$total,'selesai'=>$selesai,'persen'=>$total>0?round($selesai/$total*100):0,
+            'by_kategori'=>$byKat,'materi'=>$result,
+        ]);
+    }
+
+    public function toggleChecklist(\Illuminate\Http\Request $request, $mitraId, $materiId) {
+        $request->validate(['tanggal_dapat'=>'required|date','pengajar'=>'required|string|max:100','catatan'=>'nullable|string']);
+        $existing = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->where('materi_id',$materiId)->first();
+        if ($existing) { $existing->delete(); return response()->json(['success'=>true,'action'=>'unchecked']); }
+        \App\Models\TrainingChecklist::create([
+            'mitra_id'=>$mitraId,'materi_id'=>$materiId,
+            'tanggal_dapat'=>$request->tanggal_dapat,'pengajar'=>$request->pengajar,
+            'catatan'=>$request->catatan,'checked_by'=>auth()->id(),'checked_at'=>now(),
+        ]);
+        return response()->json(['success'=>true,'action'=>'checked']);
+    }

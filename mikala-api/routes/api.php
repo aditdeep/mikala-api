@@ -885,3 +885,147 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/fee-saya', functio
         'total_paid'    => $feeReferrer->where('fee_status','paid')->sum('fee_amount'),
     ]);
 });
+
+// ── TRAINING: Checklist Materi ────────────────────────────────────────────────
+Route::middleware(['auth:sanctum','internal','role:manajemen,training_center'])->prefix('internal/training')->group(function() {
+    Route::get('/materi',                           [\App\Http\Controllers\Internal\TrainingController::class, 'materiList']);
+    Route::get('/mitra/{id}/progress',              [\App\Http\Controllers\Internal\TrainingController::class, 'mitraProgress']);
+    Route::post('/mitra/{id}/checklist/{materiId}', [\App\Http\Controllers\Internal\TrainingController::class, 'toggleChecklist']);
+});
+
+// ── MITRA: Progress pelatihan ─────────────────────────────────────────────────
+Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', function() {
+    $mitra = auth()->user()->mitra;
+    if (!$mitra) return response()->json(['success'=>false],404);
+    $materi  = \App\Models\TrainingMateri::where('is_active',true)->orderBy('kategori')->orderBy('urutan')->get();
+    $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)->get()->keyBy('materi_id');
+    $total   = $materi->count();
+    $selesai = $checks->count();
+    $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
+        'kategori'=>$kat,'total'=>$items->count(),
+        'selesai'=>$items->filter(fn($m)=>isset($checks[$m->id]))->count(),
+        'persen'=>$items->count()>0?round($items->filter(fn($m)=>isset($checks[$m->id]))->count()/$items->count()*100):0,
+        'materi'=>$items->map(fn($m)=>[
+            'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'parent_kode'=>$m->parent_kode,
+            'checked'=>isset($checks[$m->id]),
+            'tanggal_dapat'=>$checks[$m->id]?->tanggal_dapat,
+            'pengajar'=>$checks[$m->id]?->pengajar,
+        ])->values(),
+    ])->values();
+    return response()->json(['success'=>true,'total'=>$total,'selesai'=>$selesai,'persen'=>$total>0?round($selesai/$total*100):0,'by_kategori'=>$byKat]);
+});
+
+// TEMPORARY — seed tabel training dari data xlsx
+Route::get('/seed-training', function() {
+    \DB::statement("CREATE TABLE IF NOT EXISTS training_materi (
+        id BIGSERIAL PRIMARY KEY, kode VARCHAR(20), nama TEXT NOT NULL,
+        kategori VARCHAR(20) DEFAULT 'Dasar', parent_kode VARCHAR(20),
+        urutan INTEGER DEFAULT 0, is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW()
+    )");
+    \DB::statement("CREATE TABLE IF NOT EXISTS training_checklist (
+        id BIGSERIAL PRIMARY KEY, mitra_id BIGINT NOT NULL, materi_id BIGINT NOT NULL,
+        tanggal_dapat DATE, pengajar VARCHAR(150), catatan TEXT,
+        checked_by BIGINT, checked_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(mitra_id, materi_id)
+    )");
+    \DB::table('training_materi')->truncate();
+    $materi = [
+        ['kode'=>'I','nama'=>'KOMUNIKASI EFEKTIF','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>1],
+        ['kode'=>'II','nama'=>'ETIKA DAN PERILAKU','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>2],
+        ['kode'=>'III','nama'=>'KONSEP KEBUTUHAN DASAR MANUSIA','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>3],
+        ['kode'=>'IV','nama'=>'IMUNISASI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>4],
+        ['kode'=>'V','nama'=>'TAHAP PERTUMBUHAN PERKEMBANGAN BAYI DAN ANAK','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>5],
+        ['kode'=>'VI','nama'=>'PERAWATAN BAYI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>6],
+        ['kode'=>'VII','nama'=>'BERMAIN PADA ANAK ANAK','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>7],
+        ['kode'=>'VIII','nama'=>'PIJAT BAYI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>8],
+        ['kode'=>'IX','nama'=>'TINDAKAN PENCEGAHAN DAN PERTOLONGAN PADA BAYI DAN ANAK','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>9],
+        ['kode'=>'X','nama'=>'KAMAR BAYI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>10],
+        ['kode'=>'XI','nama'=>'PEMENUHAN NUTRISI DAN GIZI PADA BAYI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>11],
+        ['kode'=>'XII','nama'=>'KESEHATAN REPRODUKSI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>12],
+        ['kode'=>'XIII','nama'=>'STRUKTUR DAN FUNGSI TUBUH MANUSIA','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>13],
+        ['kode'=>'XIV','nama'=>'KEBERSIHAN DIRI / HYGIENE PERSEORANGAN','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>14],
+        ['kode'=>'XIV-A','nama'=>'MEMANDIKAN PASIEN','kategori'=>'Dasar','parent_kode'=>'XIV','urutan'=>15],
+        ['kode'=>'XIV-A1','nama'=>'MENCUCI TANGAN','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>16],
+        ['kode'=>'XIV-A2','nama'=>'MEMBANTU PASIEN BAK / BAB','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>17],
+        ['kode'=>'XIV-A3','nama'=>'MENGGOSOK GIGI PASIEN','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>18],
+        ['kode'=>'XIV-A4','nama'=>'MEMANDIKAN PASIEN DI TEMPAT TIDUR','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>19],
+        ['kode'=>'XIV-A5','nama'=>'MENYISIR RAMBUT PASIEN','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>20],
+        ['kode'=>'XIV-A6','nama'=>'MERAPIKAN SEKITAR PASIEN','kategori'=>'Dasar','parent_kode'=>'XIV-A','urutan'=>21],
+        ['kode'=>'XIV-B','nama'=>'MEMBANTU PASIEN (PROSEDUR KHUSUS)','kategori'=>'Dasar','parent_kode'=>'XIV','urutan'=>22],
+        ['kode'=>'XIV-B1','nama'=>'MEMASANG KATETER KONDOM','kategori'=>'Dasar','parent_kode'=>'XIV-B','urutan'=>23],
+        ['kode'=>'XIV-B2','nama'=>'MENJAGA KEBERSIHAN GENETALIA PASIEN PAKAI KATETER','kategori'=>'Dasar','parent_kode'=>'XIV-B','urutan'=>24],
+        ['kode'=>'XIV-B3','nama'=>'MENIMBANG BB DAN TB','kategori'=>'Dasar','parent_kode'=>'XIV-B','urutan'=>25],
+        ['kode'=>'XV','nama'=>'MEMELIHARA KEBERSIHAN LINGKUNGAN','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>26],
+        ['kode'=>'XVI','nama'=>'TANDA TANDA VITAL','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>27],
+        ['kode'=>'XVI-A','nama'=>'MENGUKUR SUHU TUBUH','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>28],
+        ['kode'=>'XVI-B','nama'=>'MENGHITUNG DENYUT NADI','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>29],
+        ['kode'=>'XVI-C','nama'=>'MENGHITUNG PERNAFASAN','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>30],
+        ['kode'=>'XVI-D','nama'=>'MENGUKUR TEKANAN DARAH','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>31],
+        ['kode'=>'XVI-E','nama'=>'MENGUKUR TINGGI BADAN DAN BERAT BADAN','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>32],
+        ['kode'=>'XVI-F','nama'=>'PRAKTEK DAN DOKUMENTASI CATATAN KEPERAWATAN','kategori'=>'Dasar','parent_kode'=>'XVI','urutan'=>33],
+        ['kode'=>'XVII','nama'=>'MOBILISASI DAN TRANSPORTASI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>34],
+        ['kode'=>'XVII-A','nama'=>'MENDUDUKKAN PASIEN DI TEMPAT TIDUR','kategori'=>'Dasar','parent_kode'=>'XVII','urutan'=>35],
+        ['kode'=>'XVII-B','nama'=>'MEMINDAHKAN PASIEN DARI TEMPAT TIDUR KE KURSI RODA','kategori'=>'Dasar','parent_kode'=>'XVII','urutan'=>36],
+        ['kode'=>'XVII-C','nama'=>'MEMINDAHKAN PASIEN DARI TEMPAT TIDUR KE BRANKAR','kategori'=>'Dasar','parent_kode'=>'XVII','urutan'=>37],
+        ['kode'=>'XVII-D','nama'=>'MEMINDAHKAN DARI KURSI RODA KE MOBIL','kategori'=>'Dasar','parent_kode'=>'XVII','urutan'=>38],
+        ['kode'=>'XVII-F','nama'=>'PRAKTEK AMBULASI','kategori'=>'Dasar','parent_kode'=>'XVII','urutan'=>39],
+        ['kode'=>'XVIII','nama'=>'PERTOLONGAN PERTAMA PADA KEDARURATAN','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>40],
+        ['kode'=>'XIX','nama'=>'PRINSIP PEMBERIAN OBAT','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>41],
+        ['kode'=>'XX','nama'=>'MEMENUHI KEBUTUHAN NUTRISI LANSIA','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>42],
+        ['kode'=>'XX-1','nama'=>'PERSIAPAN PEMBERIAN MAKANAN','kategori'=>'Dasar','parent_kode'=>'XX','urutan'=>43],
+        ['kode'=>'XX-2','nama'=>'JENIS MAKANAN LANSIA','kategori'=>'Dasar','parent_kode'=>'XX','urutan'=>44],
+        ['kode'=>'XX-3','nama'=>'PENYAJIAN MAKANAN LANSIA','kategori'=>'Dasar','parent_kode'=>'XX','urutan'=>45],
+        ['kode'=>'XX-4','nama'=>'MEMBERIKAN MAKANAN LEWAT NGT','kategori'=>'Dasar','parent_kode'=>'XX','urutan'=>46],
+        ['kode'=>'XX-5','nama'=>'PRAKTEK PEMBERIAN MAKAN LEWAT NGT','kategori'=>'Dasar','parent_kode'=>'XX','urutan'=>47],
+        ['kode'=>'XXI','nama'=>'PERAWATAN KESEHATAN USIA LANJUT','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>48],
+        ['kode'=>'XXI-A','nama'=>'KEBUTUHAN DASAR MANUSIA (LANSIA)','kategori'=>'Dasar','parent_kode'=>'XXI','urutan'=>49],
+        ['kode'=>'XXI-B','nama'=>'KONSEP SEHAT-SAKIT, ETIKA DAN ETIKET','kategori'=>'Dasar','parent_kode'=>'XXI','urutan'=>50],
+        ['kode'=>'XXII','nama'=>'KESEHATAN MENTAL PADA USIA LANJUT','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>51],
+        ['kode'=>'XXIII','nama'=>'NORMA ANGGARAN BELANJA RUMAH TANGGA','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>52],
+        ['kode'=>'XXIV','nama'=>'GENDER','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>53],
+        ['kode'=>'XXV','nama'=>'PENDAMPINGAN PASIEN MENJELANG AJAL','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>54],
+        ['kode'=>'XXVI','nama'=>'DIABETES MELITUS','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>55],
+        ['kode'=>'XXVI-A','nama'=>'PRAKTEK DIABETES MELITUS','kategori'=>'Dasar','parent_kode'=>'XXVI','urutan'=>56],
+        ['kode'=>'XXVI-B','nama'=>'MELAKUKAN PEMERIKSAAN GDS','kategori'=>'Dasar','parent_kode'=>'XXVI','urutan'=>57],
+        ['kode'=>'XXVI-C','nama'=>'PRAKTEK GDS','kategori'=>'Dasar','parent_kode'=>'XXVI','urutan'=>58],
+        ['kode'=>'XXVI-D','nama'=>'MEMBERIKAN INJEKSI INSULIN','kategori'=>'Dasar','parent_kode'=>'XXVI','urutan'=>59],
+        ['kode'=>'XXVII','nama'=>'PERAWATAN LUKA','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>60],
+        ['kode'=>'XXVII-A','nama'=>'MATERI PERAWATAN LUKA SEDERHANA + PRAKTEK','kategori'=>'Dasar','parent_kode'=>'XXVII','urutan'=>61],
+        ['kode'=>'XXVII-B','nama'=>'PERAWATAN LUKA DECUBITUS + PRAKTEK','kategori'=>'Dasar','parent_kode'=>'XXVII','urutan'=>62],
+        ['kode'=>'XXVIII','nama'=>'MEMBERI KENYAMANAN DAN KEBERSIHAN','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>63],
+        ['kode'=>'XXVIII-1','nama'=>'MEMBERIKAN KOMPRES DINGIN DAN KOMPRES HANGAT','kategori'=>'Dasar','parent_kode'=>'XXVIII','urutan'=>64],
+        ['kode'=>'XXVIII-2','nama'=>'MERAPIKAN TEMPAT TIDUR','kategori'=>'Dasar','parent_kode'=>'XXVIII','urutan'=>65],
+        ['kode'=>'XXVIII-3','nama'=>'MENGGANTIKAN ALAT TENUN TEMPAT TIDUR','kategori'=>'Dasar','parent_kode'=>'XXVIII','urutan'=>66],
+        ['kode'=>'XXVIII-4','nama'=>'MEMBERIKAN PERLENGKAPAN DI SEKITAR PASIEN','kategori'=>'Dasar','parent_kode'=>'XXVIII','urutan'=>67],
+        ['kode'=>'XXIX','nama'=>'MEMBERIKAN OKSIGEN DAN PRAKTEK','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>68],
+        ['kode'=>'XXX','nama'=>'BLADDER WASH','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>69],
+        ['kode'=>'XXXI','nama'=>'BLADDER TRAINING','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>70],
+        ['kode'=>'XXXII','nama'=>'PEMBERIAN NEBULIZER','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>71],
+        ['kode'=>'XXXIII','nama'=>'CLAPING DAN VIBRASI','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>72],
+        ['kode'=>'XXXIV','nama'=>'PERAWATAN KOLOSTOMY','kategori'=>'Dasar','parent_kode'=>null,'urutan'=>73],
+        ['kode'=>'PHC-1','nama'=>'PEMASANGAN INFUS','kategori'=>'PHC','parent_kode'=>null,'urutan'=>1],
+        ['kode'=>'PHC-2','nama'=>'MENGHITUNG TETESAN INFUS','kategori'=>'PHC','parent_kode'=>null,'urutan'=>2],
+        ['kode'=>'PHC-3','nama'=>'DRESSING INFUS','kategori'=>'PHC','parent_kode'=>null,'urutan'=>3],
+        ['kode'=>'PHC-4','nama'=>'MELEPAS INFUS','kategori'=>'PHC','parent_kode'=>null,'urutan'=>4],
+        ['kode'=>'PHC-5','nama'=>'MENGHITUNG BALANCE CAIRAN','kategori'=>'PHC','parent_kode'=>null,'urutan'=>5],
+        ['kode'=>'PHC-6','nama'=>'CARA MENGUKUR CVP YANG AKURAT','kategori'=>'PHC','parent_kode'=>null,'urutan'=>6],
+        ['kode'=>'PHC-7','nama'=>'MEMASANG NGT / MELEPAS NGT / MEMBERIKAN MAKAN LEWAT NGT','kategori'=>'PHC','parent_kode'=>null,'urutan'=>7],
+        ['kode'=>'PHC-8','nama'=>'KUMBAH LAMBUNG','kategori'=>'PHC','parent_kode'=>null,'urutan'=>8],
+        ['kode'=>'PHC-9','nama'=>'PERAWATAN DAN PEMBERIAN MAKAN MELALUI PEG','kategori'=>'PHC','parent_kode'=>null,'urutan'=>9],
+        ['kode'=>'PHC-10','nama'=>'PEMBERIAN CAIRAN DENGAN INFUS PUMP','kategori'=>'PHC','parent_kode'=>null,'urutan'=>10],
+        ['kode'=>'PHC-11','nama'=>'PEMASANGAN KATETER','kategori'=>'PHC','parent_kode'=>null,'urutan'=>11],
+        ['kode'=>'PHC-12','nama'=>'PEMASANGAN KATETER SEMENTARA','kategori'=>'PHC','parent_kode'=>null,'urutan'=>12],
+        ['kode'=>'PHC-13','nama'=>'MELEPAS KATETER TETAP','kategori'=>'PHC','parent_kode'=>null,'urutan'=>13],
+        ['kode'=>'PHC-14','nama'=>'TINDAKAN SUCTION','kategori'=>'PHC','parent_kode'=>null,'urutan'=>14],
+        ['kode'=>'PHC-15','nama'=>'DRESSING TRACHEOSTOMY','kategori'=>'PHC','parent_kode'=>null,'urutan'=>15],
+        ['kode'=>'PHC-16','nama'=>'LATIHAN NAFAS PADA PASIEN TRACHEOSTOMI','kategori'=>'PHC','parent_kode'=>null,'urutan'=>16],
+        ['kode'=>'PHC-17','nama'=>'MEMBERIKAN OBAT DENGAN SYRINGE PUMP','kategori'=>'PHC','parent_kode'=>null,'urutan'=>17],
+        ['kode'=>'PHC-18','nama'=>'MELAKUKAN BAGGING','kategori'=>'PHC','parent_kode'=>null,'urutan'=>18],
+    ];
+    foreach ($materi as $m) {
+        \DB::table('training_materi')->insert(array_merge($m,['is_active'=>true,'created_at'=>now(),'updated_at'=>now()]));
+    }
+    return response()->json(['success'=>true,'seeded'=>count($materi),'message'=>'Dasar: 73 item, PHC: 18 item']);
+});
