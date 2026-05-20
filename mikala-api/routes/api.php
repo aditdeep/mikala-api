@@ -735,3 +735,15 @@ Route::get('/fix-db2', function() {
         'errors'  => $errors,
     ]);
 });
+
+// TEMPORARY — cek status data mitra
+Route::get('/check-mitra', function() {
+    $all = \App\Models\Mitra::withTrashed()->get(['id','nama_lengkap','status','status_rekrutmen','deleted_at']);
+    return response()->json([
+        'total_including_deleted' => $all->count(),
+        'active'   => $all->whereNull('deleted_at')->count(),
+        'deleted'  => $all->whereNotNull('deleted_at')->count(),
+        'by_status'=> $all->whereNull('deleted_at')->groupBy('status')->map->count(),
+        'data'     => $all->map(fn($m) => ['id'=>$m->id,'nama'=>$m->nama_lengkap,'status'=>$m->status,'rekrutmen'=>$m->status_rekrutmen,'deleted'=>$m->deleted_at]),
+    ]);
+});
