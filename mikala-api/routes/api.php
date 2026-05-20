@@ -337,6 +337,8 @@ Route::middleware('auth:sanctum')->group(function () {
         // Training Center
         Route::middleware('role:manajemen,training_center')->prefix('training')->group(function () {
             Route::get('mitra', [TrainingController::class, 'indexMitra']);
+            Route::get('mitra/{id}/progress',              [TrainingController::class, 'mitraProgress']);
+            Route::post('mitra/{id}/checklist/{materiId}',  [TrainingController::class, 'toggleChecklist']);
             Route::get('mitra/{id}', [TrainingController::class, 'showMitra']);
             Route::post('mitra/{id}/checklist', [TrainingController::class, 'updateChecklist']);
             Route::post('mitra/{id}/feedback', [TrainingController::class, 'submitFeedback']);
