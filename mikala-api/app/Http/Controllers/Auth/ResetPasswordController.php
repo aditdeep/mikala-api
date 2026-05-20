@@ -20,11 +20,17 @@ class ResetPasswordController extends Controller
 
         $user = User::where('email', strtolower($request->email))->first();
 
+        $waNumber = env('WA_CS_NUMBER', '6281296998827');
+
         if (!$user) {
-            // Jangan reveal apakah email ada atau tidak (security)
+            // Email tidak ditemukan — tetap return WA sebagai fallback
+            $waMessage = urlencode("Halo Mikala, saya ingin reset password akun Mitra saya dengan email: {$request->email}");
             return response()->json([
-                'success' => true,
-                'message' => 'Jika email terdaftar, instruksi reset akan dikirim.',
+                'success'    => true,
+                'message'    => 'Jika email terdaftar, instruksi reset akan dikirim.',
+                'email_sent' => false,
+                'wa_url'     => "https://wa.me/{$waNumber}?text={$waMessage}",
+                'wa_number'  => $waNumber,
             ]);
         }
 
