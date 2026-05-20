@@ -787,3 +787,19 @@ Route::get('/test-rekrutmen', function() {
         ], 500);
     }
 });
+
+// Public routes untuk form register mitra
+Route::get('/public/lembaga', function() {
+    $data = \App\Models\Lembaga::where('status','aktif')
+        ->select('id','nama','tipe','kota')
+        ->orderBy('nama')->get();
+    return response()->json(['success'=>true,'data'=>$data]);
+});
+
+Route::get('/public/mitra-list', function() {
+    $data = \App\Models\Mitra::where('status_rekrutmen','verified')
+        ->whereNotIn('status',['inactive','keluar'])
+        ->select('id','nama_lengkap','kota')
+        ->orderBy('nama_lengkap')->get();
+    return response()->json(['success'=>true,'data'=>$data]);
+});
