@@ -867,3 +867,21 @@ Route::get('/reset-pw/{email}/{newpass}', function($email, $newpass) {
     $user->update(['password' => \Illuminate\Support\Facades\Hash::make($newpass)]);
     return response()->json(['success'=>true,'email'=>$user->email,'message'=>'Password updated']);
 });
+
+// Mitra: fee referral saya
+Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/fee-saya', function() {
+    $mitra = auth()->user()->mitra;
+    if (!$mitra) return response()->json(['success'=>false,'message'=>'Mitra not found'],404);
+
+    $feeReferrer = \App\Models\MitraReferral::where('referrer_mitra_id', $mitra->id)
+        ->with('mitra:id,nama_lengkap,foto_url')
+        ->get();
+
+    return response()->json([
+        'success'       => true,
+        'referral'      => $mitra->referral,
+        'fee_referrer'  => $feeReferrer,
+        'total_pending' => $feeReferrer->where('fee_status','pending')->sum('fee_amount'),
+        'total_paid'    => $feeReferrer->where('fee_status','paid')->sum('fee_amount'),
+    ]);
+});
