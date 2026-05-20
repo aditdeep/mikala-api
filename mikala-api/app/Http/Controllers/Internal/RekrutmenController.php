@@ -244,3 +244,33 @@ class RekrutmenController extends Controller
         }
     }
 }
+
+    // ── Tambahan: helper create referral saat mitra TERIMA ──
+    private function createReferralFee(\App\Models\Mitra $mitra): void
+    {
+        if ($mitra->referral) return; // sudah ada
+
+        $feeAmount = 0;
+        $referralData = [
+            'mitra_id'    => $mitra->id,
+            'sumber_tipe' => $mitra->sumber_tipe ?? 'sendiri',
+            'sumber_detail'=> $mitra->sumber_detail,
+            'fee_status'  => 'pending',
+        ];
+
+        if ($mitra->sumber_tipe === 'lembaga' && $mitra->lembaga_id) {
+            $lembaga   = \App\Models\Lembaga::find($mitra->lembaga_id);
+            $feeAmount = $lembaga?->fee_per_mitra ?? 0;
+            $referralData['lembaga_id']  = $mitra->lembaga_id;
+            $referralData['fee_amount']  = $feeAmount;
+        } elseif ($mitra->sumber_tipe === 'orang_terdekat' && $mitra->referrer_mitra_id) {
+            // Fee untuk mitra referrer — default 0, bisa diset manual oleh rekrutmen
+            $referralData['referrer_mitra_id'] = $mitra->referrer_mitra_id;
+            $referralData['fee_amount']        = 0; // Rekrutmen set manual
+        } elseif ($mitra->sumber_tipe === 'sendiri') {
+            $referralData['lead_source'] = $mitra->sumber_detail;
+            $referralData['fee_amount']  = 0;
+        }
+
+        \App\Models\MitraReferral::create($referralData);
+    }
