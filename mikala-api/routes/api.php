@@ -755,3 +755,24 @@ Route::get('/debug-rekrutmen', function() {
         ->get(['id','user_id','nama_lengkap','status','status_rekrutmen','kota','pendidikan_terakhir','foto_url']);
     return response()->json(['success'=>true,'count'=>$mitra->count(),'data'=>$mitra]);
 });
+
+// TEMPORARY — test rekrutmen dengan login
+Route::get('/test-rekrutmen', function() {
+    try {
+        $mitra = \App\Models\Mitra::with('user')
+            ->orderBy('created_at','desc')
+            ->paginate(15);
+        return response()->json([
+            'success' => true,
+            'count'   => $mitra->total(),
+            'data'    => $mitra->items(),
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error'   => $e->getMessage(),
+            'line'    => $e->getLine(),
+            'file'    => basename($e->getFile()),
+        ], 500);
+    }
+});
