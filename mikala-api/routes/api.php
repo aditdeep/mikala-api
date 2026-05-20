@@ -851,3 +851,11 @@ Route::get('/check-referral', function() {
         return response()->json(['error'=>$e->getMessage()]);
     }
 });
+
+// Set fee referral manual (rekrutmen/finance)
+Route::middleware(['auth:sanctum','internal','role:manajemen,rekrutmen,finance'])->put('internal/referral/{id}/set-fee', function(\Illuminate\Http\Request $req, $id) {
+    $req->validate(['fee_amount'=>'required|numeric|min:0']);
+    $ref = \App\Models\MitraReferral::findOrFail($id);
+    $ref->update(['fee_amount'=>$req->fee_amount]);
+    return response()->json(['success'=>true,'data'=>$ref]);
+});
