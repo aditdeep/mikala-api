@@ -1031,3 +1031,47 @@ Route::get('/seed-training', function() {
     }
     return response()->json(['success'=>true,'seeded'=>count($materi),'message'=>'Dasar: 73 item, PHC: 18 item']);
 });
+
+// ── MGA PUBLIC ────────────────────────────────────────────────────────────────
+use App\Http\Controllers\Internal\MgaController;
+Route::prefix('mga')->group(function() {
+    Route::get('/settings', [MgaController::class, 'getSettings']);
+    Route::get('/artikel', [MgaController::class, 'artikelIndex']);
+    Route::get('/artikel/{slug}', function($slug) {
+        $a = \DB::table('mga_artikel')->where('slug',$slug)->where('status','published')->first();
+        return $a ? response()->json(['success'=>true,'data'=>$a]) : response()->json(['success'=>false],404);
+    });
+    Route::get('/galeri', [MgaController::class, 'galeriIndex']);
+    Route::get('/program', [MgaController::class, 'programIndex']);
+    Route::get('/testimoni', [MgaController::class, 'testimoniIndex']);
+});
+
+// ── MGA INTERNAL CMS ─────────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum','internal','role:manajemen,marketing'])->prefix('internal/mga')->group(function() {
+    Route::get('/settings',         [MgaController::class, 'getSettings']);
+    Route::post('/settings',        [MgaController::class, 'updateSettings']);
+    Route::get('/artikel',          [MgaController::class, 'artikelIndex']);
+    Route::post('/artikel',         [MgaController::class, 'artikelStore']);
+    Route::put('/artikel/{id}',     [MgaController::class, 'artikelUpdate']);
+    Route::delete('/artikel/{id}',  [MgaController::class, 'artikelDestroy']);
+    Route::get('/galeri',           [MgaController::class, 'galeriIndex']);
+    Route::post('/galeri',          [MgaController::class, 'galeriStore']);
+    Route::delete('/galeri/{id}',   [MgaController::class, 'galeriDestroy']);
+    Route::get('/program',          [MgaController::class, 'programIndex']);
+    Route::post('/program',         [MgaController::class, 'programStore']);
+    Route::put('/program/{id}',     [MgaController::class, 'programUpdate']);
+    Route::delete('/program/{id}',  [MgaController::class, 'programDestroy']);
+    Route::get('/testimoni',        [MgaController::class, 'testimoniIndex']);
+    Route::post('/testimoni',       [MgaController::class, 'testimoniStore']);
+    Route::delete('/testimoni/{id}',[MgaController::class, 'testimoniDestroy']);
+});
+
+// TEMPORARY — seed tables MGA
+Route::get('/seed-mga', function() {
+    \DB::statement("CREATE TABLE IF NOT EXISTS mga_settings (id BIGSERIAL PRIMARY KEY, key VARCHAR(100) UNIQUE, value TEXT, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
+    \DB::statement("CREATE TABLE IF NOT EXISTS mga_artikel (id BIGSERIAL PRIMARY KEY, judul VARCHAR(255), slug VARCHAR(255) UNIQUE, konten TEXT, ringkasan TEXT, gambar TEXT, kategori VARCHAR(100), author VARCHAR(100), status VARCHAR(20) DEFAULT 'draft', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
+    \DB::statement("CREATE TABLE IF NOT EXISTS mga_galeri (id BIGSERIAL PRIMARY KEY, url TEXT, caption VARCHAR(255), kategori VARCHAR(100), urutan INTEGER DEFAULT 0, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
+    \DB::statement("CREATE TABLE IF NOT EXISTS mga_program (id BIGSERIAL PRIMARY KEY, judul VARCHAR(255), subtitle VARCHAR(255), deskripsi TEXT, icon VARCHAR(10), durasi VARCHAR(50), biaya VARCHAR(100), kuota VARCHAR(50), kurikulum TEXT, syarat TEXT, warna VARCHAR(50), urutan INTEGER DEFAULT 0, status VARCHAR(20) DEFAULT 'aktif', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
+    \DB::statement("CREATE TABLE IF NOT EXISTS mga_testimoni (id BIGSERIAL PRIMARY KEY, nama VARCHAR(100), asal VARCHAR(100), jabatan VARCHAR(100), teks TEXT, foto VARCHAR(10), rating INTEGER DEFAULT 5, status VARCHAR(20) DEFAULT 'aktif', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
+    return response()->json(['success'=>true,'message'=>'MGA tables created!','tables'=>['mga_settings','mga_artikel','mga_galeri','mga_program','mga_testimoni']]);
+});
