@@ -19,6 +19,7 @@ use App\Http\Controllers\Klien\KlienLayananController;
 use App\Http\Controllers\Klien\KlienBillingController;
 use App\Http\Controllers\Public\MGMController;
 use App\Http\Controllers\Public\MGAController;
+use App\Http\Controllers\Internal\MgaController as InternalMgaController;
 use App\Http\Controllers\NotifikasiController;
 
 /*
@@ -1034,35 +1035,35 @@ Route::get('/seed-training', function() {
 
 // ── MGA PUBLIC ────────────────────────────────────────────────────────────────
 Route::prefix('mga')->group(function() {
-    Route::get('/settings', [MgaController::class, 'getSettings']);
-    Route::get('/artikel', [MgaController::class, 'artikelIndex']);
+    Route::get('/settings', [InternalMgaController::class, 'getSettings']);
+    Route::get('/artikel', [InternalMgaController::class, 'artikelIndex']);
     Route::get('/artikel/{slug}', function($slug) {
         $a = \DB::table('mga_artikel')->where('slug',$slug)->where('status','published')->first();
         return $a ? response()->json(['success'=>true,'data'=>$a]) : response()->json(['success'=>false],404);
     });
-    Route::get('/galeri', [MgaController::class, 'galeriIndex']);
-    Route::get('/program', [MgaController::class, 'programIndex']);
-    Route::get('/testimoni', [MgaController::class, 'testimoniIndex']);
+    Route::get('/galeri', [InternalMgaController::class, 'galeriIndex']);
+    Route::get('/program', [InternalMgaController::class, 'programIndex']);
+    Route::get('/testimoni', [InternalMgaController::class, 'testimoniIndex']);
 });
 
 // ── MGA INTERNAL CMS ─────────────────────────────────────────────────────────
 Route::middleware(['auth:sanctum','internal','role:manajemen,marketing'])->prefix('internal/mga')->group(function() {
-    Route::get('/settings',         [MgaController::class, 'getSettings']);
-    Route::post('/settings',        [MgaController::class, 'updateSettings']);
-    Route::get('/artikel',          [MgaController::class, 'artikelIndex']);
-    Route::post('/artikel',         [MgaController::class, 'artikelStore']);
-    Route::put('/artikel/{id}',     [MgaController::class, 'artikelUpdate']);
-    Route::delete('/artikel/{id}',  [MgaController::class, 'artikelDestroy']);
-    Route::get('/galeri',           [MgaController::class, 'galeriIndex']);
-    Route::post('/galeri',          [MgaController::class, 'galeriStore']);
-    Route::delete('/galeri/{id}',   [MgaController::class, 'galeriDestroy']);
-    Route::get('/program',          [MgaController::class, 'programIndex']);
-    Route::post('/program',         [MgaController::class, 'programStore']);
-    Route::put('/program/{id}',     [MgaController::class, 'programUpdate']);
-    Route::delete('/program/{id}',  [MgaController::class, 'programDestroy']);
-    Route::get('/testimoni',        [MgaController::class, 'testimoniIndex']);
-    Route::post('/testimoni',       [MgaController::class, 'testimoniStore']);
-    Route::delete('/testimoni/{id}',[MgaController::class, 'testimoniDestroy']);
+    Route::get('/settings',         [InternalMgaController::class, 'getSettings']);
+    Route::post('/settings',        [InternalMgaController::class, 'updateSettings']);
+    Route::get('/artikel',          [InternalMgaController::class, 'artikelIndex']);
+    Route::post('/artikel',         [InternalMgaController::class, 'artikelStore']);
+    Route::put('/artikel/{id}',     [InternalMgaController::class, 'artikelUpdate']);
+    Route::delete('/artikel/{id}',  [InternalMgaController::class, 'artikelDestroy']);
+    Route::get('/galeri',           [InternalMgaController::class, 'galeriIndex']);
+    Route::post('/galeri',          [InternalMgaController::class, 'galeriStore']);
+    Route::delete('/galeri/{id}',   [InternalMgaController::class, 'galeriDestroy']);
+    Route::get('/program',          [InternalMgaController::class, 'programIndex']);
+    Route::post('/program',         [InternalMgaController::class, 'programStore']);
+    Route::put('/program/{id}',     [InternalMgaController::class, 'programUpdate']);
+    Route::delete('/program/{id}',  [InternalMgaController::class, 'programDestroy']);
+    Route::get('/testimoni',        [InternalMgaController::class, 'testimoniIndex']);
+    Route::post('/testimoni',       [InternalMgaController::class, 'testimoniStore']);
+    Route::delete('/testimoni/{id}',[InternalMgaController::class, 'testimoniDestroy']);
 });
 
 // TEMPORARY — seed tables MGA
