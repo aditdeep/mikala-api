@@ -1033,7 +1033,6 @@ Route::get('/seed-training', function() {
 });
 
 // ── MGA PUBLIC ────────────────────────────────────────────────────────────────
-use App\Http\Controllers\Internal\MgaController;
 Route::prefix('mga')->group(function() {
     Route::get('/settings', [MgaController::class, 'getSettings']);
     Route::get('/artikel', [MgaController::class, 'artikelIndex']);
