@@ -1118,3 +1118,10 @@ Route::get('/seed-kasbon', function() {
     )");
     return response()->json(['success'=>true,'message'=>'Tabel kasbon siap!']);
 });
+
+// ── PUSH NOTIFICATION ─────────────────────────────────────────────────────────
+// Simpan expo push token (mitra & klien)
+Route::middleware('auth:sanctum')->post('/push-token', [NotifikasiController::class, 'saveExpoPushToken']);
+
+// Broadcast ke semua mitra (internal only)
+Route::middleware(['auth:sanctum','internal','role:manajemen'])->post('/internal/push/broadcast', [NotifikasiController::class, 'broadcastToMitra']);

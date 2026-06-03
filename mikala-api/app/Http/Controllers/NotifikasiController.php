@@ -139,4 +139,73 @@ class NotifikasiController extends Controller
             ], 500);
         }
     }
+
+    /**
+     * Simpan Expo Push Token dari device
+     */
+    public function saveExpoPushToken(Request $request)
+    {
+        $request->validate(['expo_token' => 'required|string']);
+        $user = auth()->user();
+        $user->update(['fcm_token' => $request->expo_token]);
+        return response()->json(['success' => true, 'message' => 'Push token saved']);
+    }
+
+    /**
+     * Kirim push notification ke user tertentu (internal use)
+     */
+    public static function sendPush($userId, string $title, string $body, array $data = [])
+    {
+        try {
+            $user = \App\Models\User::find($userId);
+            if (!$user || !$user->fcm_token) return false;
+            if (!str_starts_with($user->fcm_token, 'ExponentPushToken')) return false;
+
+            $response = \Illuminate\Support\Facades\Http::post('https://exp.host/--/api/v2/push/send', [
+                'to'    => $user->fcm_token,
+                'title' => $title,
+                'body'  => $body,
+                'data'  => $data,
+                'sound' => 'default',
+                'badge' => 1,
+            ]);
+
+            // Simpan ke tabel notifikasi juga
+            \App\Models\Notifikasi::create([
+                'user_id'    => $userId,
+                'title'      => $title,
+                'body'       => $body,
+                'type'       => $data['type'] ?? 'general',
+                'data'       => json_encode($data),
+                'is_read'    => false,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            return $response->successful();
+        } catch (\Exception $e) {
+            \Log::error('Push notification error: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Kirim push ke semua mitra (broadcast)
+     */
+    public function broadcastToMitra(Request $request)
+    {
+        $request->validate(['title' => 'required', 'body' => 'required']);
+        $mitras = \App\Models\User::where('role', 'mitra')
+            ->whereNotNull('fcm_token')
+            ->where('fcm_token', 'like', 'ExponentPushToken%')
+            ->get();
+
+        $sent = 0;
+        foreach ($mitras as $user) {
+            $success = self::sendPush($user->id, $request->title, $request->body, ['type' => $request->type ?? 'broadcast']);
+            if ($success) $sent++;
+        }
+        return response()->json(['success' => true, 'sent_to' => $sent]);
+    }
+
 }
