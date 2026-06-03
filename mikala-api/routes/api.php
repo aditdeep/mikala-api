@@ -1075,3 +1075,46 @@ Route::get('/seed-mga', function() {
     \DB::statement("CREATE TABLE IF NOT EXISTS mga_testimoni (id BIGSERIAL PRIMARY KEY, nama VARCHAR(100), asal VARCHAR(100), jabatan VARCHAR(100), teks TEXT, foto VARCHAR(10), rating INTEGER DEFAULT 5, status VARCHAR(20) DEFAULT 'aktif', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())");
     return response()->json(['success'=>true,'message'=>'MGA tables created!','tables'=>['mga_settings','mga_artikel','mga_galeri','mga_program','mga_testimoni']]);
 });
+
+// ── MITRA: Kasbon ─────────────────────────────────────────────────────────────
+Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/kasbon', function() {
+    $mitra = auth()->user()->mitra;
+    if (!$mitra) return response()->json(['success'=>false,'message'=>'Mitra not found'],404);
+    $kasbon = \DB::table('mitra_kasbon')
+        ->where('mitra_id', $mitra->id)
+        ->orderBy('created_at','desc')
+        ->get();
+    return response()->json(['success'=>true,'data'=>$kasbon]);
+});
+
+Route::middleware(['auth:sanctum','role:mitra'])->post('/mitra/kasbon', function(\Illuminate\Http\Request $request) {
+    $request->validate(['jumlah'=>'required|numeric|min:10000','keperluan'=>'required|string|max:255']);
+    $mitra = auth()->user()->mitra;
+    if (!$mitra) return response()->json(['success'=>false,'message'=>'Mitra not found'],404);
+    $id = \DB::table('mitra_kasbon')->insertGetId([
+        'mitra_id'  => $mitra->id,
+        'jumlah'    => $request->jumlah,
+        'keperluan' => $request->keperluan,
+        'status'    => 'pending',
+        'created_at'=> now(),
+        'updated_at'=> now(),
+    ]);
+    return response()->json(['success'=>true,'data'=>\DB::table('mitra_kasbon')->find($id)],201);
+});
+
+// TEMPORARY — buat tabel kasbon
+Route::get('/seed-kasbon', function() {
+    \DB::statement("CREATE TABLE IF NOT EXISTS mitra_kasbon (
+        id BIGSERIAL PRIMARY KEY,
+        mitra_id BIGINT NOT NULL,
+        jumlah DECIMAL(15,2) NOT NULL,
+        keperluan TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        approved_by BIGINT,
+        approved_at TIMESTAMP,
+        catatan TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+    )");
+    return response()->json(['success'=>true,'message'=>'Tabel kasbon siap!']);
+});
