@@ -275,4 +275,23 @@ class RekrutmenController extends Controller
         \App\Models\MitraReferral::create($referralData);
     }
 
+
+    public function setPriceRate(Request $request, $id)
+    {
+        $request->validate(['price_rate'=>'required|numeric|min:0']);
+        $mitra = \App\Models\Mitra::findOrFail($id);
+
+        if ($mitra->status_lulus !== 'lulus') {
+            return response()->json(['success'=>false,'message'=>'Mitra harus lulus training dulu sebelum set rate'],400);
+        }
+
+        $mitra->update([
+            'price_rate' => $request->price_rate,
+            'status'     => 'available',
+            'updated_at' => now(),
+        ]);
+
+        return response()->json(['success'=>true,'data'=>$mitra->fresh()]);
+    }
+    
 }

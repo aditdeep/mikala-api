@@ -340,6 +340,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('mitra', [TrainingController::class, 'indexMitra']);
             Route::get('mitra/{id}/progress',              [TrainingController::class, 'mitraProgress']);
             Route::post('mitra/{id}/checklist/{materiId}',  [TrainingController::class, 'toggleChecklist']);
+            Route::post('mitra/{id}/sertifikat',              [TrainingController::class, 'terbitkanSertifikat']);
             Route::get('mitra/{id}', [TrainingController::class, 'showMitra']);
             Route::post('mitra/{id}/checklist', [TrainingController::class, 'updateChecklist']);
             Route::post('mitra/{id}/feedback', [TrainingController::class, 'submitFeedback']);
@@ -510,6 +511,7 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,rekrutmen'])->prefi
     Route::post('mitra/{id}/terima',       [RekrutmenController::class, 'terima']);
     Route::post('mitra/{id}/tolak',        [RekrutmenController::class, 'tolak']);
     Route::post('mitra/{id}/interview',    [RekrutmenController::class, 'buatJadwalInterview']);
+    Route::post('mitra/{id}/price-rate',    [RekrutmenController::class, 'setPriceRate']);
     Route::get('interview/list',           [RekrutmenController::class, 'jadwalInterviewList']);
     Route::post('interview/{id}/selesai',  [RekrutmenController::class, 'selesaiInterview']);
     Route::get('kredit',                   [RekrutmenController::class, 'kreditPelatihanList']);
@@ -1125,3 +1127,34 @@ Route::middleware('auth:sanctum')->post('/push-token', [NotifikasiController::cl
 
 // Broadcast ke semua mitra (internal only)
 Route::middleware(['auth:sanctum','internal','role:manajemen'])->post('/internal/push/broadcast', [NotifikasiController::class, 'broadcastToMitra']);
+
+// TEMPORARY — migrate training rating + sertifikat
+Route::get('/migrate-training-rating', function() {
+    try {
+        // Tambah kolom rating ke training_checklist
+        \DB::statement("ALTER TABLE training_checklist ADD COLUMN IF NOT EXISTS rating DECIMAL(2,1) DEFAULT 0");
+
+        // Tambah kolom status_training + nilai_rata di mitra
+        \DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS nilai_rata DECIMAL(3,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE mitra ADD COLUMN IF NOT EXISTS status_lulus VARCHAR(20) DEFAULT 'training'");
+        // status: training, lulus, tidak_lulus
+
+        // Tabel sertifikat
+        \DB::statement("CREATE TABLE IF NOT EXISTS sertifikat_mitra (
+            id BIGSERIAL PRIMARY KEY,
+            mitra_id BIGINT NOT NULL,
+            nomor_sertifikat VARCHAR(50) UNIQUE,
+            nilai_rata DECIMAL(3,2),
+            tanggal_terbit DATE,
+            url_pdf TEXT,
+            issued_by BIGINT,
+            catatan TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )");
+
+        return response()->json(['success'=>true,'message'=>'Migration sukses!']);
+    } catch (\Exception $e) {
+        return response()->json(['success'=>false,'error'=>$e->getMessage()],500);
+    }
+});

@@ -450,32 +450,54 @@ class TrainingController extends Controller
         return response()->json(['success'=>true,'data'=>$materi]);
     }
 
-    public function mitraProgress($mitraId) {
-        $mitra   = \App\Models\Mitra::with('user')->findOrFail($mitraId);
-        $materi  = \App\Models\TrainingMateri::where('is_active',true)->orderBy('kategori')->orderBy('urutan')->get();
-        $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->with('checker:id,name')->get()->keyBy('materi_id');
+    public function mitraProgress($mitraId)
+    {
+        $mitra = \DB::table('mitra')->find($mitraId);
+        $materi = \DB::table('training_materi')->where('is_active',true)->orderBy('urutan')->get();
+        $checks = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->with('checker:id,name')->get()->keyBy('materi_id');
+
         $total   = $materi->count();
         $selesai = $checks->count();
-        $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
-            'kategori'=>$kat,'total'=>$items->count(),
-            'selesai'=>$items->filter(fn($m)=>$checks->has($m->id))->count(),
-            'persen'=>$items->count()>0?round($items->filter(fn($m)=>$checks->has($m->id))->count()/$items->count()*100):0,
-        ])->values();
-        $result = $materi->map(fn($m)=>[
-            'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'kategori'=>$m->kategori,
-            'parent_kode'=>$m->parent_kode,'urutan'=>$m->urutan,
-            'checked'=>$checks->has($m->id),
-            'tanggal_dapat'=>$checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
-            'pengajar'=>$checks->get($m->id)?->pengajar,
-            'checked_by'=>$checks->get($m->id)?->checker?->name,
-        ]);
+        $persen  = $total > 0 ? round(($selesai/$total)*100) : 0;
+        $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
+
+        $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks) {
+            $selesai = $items->filter(fn($m)=>$checks->has($m->id))->count();
+            $checkedItems = $items->filter(fn($m)=>$checks->has($m->id));
+            $avgRating = $checkedItems->count() > 0
+                ? round($checkedItems->avg(fn($m)=>$checks->get($m->id)->rating ?? 0), 2)
+                : 0;
+            return [
+                'kategori' => $kat,
+                'total'    => $items->count(),
+                'selesai'  => $selesai,
+                'persen'   => $items->count()>0 ? round($selesai/$items->count()*100) : 0,
+                'rating_rata' => $avgRating,
+                'materi'   => $items->map(fn($m)=>[
+                    'id' => $m->id, 'kode' => $m->kode, 'nama' => $m->nama,
+                    'kategori' => $m->kategori, 'parent_kode' => $m->parent_kode, 'urutan' => $m->urutan,
+                    'checked' => $checks->has($m->id),
+                    'rating' => $checks->get($m->id)?->rating ?? 0,
+                    'tanggal_dapat' => $checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
+                    'pengajar' => $checks->get($m->id)?->pengajar,
+                    'checked_by' => $checks->get($m->id)?->checker?->name,
+                ])->values(),
+            ];
+        })->values();
+
+        // Cek sertifikat
+        $sertifikat = \DB::table('sertifikat_mitra')->where('mitra_id', $mitraId)->first();
+
         return response()->json([
-            'success'=>true,'mitra'=>['id'=>$mitra->id,'nama'=>$mitra->nama_lengkap,'foto'=>$mitra->foto_url],
-            'total'=>$total,'selesai'=>$selesai,'persen'=>$total>0?round($selesai/$total*100):0,
-            'by_kategori'=>$byKat,'materi'=>$result,
+            'success' => true,
+            'total' => $total, 'selesai' => $selesai, 'persen' => $persen,
+            'nilai_rata' => $nilaiRata,
+            'status_lulus' => $mitra->status_lulus ?? 'training',
+            'sertifikat' => $sertifikat,
+            'by_kategori' => $byKat,
         ]);
     }
-
+    
     public function toggleChecklist(\Illuminate\Http\Request $request, $mitraId, $materiId) {
         $request->validate(['tanggal_dapat'=>'required|date','pengajar'=>'required|string|max:100','catatan'=>'nullable|string']);
         $existing = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->where('materi_id',$materiId)->first();
@@ -488,4 +510,33 @@ class TrainingController extends Controller
         return response()->json(['success'=>true,'action'=>'checked']);
     }
 
+
+    public function terbitkanSertifikat(Request $request, $mitraId)
+    {
+        $mitra = \DB::table('mitra')->find($mitraId);
+        if (!$mitra) return response()->json(['success'=>false,'message'=>'Mitra not found'],404);
+        if ($mitra->status_lulus !== 'lulus') {
+            return response()->json(['success'=>false,'message'=>'Mitra belum lulus training'],400);
+        }
+
+        // Cek apakah sudah pernah terbit
+        $exist = \DB::table('sertifikat_mitra')->where('mitra_id', $mitraId)->first();
+        if ($exist) return response()->json(['success'=>true,'data'=>$exist,'message'=>'Sertifikat sudah ada']);
+
+        $nomor = 'MGM/'.date('Y').'/'.str_pad($mitraId, 4, '0', STR_PAD_LEFT).'/'.time();
+        $id = \DB::table('sertifikat_mitra')->insertGetId([
+            'mitra_id'         => $mitraId,
+            'nomor_sertifikat' => $nomor,
+            'nilai_rata'       => $mitra->nilai_rata,
+            'tanggal_terbit'   => now()->toDateString(),
+            'url_pdf'          => $request->url_pdf,
+            'issued_by'        => auth()->id(),
+            'catatan'          => $request->catatan,
+            'created_at'       => now(),
+            'updated_at'       => now(),
+        ]);
+
+        return response()->json(['success'=>true,'data'=>\DB::table('sertifikat_mitra')->find($id)]);
+    }
+    
 }
