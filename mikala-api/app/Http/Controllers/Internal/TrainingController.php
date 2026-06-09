@@ -573,25 +573,24 @@ class TrainingController extends Controller
         $namaMitra = $mitra->nama_lengkap ?? $mitra->user->name ?? 'Mitra';
         $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781023999/mikala/sertifikat/sertifikat_2_1781023056.pdf.png';
 
-        // Download Great Vibes font dari CDN
+        // Download Niconne font
         $fontDir = storage_path('app/fonts');
         if (!is_dir($fontDir)) mkdir($fontDir, 0755, true);
-        $ttfPath = $fontDir . '/GreatVibes.ttf';
-        $greatVibesFont = null;
+        $ttfPath = $fontDir . '/Niconne.ttf';
+        $niconneFont = null;
 
-        if (!file_exists($ttfPath)) {
-            // Try multiple sources
+        if (!file_exists($ttfPath) || filesize($ttfPath) < 1000) {
             $sources = [
-                'https://github.com/googlefonts/great-vibes/raw/master/fonts/ttf/GreatVibes-Regular.ttf',
-                'https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf',
-                'https://fonts.gstatic.com/s/greatvibes/v19/RWmMoKWR9v4ksMfaWd_JN-XCg6UKDXlq.ttf',
+                'https://github.com/googlefonts/Niconne/raw/master/fonts/Niconne-Regular.ttf',
+                'https://raw.githubusercontent.com/google/fonts/main/ofl/niconne/Niconne-Regular.ttf',
+                'https://fonts.gstatic.com/s/niconne/v17/w8gaH2QvRug1_rTfrQut2F4OuOo.ttf',
             ];
             foreach ($sources as $url) {
                 $ctx = stream_context_create(['http' => ['timeout' => 10, 'header' => 'User-Agent: Mozilla/5.0']]);
                 $ttfContent = @file_get_contents($url, false, $ctx);
                 if ($ttfContent && strlen($ttfContent) > 1000) {
                     file_put_contents($ttfPath, $ttfContent);
-                    \Log::info('Great Vibes downloaded from: ' . $url);
+                    \Log::info('Niconne downloaded from: ' . $url);
                     break;
                 }
             }
@@ -599,11 +598,10 @@ class TrainingController extends Controller
 
         if (file_exists($ttfPath) && filesize($ttfPath) > 1000) {
             try {
-                $greatVibesFont = \TCPDF_FONTS::addTTFfont($ttfPath, 'TrueTypeUnicode', '', 32);
-                \Log::info('Font registered: ' . $greatVibesFont);
+                $niconneFont = \TCPDF_FONTS::addTTFfont($ttfPath, 'TrueTypeUnicode', '', 32);
+                \Log::info('Niconne registered: ' . $niconneFont);
             } catch (\Exception $e) {
-                \Log::warning('Font load failed: ' . $e->getMessage());
-                $greatVibesFont = null;
+                \Log::warning('Niconne load failed: ' . $e->getMessage());
             }
         }
 
@@ -622,31 +620,26 @@ class TrainingController extends Controller
         $pdf->SetMargins(0, 0, 0);
         $pdf->AddPage();
 
-        // Background image (A4 landscape: 297x210mm)
+        // Background image
         $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
 
-        // Offset ke kiri karena bingkai kanan lebih lebar
-        $centerOffset = -8;
-
-        // Nomor sertifikat
-        $pdf->SetFont('helvetica', '', 13);
+        // Page width 297mm — center = 148.5
+        // Nomor sertifikat di posisi y=77 (di samping "No :" template bawaan)
+        $nomorText = 'No : ' . $nomor;
+        $pdf->SetFont('helvetica', '', 14);
         $pdf->SetTextColor(50, 50, 50);
-        $pdf->SetXY($centerOffset, 78);
-        $pdf->Cell(297, 6, 'No : ' . $nomor, 0, 0, 'C');
+        $textWidth = $pdf->GetStringWidth($nomorText);
+        $pdf->Text((297 - $textWidth) / 2, 73, $nomorText);
 
-        // Nama mitra — coba Great Vibes, fallback helvetica italic
-        $fontName = 'helvetica';
-        $fontStyle = 'BI';
-        $fontSize = 52;
-        if ($greatVibesFont && is_string($greatVibesFont)) {
-            $fontName = $greatVibesFont;
-            $fontStyle = '';
-            $fontSize = 80;
+        // Nama mitra — Niconne cursive
+        if ($niconneFont) {
+            $pdf->SetFont($niconneFont, '', 60);
+        } else {
+            $pdf->SetFont('helvetica', 'BI', 48);
         }
-        $pdf->SetFont($fontName, $fontStyle, $fontSize);
         $pdf->SetTextColor(30, 58, 138);
-        $pdf->SetXY($centerOffset, 100);
-        $pdf->Cell(297, 30, $namaMitra, 0, 0, 'C');
+        $nameWidth = $pdf->GetStringWidth($namaMitra);
+        $pdf->Text((297 - $nameWidth) / 2, 105, $namaMitra);
 
         $pdfContent = $pdf->Output('', 'S');
         @unlink($bgPath);
