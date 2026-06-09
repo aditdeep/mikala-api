@@ -1247,3 +1247,11 @@ Route::get('/test-pdf', function() {
 
     $pdf->Output('test.pdf', 'I');
 });
+
+// TEMPORARY — clear cache
+Route::get('/clear-cache', function() {
+    \Artisan::call('route:clear');
+    \Artisan::call('cache:clear');
+    \Artisan::call('config:clear');
+    return response()->json(['success'=>true,'message'=>'cache cleared']);
+});
