@@ -1219,3 +1219,9 @@ Route::get('/test-lulus-mitra/{mitraId}/{rating?}', function($mitraId, $rating =
         'status' => $statusLulus,
     ]);
 });
+
+// TEMPORARY — hapus sertifikat untuk test ulang
+Route::get('/delete-sertifikat/{mitraId}', function($mitraId) {
+    $deleted = \DB::table('sertifikat_mitra')->where('mitra_id', $mitraId)->delete();
+    return response()->json(['success'=>true,'deleted'=>$deleted]);
+});
