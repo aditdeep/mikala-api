@@ -533,23 +533,32 @@ class TrainingController extends Controller
 
     public function terbitkanSertifikat(Request $request, $mitraId)
     {
-        $mitra = \DB::table('mitra')->find($mitraId);
+        $mitra = \App\Models\Mitra::with('user')->find($mitraId);
         if (!$mitra) return response()->json(['success'=>false,'message'=>'Mitra not found'],404);
         if ($mitra->status_lulus !== 'lulus') {
             return response()->json(['success'=>false,'message'=>'Mitra belum lulus training'],400);
         }
 
-        // Cek apakah sudah pernah terbit
         $exist = \DB::table('sertifikat_mitra')->where('mitra_id', $mitraId)->first();
         if ($exist) return response()->json(['success'=>true,'data'=>$exist,'message'=>'Sertifikat sudah ada']);
 
-        $nomor = 'MGM/'.date('Y').'/'.str_pad($mitraId, 4, '0', STR_PAD_LEFT).'/'.time();
+        // Generate nomor sertifikat format: tahun(2) + bulan(2) + tahunFull(4) + mitra_id(8 digit)
+        $nomor = date('y') . date('m') . date('Y') . str_pad($mitraId, 8, '0', STR_PAD_LEFT);
+
+        // Generate PDF
+        try {
+            $pdfUrl = $this->generateSertifikatPDF($mitra, $nomor);
+        } catch (\Exception $e) {
+            \Log::error('Generate PDF error: ' . $e->getMessage());
+            $pdfUrl = null;
+        }
+
         $id = \DB::table('sertifikat_mitra')->insertGetId([
             'mitra_id'         => $mitraId,
             'nomor_sertifikat' => $nomor,
             'nilai_rata'       => $mitra->nilai_rata,
             'tanggal_terbit'   => now()->toDateString(),
-            'url_pdf'          => $request->url_pdf,
+            'url_pdf'          => $pdfUrl,
             'issued_by'        => auth()->id(),
             'catatan'          => $request->catatan,
             'created_at'       => now(),
@@ -557,6 +566,85 @@ class TrainingController extends Controller
         ]);
 
         return response()->json(['success'=>true,'data'=>\DB::table('sertifikat_mitra')->find($id)]);
+    }
+
+    private function generateSertifikatPDF($mitra, $nomor)
+    {
+        $namaMitra = strtoupper($mitra->nama_lengkap ?? $mitra->user->name ?? 'MITRA');
+        $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781019640/Sertifikat_Mikala_blank_of3opm.png';
+
+        // Download background
+        $bgPath = storage_path('app/temp_bg_' . $mitra->id . '.png');
+        file_put_contents($bgPath, file_get_contents($bgUrl));
+
+        // Create PDF landscape A4
+        $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('MGM');
+        $pdf->SetTitle('Sertifikat ' . $nomor);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetAutoPageBreak(false);
+        $pdf->SetMargins(0, 0, 0);
+        $pdf->AddPage();
+
+        // Background image (A4 landscape: 297x210mm)
+        $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
+
+        // Nama mitra — script font (Italic biru, posisi tengah)
+        $pdf->SetFont('helvetica', 'BI', 48);
+        $pdf->SetTextColor(30, 58, 138); // navy blue
+        $pdf->SetXY(0, 95);
+        $pdf->Cell(297, 20, $namaMitra, 0, 0, 'C');
+
+        // Nomor sertifikat
+        $pdf->SetFont('helvetica', '', 11);
+        $pdf->SetTextColor(50, 50, 50);
+        $pdf->SetXY(0, 53);
+        $pdf->Cell(297, 5, 'No : ' . $nomor, 0, 0, 'C');
+
+        $pdfContent = $pdf->Output('', 'S');
+        @unlink($bgPath);
+
+        // Upload to Cloudinary
+        return $this->uploadToCloudinary($pdfContent, 'sertifikat_' . $mitra->id . '_' . time());
+    }
+
+    private function uploadToCloudinary($pdfContent, $filename)
+    {
+        $cloudName = 'djgtchmsx';
+        $apiKey = '783424446124453';
+        $apiSecret = env('CLOUDINARY_API_SECRET', '');
+        $timestamp = time();
+
+        $folder = 'mikala/sertifikat';
+        $publicId = $filename;
+
+        // Generate signature
+        $paramsToSign = "folder={$folder}&public_id={$publicId}&timestamp={$timestamp}";
+        $signature = sha1($paramsToSign . $apiSecret);
+
+        $tmpFile = storage_path('app/temp_pdf_' . time() . '.pdf');
+        file_put_contents($tmpFile, $pdfContent);
+
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL, "https://api.cloudinary.com/v1_1/{$cloudName}/raw/upload");
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, [
+            'file'      => new \CURLFile($tmpFile, 'application/pdf', $publicId . '.pdf'),
+            'api_key'   => $apiKey,
+            'timestamp' => $timestamp,
+            'signature' => $signature,
+            'folder'    => $folder,
+            'public_id' => $publicId,
+        ]);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        $response = curl_exec($ch);
+        curl_close($ch);
+        @unlink($tmpFile);
+
+        $data = json_decode($response, true);
+        return $data['secure_url'] ?? null;
     }
     
 }
