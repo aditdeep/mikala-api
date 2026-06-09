@@ -906,18 +906,42 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)->get()->keyBy('materi_id');
     $total   = $materi->count();
     $selesai = $checks->count();
-    $byKat   = $materi->groupBy('kategori')->map(fn($items,$kat)=>[
-        'kategori'=>$kat,'total'=>$items->count(),
-        'selesai'=>$items->filter(fn($m)=>$checks->has($m->id))->count(),
-        'persen'=>$items->count()>0?round($items->filter(fn($m)=>isset($checks[$m->id]))->count()/$items->count()*100):0,
-        'materi'=>$items->map(fn($m)=>[
-            'id'=>$m->id,'kode'=>$m->kode,'nama'=>$m->nama,'parent_kode'=>$m->parent_kode,
-            'checked'=>$checks->has($m->id),
-            'tanggal_dapat'=>$checks->get($m->id)?->tanggal_dapat,
-            'pengajar'=>$checks->get($m->id)?->pengajar,
-        ])->values(),
-    ])->values();
-    return response()->json(['success'=>true,'total'=>$total,'selesai'=>$selesai,'persen'=>$total>0?round($selesai/$total*100):0,'by_kategori'=>$byKat]);
+    $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
+
+    $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks) {
+        $selesai = $items->filter(fn($m)=>$checks->has($m->id))->count();
+        $checkedItems = $items->filter(fn($m)=>$checks->has($m->id));
+        $avgRating = $checkedItems->count() > 0
+            ? round($checkedItems->avg(fn($m)=>$checks->get($m->id)->rating ?? 0), 2)
+            : 0;
+        return [
+            'kategori' => $kat,
+            'total'    => $items->count(),
+            'selesai'  => $selesai,
+            'persen'   => $items->count()>0 ? round($selesai/$items->count()*100) : 0,
+            'rating_rata' => $avgRating,
+            'materi'   => $items->map(fn($m)=>[
+                'id' => $m->id, 'kode' => $m->kode, 'nama' => $m->nama,
+                'parent_kode' => $m->parent_kode,
+                'checked' => $checks->has($m->id),
+                'rating' => $checks->get($m->id)?->rating ?? 0,
+                'tanggal_dapat' => $checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
+                'pengajar' => $checks->get($m->id)?->pengajar,
+            ])->values(),
+        ];
+    })->values();
+
+    $sertifikat = \DB::table('sertifikat_mitra')->where('mitra_id', $mitra->id)->first();
+
+    return response()->json([
+        'success' => true,
+        'total' => $total, 'selesai' => $selesai,
+        'persen' => $total>0 ? round($selesai/$total*100) : 0,
+        'nilai_rata' => $nilaiRata,
+        'status_lulus' => $mitra->status_lulus ?? 'training',
+        'sertifikat' => $sertifikat,
+        'by_kategori' => $byKat,
+    ]);
 });
 
 // TEMPORARY — seed tabel training dari data xlsx
