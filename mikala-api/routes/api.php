@@ -1255,3 +1255,32 @@ Route::get('/clear-cache', function() {
     \Artisan::call('config:clear');
     return response()->json(['success'=>true,'message'=>'cache cleared']);
 });
+
+// TEMPORARY — preview sertifikat tanpa upload
+Route::get('/preview-sertifikat', function() {
+    $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781023999/mikala/sertifikat/sertifikat_2_1781023056.pdf.png';
+    $bgPath = storage_path('app/temp_preview.png');
+    file_put_contents($bgPath, file_get_contents($bgUrl));
+
+    $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+    $pdf->SetMargins(0, 0, 0);
+    $pdf->SetAutoPageBreak(false);
+    $pdf->AddPage();
+
+    // Background
+    $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
+
+    // Test text — pakai SetXY dan Text (lebih direct daripada Cell)
+    $pdf->SetFont('helvetica', 'BI', 50);
+    $pdf->SetTextColor(30, 58, 138);
+    $pdf->Text(80, 100, 'ANNISA');
+
+    $pdf->SetFont('helvetica', '', 14);
+    $pdf->SetTextColor(50, 50, 50);
+    $pdf->Text(120, 75, 'No : 2606202600000002');
+
+    @unlink($bgPath);
+    $pdf->Output('preview.pdf', 'I');
+});
