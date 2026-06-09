@@ -571,7 +571,7 @@ class TrainingController extends Controller
     private function generateSertifikatPDF($mitra, $nomor)
     {
         $namaMitra = strtoupper($mitra->nama_lengkap ?? $mitra->user->name ?? 'MITRA');
-        $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781019640/Sertifikat_Mikala_blank_of3opm.png';
+        $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781023999/mikala/sertifikat/sertifikat_2_1781023056.pdf.png';
 
         // Download background
         $bgPath = storage_path('app/temp_bg_' . $mitra->id . '.png');
@@ -591,10 +591,10 @@ class TrainingController extends Controller
         // Background image (A4 landscape: 297x210mm)
         $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
 
-        // Nomor sertifikat — diposisikan tepat di samping 'No :' bawaan
+        // Nomor sertifikat — di tengah, bawah text 'Terverifikasi oleh Kementerian'
         $pdf->SetFont('helvetica', '', 14);
         $pdf->SetTextColor(50, 50, 50);
-        $pdf->SetXY(0, 75);
+        $pdf->SetXY(0, 78);
         $pdf->Cell(297, 6, 'No : ' . $nomor, 0, 0, 'C');
 
         // Nama mitra — italic cursive style
