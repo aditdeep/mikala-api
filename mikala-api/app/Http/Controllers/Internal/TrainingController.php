@@ -591,17 +591,17 @@ class TrainingController extends Controller
         // Background image (A4 landscape: 297x210mm)
         $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
 
-        // Nama mitra — script font (Italic biru, posisi tengah)
-        $pdf->SetFont('helvetica', 'BI', 48);
+        // Nomor sertifikat — posisi di samping 'No :' (lebih ke bawah dari header)
+        $pdf->SetFont('helvetica', '', 13);
+        $pdf->SetTextColor(50, 50, 50);
+        $pdf->SetXY(0, 67);
+        $pdf->Cell(297, 6, 'No : ' . $nomor, 0, 0, 'C');
+
+        // Nama mitra — italic cursive style
+        $pdf->SetFont('helvetica', 'I', 56);
         $pdf->SetTextColor(30, 58, 138); // navy blue
         $pdf->SetXY(0, 95);
-        $pdf->Cell(297, 20, $namaMitra, 0, 0, 'C');
-
-        // Nomor sertifikat
-        $pdf->SetFont('helvetica', '', 11);
-        $pdf->SetTextColor(50, 50, 50);
-        $pdf->SetXY(0, 53);
-        $pdf->Cell(297, 5, 'No : ' . $nomor, 0, 0, 'C');
+        $pdf->Cell(297, 25, $namaMitra, 0, 0, 'C');
 
         $pdfContent = $pdf->Output('', 'S');
         @unlink($bgPath);
