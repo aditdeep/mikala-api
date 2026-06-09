@@ -499,15 +499,35 @@ class TrainingController extends Controller
     }
     
     public function toggleChecklist(\Illuminate\Http\Request $request, $mitraId, $materiId) {
-        $request->validate(['tanggal_dapat'=>'required|date','pengajar'=>'required|string|max:100','catatan'=>'nullable|string']);
         $existing = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->where('materi_id',$materiId)->first();
-        if ($existing) { $existing->delete(); return response()->json(['success'=>true,'action'=>'unchecked']); }
-        \App\Models\TrainingChecklist::create([
-            'mitra_id'=>$mitraId,'materi_id'=>$materiId,
-            'tanggal_dapat'=>$request->tanggal_dapat,'pengajar'=>$request->pengajar,
-            'catatan'=>$request->catatan,'checked_by'=>auth()->id(),'checked_at'=>now(),
+        if ($existing) {
+            $existing->delete();
+        } else {
+            $request->validate(['tanggal_dapat'=>'required|date','pengajar'=>'required|string|max:100']);
+            \App\Models\TrainingChecklist::create([
+                'mitra_id'=>$mitraId,'materi_id'=>$materiId,
+                'tanggal_dapat'=>$request->tanggal_dapat,'pengajar'=>$request->pengajar,
+                'rating'=>$request->rating ?? 5,
+                'catatan'=>$request->catatan,'checked_by'=>auth()->id(),'checked_at'=>now(),
+            ]);
+        }
+
+        // Recalculate rata-rata + status lulus
+        $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)->get();
+        $avgRating = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
+        $totalMateri = \App\Models\TrainingMateri::where('is_active', true)->count();
+
+        $statusLulus = 'training';
+        if ($checks->count() >= $totalMateri && $avgRating >= 4.5) $statusLulus = 'lulus';
+        elseif ($checks->count() >= $totalMateri && $avgRating < 4.5) $statusLulus = 'tidak_lulus';
+
+        \DB::table('mitra')->where('id', $mitraId)->update([
+            'nilai_rata' => $avgRating,
+            'status_lulus' => $statusLulus,
+            'updated_at' => now(),
         ]);
-        return response()->json(['success'=>true,'action'=>'checked']);
+
+        return response()->json(['success'=>true,'nilai_rata'=>$avgRating,'status_lulus'=>$statusLulus]);
     }
 
 
