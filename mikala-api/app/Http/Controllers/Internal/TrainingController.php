@@ -570,8 +570,25 @@ class TrainingController extends Controller
 
     private function generateSertifikatPDF($mitra, $nomor)
     {
-        $namaMitra = strtoupper($mitra->nama_lengkap ?? $mitra->user->name ?? 'MITRA');
+        $namaMitra = $mitra->nama_lengkap ?? $mitra->user->name ?? 'Mitra';
         $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781023999/mikala/sertifikat/sertifikat_2_1781023056.pdf.png';
+
+        // Download & install Great Vibes font kalau belum ada
+        $fontDir = storage_path('app/fonts');
+        if (!is_dir($fontDir)) mkdir($fontDir, 0755, true);
+        $ttfPath = $fontDir . '/GreatVibes-Regular.ttf';
+        if (!file_exists($ttfPath)) {
+            $ttfContent = @file_get_contents('https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf');
+            if ($ttfContent) file_put_contents($ttfPath, $ttfContent);
+        }
+        $greatVibesFont = null;
+        if (file_exists($ttfPath)) {
+            try {
+                $greatVibesFont = \TCPDF_FONTS::addTTFfont($ttfPath, 'TrueTypeUnicode', '', 96);
+            } catch (\Exception $e) {
+                \Log::warning('Font load failed: ' . $e->getMessage());
+            }
+        }
 
         // Download background
         $bgPath = storage_path('app/temp_bg_' . $mitra->id . '.png');
@@ -591,17 +608,24 @@ class TrainingController extends Controller
         // Background image (A4 landscape: 297x210mm)
         $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
 
-        // Nomor sertifikat — di tengah, bawah text 'Terverifikasi oleh Kementerian'
-        $pdf->SetFont('helvetica', '', 14);
+        // Offset ke kiri karena bingkai kanan lebih lebar
+        $centerOffset = -8;
+
+        // Nomor sertifikat
+        $pdf->SetFont('helvetica', '', 13);
         $pdf->SetTextColor(50, 50, 50);
-        $pdf->SetXY(0, 78);
+        $pdf->SetXY($centerOffset, 78);
         $pdf->Cell(297, 6, 'No : ' . $nomor, 0, 0, 'C');
 
-        // Nama mitra — italic cursive style
-        $pdf->SetFont('helvetica', 'I', 56);
-        $pdf->SetTextColor(30, 58, 138); // navy blue
-        $pdf->SetXY(0, 95);
-        $pdf->Cell(297, 25, $namaMitra, 0, 0, 'C');
+        // Nama mitra — pakai Great Vibes cursive, kalau gagal fallback ke italic
+        if ($greatVibesFont) {
+            $pdf->SetFont($greatVibesFont, '', 72);
+        } else {
+            $pdf->SetFont('helvetica', 'I', 56);
+        }
+        $pdf->SetTextColor(30, 58, 138);
+        $pdf->SetXY($centerOffset, 105);
+        $pdf->Cell(297, 30, $namaMitra, 0, 0, 'C');
 
         $pdfContent = $pdf->Output('', 'S');
         @unlink($bgPath);
