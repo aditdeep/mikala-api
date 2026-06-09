@@ -1182,3 +1182,40 @@ Route::get('/migrate-training-rating', function() {
         return response()->json(['success'=>false,'error'=>$e->getMessage()],500);
     }
 });
+
+// TEMPORARY — Auto-rate all materi untuk testing
+Route::get('/test-lulus-mitra/{mitraId}/{rating?}', function($mitraId, $rating = 5) {
+    $materi = \DB::table('training_materi')->where('is_active', true)->get();
+    foreach ($materi as $m) {
+        \DB::table('training_checklist')->updateOrInsert(
+            ['mitra_id' => $mitraId, 'materi_id' => $m->id],
+            [
+                'tanggal_dapat' => now()->toDateString(),
+                'pengajar'      => 'Test Trainer',
+                'rating'        => $rating,
+                'checked_by'    => 1,
+                'checked_at'    => now(),
+                'updated_at'    => now(),
+                'created_at'    => now(),
+            ]
+        );
+    }
+    // Recalculate
+    $checks = \DB::table('training_checklist')->where('mitra_id', $mitraId);
+    $avg = $checks->avg('rating');
+    $count = $checks->count();
+    $total = \DB::table('training_materi')->where('is_active', true)->count();
+    $statusLulus = ($count >= $total && $avg >= 4.5) ? 'lulus' : 'training';
+    \DB::table('mitra')->where('id', $mitraId)->update([
+        'nilai_rata' => round($avg, 2),
+        'status_lulus' => $statusLulus,
+        'updated_at' => now(),
+    ]);
+    return response()->json([
+        'success' => true,
+        'mitra_id' => $mitraId,
+        'total_materi' => $count,
+        'rating' => round($avg, 2),
+        'status' => $statusLulus,
+    ]);
+});
