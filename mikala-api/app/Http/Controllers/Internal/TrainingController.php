@@ -634,14 +634,18 @@ class TrainingController extends Controller
         $pdf->SetXY($centerOffset, 78);
         $pdf->Cell(297, 6, 'No : ' . $nomor, 0, 0, 'C');
 
-        // Nama mitra — pakai Great Vibes cursive, kalau gagal fallback ke italic
-        if ($greatVibesFont) {
-            $pdf->SetFont($greatVibesFont, '', 72);
-        } else {
-            $pdf->SetFont('helvetica', 'I', 56);
+        // Nama mitra — coba Great Vibes, fallback helvetica italic
+        $fontName = 'helvetica';
+        $fontStyle = 'BI';
+        $fontSize = 52;
+        if ($greatVibesFont && is_string($greatVibesFont)) {
+            $fontName = $greatVibesFont;
+            $fontStyle = '';
+            $fontSize = 80;
         }
+        $pdf->SetFont($fontName, $fontStyle, $fontSize);
         $pdf->SetTextColor(30, 58, 138);
-        $pdf->SetXY($centerOffset, 105);
+        $pdf->SetXY($centerOffset, 100);
         $pdf->Cell(297, 30, $namaMitra, 0, 0, 'C');
 
         $pdfContent = $pdf->Output('', 'S');
