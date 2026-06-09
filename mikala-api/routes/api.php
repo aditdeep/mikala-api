@@ -1225,3 +1225,25 @@ Route::get('/delete-sertifikat/{mitraId}', function($mitraId) {
     $deleted = \DB::table('sertifikat_mitra')->where('mitra_id', $mitraId)->delete();
     return response()->json(['success'=>true,'deleted'=>$deleted]);
 });
+
+// TEMPORARY — test TCPDF basic
+Route::get('/test-pdf', function() {
+    $pdf = new \TCPDF('L', 'mm', 'A4', true, 'UTF-8', false);
+    $pdf->setPrintHeader(false);
+    $pdf->setPrintFooter(false);
+    $pdf->SetMargins(0, 0, 0);
+    $pdf->SetAutoPageBreak(false);
+    $pdf->AddPage();
+
+    $pdf->SetFont('helvetica', 'B', 30);
+    $pdf->SetTextColor(255, 0, 0);
+    $pdf->SetXY(50, 50);
+    $pdf->Cell(200, 20, 'TEST PDF WORKING', 0, 0, 'L');
+
+    $pdf->SetFont('helvetica', 'I', 50);
+    $pdf->SetTextColor(0, 0, 255);
+    $pdf->SetXY(50, 100);
+    $pdf->Cell(200, 20, 'ANNISA', 0, 0, 'L');
+
+    $pdf->Output('test.pdf', 'I');
+});
