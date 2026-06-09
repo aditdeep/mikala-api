@@ -573,20 +573,37 @@ class TrainingController extends Controller
         $namaMitra = $mitra->nama_lengkap ?? $mitra->user->name ?? 'Mitra';
         $bgUrl = 'https://res.cloudinary.com/djgtchmsx/image/upload/v1781023999/mikala/sertifikat/sertifikat_2_1781023056.pdf.png';
 
-        // Download & install Great Vibes font kalau belum ada
+        // Download Great Vibes font dari CDN
         $fontDir = storage_path('app/fonts');
         if (!is_dir($fontDir)) mkdir($fontDir, 0755, true);
-        $ttfPath = $fontDir . '/GreatVibes-Regular.ttf';
-        if (!file_exists($ttfPath)) {
-            $ttfContent = @file_get_contents('https://github.com/google/fonts/raw/main/ofl/greatvibes/GreatVibes-Regular.ttf');
-            if ($ttfContent) file_put_contents($ttfPath, $ttfContent);
-        }
+        $ttfPath = $fontDir . '/GreatVibes.ttf';
         $greatVibesFont = null;
-        if (file_exists($ttfPath)) {
+
+        if (!file_exists($ttfPath)) {
+            // Try multiple sources
+            $sources = [
+                'https://github.com/googlefonts/great-vibes/raw/master/fonts/ttf/GreatVibes-Regular.ttf',
+                'https://raw.githubusercontent.com/google/fonts/main/ofl/greatvibes/GreatVibes-Regular.ttf',
+                'https://fonts.gstatic.com/s/greatvibes/v19/RWmMoKWR9v4ksMfaWd_JN-XCg6UKDXlq.ttf',
+            ];
+            foreach ($sources as $url) {
+                $ctx = stream_context_create(['http' => ['timeout' => 10, 'header' => 'User-Agent: Mozilla/5.0']]);
+                $ttfContent = @file_get_contents($url, false, $ctx);
+                if ($ttfContent && strlen($ttfContent) > 1000) {
+                    file_put_contents($ttfPath, $ttfContent);
+                    \Log::info('Great Vibes downloaded from: ' . $url);
+                    break;
+                }
+            }
+        }
+
+        if (file_exists($ttfPath) && filesize($ttfPath) > 1000) {
             try {
-                $greatVibesFont = \TCPDF_FONTS::addTTFfont($ttfPath, 'TrueTypeUnicode', '', 96);
+                $greatVibesFont = \TCPDF_FONTS::addTTFfont($ttfPath, 'TrueTypeUnicode', '', 32);
+                \Log::info('Font registered: ' . $greatVibesFont);
             } catch (\Exception $e) {
                 \Log::warning('Font load failed: ' . $e->getMessage());
+                $greatVibesFont = null;
             }
         }
 
