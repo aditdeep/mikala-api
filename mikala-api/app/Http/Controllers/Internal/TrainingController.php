@@ -623,23 +623,34 @@ class TrainingController extends Controller
         // Background image
         $pdf->Image($bgPath, 0, 0, 297, 210, 'PNG', '', '', false, 300);
 
-        // Page width 297mm — center = 148.5
-        // Nomor sertifikat di posisi y=77 (di samping "No :" template bawaan)
+        // ┌──────────────────────────────────────────────────────────────────┐
+        // │  POSISI TEXT — adjust di sini saja                                │
+        // │  Page A4 landscape: width=297mm, height=210mm                     │
+        // │  X offset: + ke kanan, - ke kiri  (0 = center exact)              │
+        // │  Y absolute: 0 = paling atas, 210 = paling bawah                  │
+        // └──────────────────────────────────────────────────────────────────┘
+        $nomorOffsetX = -5;   // geser horizontal nomor sertifikat
+        $nomorY       = 80;   // posisi vertikal nomor sertifikat
+        $namaOffsetX  = -5;   // geser horizontal nama mitra
+        $namaY        = 93;   // posisi vertikal nama mitra
+        $namaFontSize = 60;   // ukuran font nama mitra
+
+        // Nomor sertifikat — auto center + offset
         $nomorText = 'No : ' . $nomor;
         $pdf->SetFont('helvetica', '', 14);
         $pdf->SetTextColor(50, 50, 50);
         $textWidth = $pdf->GetStringWidth($nomorText);
-        $pdf->Text((297 - $textWidth) / 4 - 6, 80, $nomorText);
+        $pdf->Text((297 - $textWidth) / 2 + $nomorOffsetX, $nomorY, $nomorText);
 
-        // Nama mitra — Niconne cursive
+        // Nama mitra — Niconne cursive + auto center + offset
         if ($niconneFont) {
-            $pdf->SetFont($niconneFont, '', 60);
+            $pdf->SetFont($niconneFont, '', $namaFontSize);
         } else {
             $pdf->SetFont('helvetica', 'BI', 48);
         }
         $pdf->SetTextColor(30, 58, 138);
         $nameWidth = $pdf->GetStringWidth($namaMitra);
-        $pdf->Text((297 - $nameWidth) / 4 - 6, 93, $namaMitra);
+        $pdf->Text((297 - $nameWidth) / 2 + $namaOffsetX, $namaY, $namaMitra);
 
         $pdfContent = $pdf->Output('', 'S');
         @unlink($bgPath);
