@@ -630,7 +630,7 @@ class TrainingController extends Controller
         // │  Y absolute: 0 = paling atas, 210 = paling bawah                  │
         // └──────────────────────────────────────────────────────────────────┘
         $nomorOffsetX = -4;   // geser horizontal nomor sertifikat
-        $nomorY       = 80;   // posisi vertikal nomor sertifikat
+        $nomorY       = 77;   // posisi vertikal nomor sertifikat
         $namaOffsetX  = -4;   // geser horizontal nama mitra
         $namaY        = 93;   // posisi vertikal nama mitra
         $namaFontSize = 60;   // ukuran font nama mitra
