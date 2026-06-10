@@ -629,7 +629,7 @@ class TrainingController extends Controller
         $pdf->SetFont('helvetica', '', 14);
         $pdf->SetTextColor(50, 50, 50);
         $textWidth = $pdf->GetStringWidth($nomorText);
-        $pdf->Text((297 - $textWidth) / 3.5 - 5.2, 80, $nomorText);
+        $pdf->Text((297 - $textWidth) / 4 - 6, 80, $nomorText);
 
         // Nama mitra — Niconne cursive
         if ($niconneFont) {
@@ -639,7 +639,7 @@ class TrainingController extends Controller
         }
         $pdf->SetTextColor(30, 58, 138);
         $nameWidth = $pdf->GetStringWidth($namaMitra);
-        $pdf->Text((297 - $nameWidth) / 4 - 5.2, 93, $namaMitra);
+        $pdf->Text((297 - $nameWidth) / 4 - 6, 93, $namaMitra);
 
         $pdfContent = $pdf->Output('', 'S');
         @unlink($bgPath);
