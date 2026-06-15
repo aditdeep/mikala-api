@@ -227,17 +227,20 @@ class FinanceController extends Controller
      */
     public function generatePayroll(Request $request)
     {
-        $request->validate([
-            'periode' => 'required|date_format:Y-m',
-        ]);
+        $request->validate(['periode' => 'required|date_format:Y-m']);
 
         try {
             [$tahun, $bulan] = explode('-', $request->periode);
             $periodeStart = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
             $periodeEnd   = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth();
+            $hariDiBulan  = $periodeStart->daysInMonth;
 
-            // Get semua mitra yang punya order in_progress di periode ini
-            $orders = \App\Models\Order::whereIn('status', ['in_progress','completed'])
+            // Settings dari payroll_settings
+            $rateCutiDefault = floatval(\DB::table('payroll_settings')->where('key','rate_cuti_default')->value('value') ?? 500000);
+            $maxCutiPerBulan = intval(\DB::table('payroll_settings')->where('key','max_cuti_per_bulan')->value('value') ?? 2);
+
+            // Order aktif di periode
+            $orders = \App\Models\Order::whereIn('status', ['in_progress','completed','active'])
                 ->where('tanggal_mulai', '<=', $periodeEnd)
                 ->where(function($q) use ($periodeStart) {
                     $q->whereNull('tanggal_selesai')
@@ -252,23 +255,52 @@ class FinanceController extends Controller
                 $mitra = $order->mitra;
                 if (!$mitra) continue;
 
-                // Hitung hari kerja di periode ini
-                $mulai  = max(\Carbon\Carbon::parse($order->tanggal_mulai), $periodeStart);
+                // Hari kerja prorata
+                $mulai   = max(\Carbon\Carbon::parse($order->tanggal_mulai), $periodeStart);
                 $selesai = $order->tanggal_selesai
                     ? min(\Carbon\Carbon::parse($order->tanggal_selesai), $periodeEnd)
                     : $periodeEnd;
-                $jumlahHari = max(1, $mulai->diffInDays($selesai) + 1);
+                $jumlahHari = max(0, $mulai->diffInDays($selesai) + 1);
+                if ($jumlahHari == 0) continue;
 
-                // Hitung tarif - fallback ke berbagai field
-                $tarifPerHari = floatval(
-                    $order->harga_per_hari ??
-                    $order->harga_per_shift ??
-                    ($order->subtotal ? $order->subtotal / max(1, $jumlahHari) : 0)
-                );
-                // Kalau masih 0, pakai default 150000/hari
-                if ($tarifPerHari == 0) $tarifPerHari = 150000;
+                // Rate bulanan: price_rate = harga/bulan → bagi jumlah hari di bulan tsb
+                $priceRateBulanan = floatval($mitra->price_rate ?? 0);
+                $tarifPerHari = $hariDiBulan > 0 ? ($priceRateBulanan / $hariDiBulan) : 0;
+                if ($tarifPerHari == 0) $tarifPerHari = 150000; // fallback
+
                 $gajiPokok = $tarifPerHari * $jumlahHari;
-                $total     = $gajiPokok * 0.8;
+
+                // Hitung cuti approved di periode
+                $hariCuti = \App\Models\Cuti::where('mitra_id', $mitra->id)
+                    ->where('status', 'approved')
+                    ->whereBetween('tanggal_mulai', [$periodeStart, $periodeEnd])
+                    ->sum('jumlah_hari');
+                $hariCuti = min($hariCuti, $maxCutiPerBulan);
+                $uangCuti = $hariCuti * $rateCutiDefault;
+
+                // Potongan kasbon — yang approved & belum dipotong
+                $kasbonAktif = \DB::table('mitra_kasbon')
+                    ->where('mitra_id', $mitra->id)
+                    ->where('status', 'approved')
+                    ->whereNull('paid_at')
+                    ->sum('jumlah');
+                $potonganKasbon = floatval($kasbonAktif);
+
+                // Potongan kredit pelatihan
+                $kredit = \DB::table('mitra_kredit_pelatihan')
+                    ->where('mitra_id', $mitra->id)
+                    ->where('status', 'active')
+                    ->first();
+                $potonganKredit = 0;
+                if ($kredit) {
+                    $cicilan = floatval($kredit->cicilan_per_job ?? 0);
+                    $sisa    = floatval($kredit->sisa_tagihan ?? 0);
+                    $potonganKredit = min($cicilan, $sisa);
+                }
+
+                $gajiKotor = $gajiPokok + $uangCuti;
+                $totalPotongan = $potonganKasbon + $potonganKredit;
+                $total = $gajiKotor - $totalPotongan;
 
                 $payrollNumber = 'PAY-'.date('Ym').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
 
@@ -280,11 +312,17 @@ class FinanceController extends Controller
                         'jumlah_hari_kerja' => $jumlahHari,
                         'tarif_per_hari'    => $tarifPerHari,
                         'gaji_pokok'        => $gajiPokok,
+                        'hari_cuti'         => $hariCuti,
+                        'rate_cuti'         => $rateCutiDefault,
+                        'uang_cuti'         => $uangCuti,
                         'bonus'             => 0,
-                        'potongan'          => 0,
+                        'potongan_kasbon'   => $potonganKasbon,
+                        'potongan_kredit'   => $potonganKredit,
+                        'adjustment'        => 0,
+                        'potongan'          => $totalPotongan,
                         'total'             => $total,
-                        'status'            => 'pending',
-                        'catatan'           => 'Generate periode '.$request->periode.' - Order #'.$order->order_number,
+                        'status'            => 'draft',
+                        'catatan'           => 'Periode '.$request->periode.' - Order #'.($order->order_number ?? $order->id),
                     ]
                 );
                 $generated[] = $payroll;
@@ -292,19 +330,167 @@ class FinanceController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Payroll generated successfully',
-                'data' => [
-                    'total_generated' => count($generated),
-                    
-                    'payrolls' => $generated
-                ]
+                'message' => count($generated).' payroll generated',
+                'data' => ['total_generated' => count($generated), 'payrolls' => $generated],
             ], 201);
         } catch (\Exception $e) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Failed to generate payroll: ' . $e->getMessage()
-            ], 500);
+            return response()->json(['success'=>false,'message'=>'Failed: '.$e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Adjust payroll manual (Finance only)
+     */
+    public function adjustPayroll(Request $request, $id)
+    {
+        $request->validate([
+            'jumlah_hari_kerja' => 'nullable|integer|min:0',
+            'hari_cuti'         => 'nullable|integer|min:0',
+            'rate_cuti'         => 'nullable|numeric|min:0',
+            'tarif_per_hari'    => 'nullable|numeric|min:0',
+            'bonus'             => 'nullable|numeric|min:0',
+            'potongan_kasbon'   => 'nullable|numeric|min:0',
+            'potongan_kredit'   => 'nullable|numeric|min:0',
+            'adjustment'        => 'nullable|numeric',
+            'catatan_adjustment'=> 'nullable|string|max:500',
+        ]);
+
+        $payroll = \App\Models\Payroll::findOrFail($id);
+        if (in_array($payroll->status, ['paid'])) {
+            return response()->json(['success'=>false,'message'=>'Payroll yang sudah dibayar tidak bisa diubah'], 400);
+        }
+
+        $data = $request->only([
+            'jumlah_hari_kerja','hari_cuti','rate_cuti','tarif_per_hari',
+            'bonus','potongan_kasbon','potongan_kredit','adjustment','catatan_adjustment'
+        ]);
+
+        // Recalculate
+        $merged = array_merge($payroll->toArray(), array_filter($data, fn($v) => $v !== null));
+        $gajiPokok = floatval($merged['tarif_per_hari'] ?? 0) * intval($merged['jumlah_hari_kerja'] ?? 0);
+        $uangCuti  = intval($merged['hari_cuti'] ?? 0) * floatval($merged['rate_cuti'] ?? 0);
+        $gajiKotor = $gajiPokok + $uangCuti + floatval($merged['bonus'] ?? 0);
+        $totalPotongan = floatval($merged['potongan_kasbon'] ?? 0) + floatval($merged['potongan_kredit'] ?? 0);
+        $total = $gajiKotor - $totalPotongan + floatval($merged['adjustment'] ?? 0);
+
+        $data['gaji_pokok'] = $gajiPokok;
+        $data['uang_cuti']  = $uangCuti;
+        $data['potongan']   = $totalPotongan;
+        $data['total']      = $total;
+
+        $payroll->update($data);
+
+        return response()->json(['success'=>true,'data'=>$payroll->fresh()]);
+    }
+
+    /**
+     * Approve payroll
+     */
+    public function approvePayroll($id)
+    {
+        $payroll = \App\Models\Payroll::findOrFail($id);
+        if ($payroll->status !== 'draft') {
+            return response()->json(['success'=>false,'message'=>'Hanya draft yang bisa di-approve'], 400);
+        }
+        $payroll->update([
+            'status'      => 'approved',
+            'approved_by' => auth()->id(),
+            'approved_at' => now(),
+        ]);
+        return response()->json(['success'=>true,'data'=>$payroll->fresh()]);
+    }
+
+    /**
+     * Mark as paid
+     */
+    public function markPaid($id)
+    {
+        $payroll = \App\Models\Payroll::findOrFail($id);
+        if ($payroll->status !== 'approved') {
+            return response()->json(['success'=>false,'message'=>'Harus approved dulu'], 400);
+        }
+        $payroll->update([
+            'status'  => 'paid',
+            'paid_at' => now(),
+        ]);
+
+        // Mark kasbon as paid jika ada potongan
+        if (floatval($payroll->potongan_kasbon) > 0) {
+            \DB::table('mitra_kasbon')
+                ->where('mitra_id', $payroll->mitra_id)
+                ->where('status', 'approved')
+                ->whereNull('paid_at')
+                ->update(['paid_at' => now(), 'status' => 'paid', 'updated_at' => now()]);
+        }
+
+        // Update kredit pelatihan
+        if (floatval($payroll->potongan_kredit) > 0) {
+            $kredit = \DB::table('mitra_kredit_pelatihan')
+                ->where('mitra_id', $payroll->mitra_id)
+                ->where('status', 'active')
+                ->first();
+            if ($kredit) {
+                $newTerbayar = floatval($kredit->total_terbayar) + floatval($payroll->potongan_kredit);
+                $newSisa     = max(0, floatval($kredit->total_biaya) - $newTerbayar);
+                $newStatus   = $newSisa == 0 ? 'lunas' : 'active';
+                \DB::table('mitra_kredit_pelatihan')->where('id', $kredit->id)->update([
+                    'total_terbayar' => $newTerbayar,
+                    'sisa_tagihan'   => $newSisa,
+                    'status'         => $newStatus,
+                    'updated_at'     => now(),
+                ]);
+            }
+        }
+
+        return response()->json(['success'=>true,'data'=>$payroll->fresh()]);
+    }
+
+    /**
+     * Cuti management — Finance side
+     */
+    public function indexCuti(Request $request)
+    {
+        $query = \App\Models\Cuti::with(['mitra:id,nama_lengkap,foto_url', 'approver:id,name']);
+        if ($request->has('status')) $query->where('status', $request->status);
+        $cuti = $query->orderBy('created_at','desc')->paginate(20);
+        return response()->json(['success'=>true,'data'=>$cuti]);
+    }
+
+    public function approveCuti(Request $request, $id)
+    {
+        $request->validate([
+            'status'        => 'required|in:approved,rejected',
+            'catatan_admin' => 'nullable|string|max:500',
+        ]);
+        $cuti = \App\Models\Cuti::findOrFail($id);
+        $cuti->update([
+            'status'        => $request->status,
+            'approved_by'   => auth()->id(),
+            'approved_at'   => now(),
+            'catatan_admin' => $request->catatan_admin,
+        ]);
+        return response()->json(['success'=>true,'data'=>$cuti->fresh()]);
+    }
+
+    /**
+     * Payroll settings
+     */
+    public function getPayrollSettings()
+    {
+        $settings = \DB::table('payroll_settings')->get()->keyBy('key');
+        return response()->json(['success'=>true,'data'=>$settings]);
+    }
+
+    public function updatePayrollSettings(Request $request)
+    {
+        $request->validate(['settings' => 'required|array']);
+        foreach ($request->settings as $key => $value) {
+            \DB::table('payroll_settings')->updateOrInsert(
+                ['key' => $key],
+                ['value' => $value, 'updated_at' => now()]
+            );
+        }
+        return response()->json(['success'=>true,'message'=>'Settings updated']);
     }
 
     /**

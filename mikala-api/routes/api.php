@@ -382,6 +382,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('tagihan/{id}', [FinanceController::class, 'showTagihan']);
             Route::patch('tagihan/{id}/status', [FinanceController::class, 'updateStatusTagihan']);
             Route::get('payroll', [FinanceController::class, 'indexPayroll']);
+            // Cuti management
+            Route::get('cuti',                  [FinanceController::class, 'indexCuti']);
+            Route::patch('cuti/{id}/approve',   [FinanceController::class, 'approveCuti']);
+            // Payroll workflow
+            Route::patch('payroll/{id}/adjust', [FinanceController::class, 'adjustPayroll']);
+            Route::patch('payroll/{id}/approve',[FinanceController::class, 'approvePayroll']);
+            Route::patch('payroll/{id}/paid',   [FinanceController::class, 'markPaid']);
+            // Settings
+            Route::get('payroll-settings',    [FinanceController::class, 'getPayrollSettings']);
+            Route::patch('payroll-settings',  [FinanceController::class, 'updatePayrollSettings']);
+
             Route::post('payroll/generate', [FinanceController::class, 'generatePayroll']);
             Route::get('payroll/{id}', [FinanceController::class, 'showPayroll']);
             Route::patch('payroll/{id}/status', [FinanceController::class, 'updateStatusPayroll']);
@@ -528,6 +539,10 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
             'jadwal_interview'=>$jadwal,
             'catatan'=>$mitra?->catatan_rekrutmen,
         ]]);
+
+        // Cuti — Mitra
+        Route::get('cuti',  [\App\Http\Controllers\Mitra\CutiController::class, 'index']);
+        Route::post('cuti', [\App\Http\Controllers\Mitra\CutiController::class, 'store']);
     });
     Route::get('kredit-pelatihan', function () {
         $mitra = auth()->user()->mitra;
@@ -1283,4 +1298,61 @@ Route::get('/preview-sertifikat', function() {
 
     @unlink($bgPath);
     $pdf->Output('preview.pdf', 'I');
+});
+
+// TEMPORARY — migrate payroll system
+Route::get('/migrate-payroll-system', function() {
+    try {
+        // Tabel cuti_mitra
+        \DB::statement("CREATE TABLE IF NOT EXISTS cuti_mitra (
+            id BIGSERIAL PRIMARY KEY,
+            mitra_id BIGINT NOT NULL,
+            tanggal_mulai DATE NOT NULL,
+            tanggal_selesai DATE NOT NULL,
+            jumlah_hari INTEGER NOT NULL,
+            alasan TEXT,
+            status VARCHAR(20) DEFAULT 'pending',
+            approved_by BIGINT,
+            approved_at TIMESTAMP,
+            catatan_admin TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+        )");
+
+        // Tabel payroll_settings
+        \DB::statement("CREATE TABLE IF NOT EXISTS payroll_settings (
+            id BIGSERIAL PRIMARY KEY,
+            key VARCHAR(100) UNIQUE NOT NULL,
+            value TEXT,
+            description TEXT,
+            updated_at TIMESTAMP DEFAULT NOW(),
+            created_at TIMESTAMP DEFAULT NOW()
+        )");
+
+        // Default settings
+        \DB::table('payroll_settings')->updateOrInsert(
+            ['key' => 'rate_cuti_default'],
+            ['value' => '500000', 'description' => 'Rate uang cuti per hari (default)', 'updated_at' => now(), 'created_at' => now()]
+        );
+        \DB::table('payroll_settings')->updateOrInsert(
+            ['key' => 'max_cuti_per_bulan'],
+            ['value' => '2', 'description' => 'Max hari cuti per bulan', 'updated_at' => now(), 'created_at' => now()]
+        );
+
+        // Extend payroll table
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS hari_cuti INTEGER DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS rate_cuti DECIMAL(15,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS uang_cuti DECIMAL(15,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS potongan_kasbon DECIMAL(15,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS potongan_kredit DECIMAL(15,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS adjustment DECIMAL(15,2) DEFAULT 0");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS catatan_adjustment TEXT");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS approved_by BIGINT");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP");
+        \DB::statement("ALTER TABLE payroll ADD COLUMN IF NOT EXISTS paid_at TIMESTAMP");
+
+        return response()->json(['success'=>true,'message'=>'Migration payroll sukses!']);
+    } catch (\Exception $e) {
+        return response()->json(['success'=>false,'error'=>$e->getMessage()],500);
+    }
 });
