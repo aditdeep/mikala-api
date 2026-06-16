@@ -489,6 +489,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('payment-settings', [SettingController::class, 'publicPayment']);
     Route::middleware('role:klien')->prefix('klien')->group(function () {
         Route::get('profile', [KlienProfileController::class, 'show']);
+
+        // Layanan/Order management
+        Route::get('layanan',                [\App\Http\Controllers\Klien\KlienOrderController::class, 'index']);
+        Route::post('layanan',               [\App\Http\Controllers\Klien\KlienOrderController::class, 'store']);
+        Route::get('layanan/{id}',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'show']);
+        Route::patch('layanan/{id}/cancel',  [\App\Http\Controllers\Klien\KlienOrderController::class, 'cancel']);
+        Route::get('order/active',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'activeOrders']);
         Route::patch('profile', [KlienProfileController::class, 'update']);
         Route::get('pasien', [KlienLayananController::class, 'indexPasien']);
         Route::post('pasien', [KlienLayananController::class, 'storePasien']);
