@@ -552,3 +552,8 @@ Route::get('/test-broadcast/{userId}', function($userId) {
         ], 500);
     }
 });
+
+// Broadcasting authentication untuk private channel (Pusher)
+Route::middleware('auth:sanctum')->post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
+    return \Illuminate\Support\Facades\Broadcast::auth($request);
+});
