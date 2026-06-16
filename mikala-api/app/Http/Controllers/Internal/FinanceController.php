@@ -462,13 +462,34 @@ class FinanceController extends Controller
             'status'        => 'required|in:approved,rejected',
             'catatan_admin' => 'nullable|string|max:500',
         ]);
-        $cuti = \App\Models\Cuti::findOrFail($id);
+        $cuti = \App\Models\Cuti::with('mitra.user')->findOrFail($id);
         $cuti->update([
             'status'        => $request->status,
             'approved_by'   => auth()->id(),
             'approved_at'   => now(),
             'catatan_admin' => $request->catatan_admin,
         ]);
+
+        // Broadcast notifikasi realtime ke mitra
+        $userId = $cuti->mitra?->user_id;
+        if ($userId) {
+            $isApproved = $request->status === 'approved';
+            \App\Services\NotifikasiService::send(
+                $userId,
+                'cuti',
+                $isApproved ? 'Cuti Disetujui ✅' : 'Cuti Ditolak ❌',
+                $isApproved
+                    ? "Pengajuan cuti Anda tanggal {$cuti->tanggal_mulai->format('d M Y')} - {$cuti->tanggal_selesai->format('d M Y')} disetujui"
+                    : "Pengajuan cuti Anda ditolak. " . ($request->catatan_admin ? "Catatan: {$request->catatan_admin}" : ''),
+                [
+                    'cuti_id'      => $cuti->id,
+                    'status'       => $request->status,
+                    'jumlah_hari'  => $cuti->jumlah_hari,
+                    'catatan'      => $request->catatan_admin,
+                ]
+            );
+        }
+
         return response()->json(['success'=>true,'data'=>$cuti->fresh()]);
     }
 
