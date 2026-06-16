@@ -539,11 +539,11 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
             'jadwal_interview'=>$jadwal,
             'catatan'=>$mitra?->catatan_rekrutmen,
         ]]);
-
-        // Cuti — Mitra
-        Route::get('cuti',  [\App\Http\Controllers\Mitra\CutiController::class, 'index']);
-        Route::post('cuti', [\App\Http\Controllers\Mitra\CutiController::class, 'store']);
     });
+
+    // Cuti — Mitra
+    Route::get('cuti',  [\App\Http\Controllers\Mitra\CutiController::class, 'index']);
+    Route::post('cuti', [\App\Http\Controllers\Mitra\CutiController::class, 'store']);
     Route::get('kredit-pelatihan', function () {
         $mitra = auth()->user()->mitra;
         $kredit = $mitra?->kreditPelatihan()->with('potongan.order:id,kode_order,created_at')->first();
