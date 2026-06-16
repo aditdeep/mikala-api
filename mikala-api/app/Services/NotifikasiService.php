@@ -19,12 +19,13 @@ class NotifikasiService
     public static function send(int $userId, string $tipe, string $judul, string $pesan, array $data = []): Notifikasi
     {
         $notif = Notifikasi::create([
-            'user_id' => $userId,
-            'tipe'    => $tipe,
-            'judul'   => $judul,
-            'pesan'   => $pesan,
-            'data'    => $data,
-            'read_at' => null,
+            'user_id'      => $userId,
+            'type'         => $tipe,
+            'title'        => $judul,
+            'message'      => $pesan,
+            'related_type' => $data['related_type'] ?? null,
+            'related_id'   => $data['related_id'] ?? null,
+            'is_read'      => false,
         ]);
 
         // Broadcast event ke Pusher (jika driver bukan null)

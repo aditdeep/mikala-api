@@ -482,10 +482,8 @@ class FinanceController extends Controller
                     ? "Pengajuan cuti Anda tanggal {$cuti->tanggal_mulai->format('d M Y')} - {$cuti->tanggal_selesai->format('d M Y')} disetujui"
                     : "Pengajuan cuti Anda ditolak. " . ($request->catatan_admin ? "Catatan: {$request->catatan_admin}" : ''),
                 [
-                    'cuti_id'      => $cuti->id,
-                    'status'       => $request->status,
-                    'jumlah_hari'  => $cuti->jumlah_hari,
-                    'catatan'      => $request->catatan_admin,
+                    'related_type' => 'cuti',
+                    'related_id'   => $cuti->id,
                 ]
             );
         }

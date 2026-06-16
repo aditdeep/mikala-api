@@ -38,12 +38,14 @@ class NotifikasiCreated implements ShouldBroadcast
     public function broadcastWith(): array
     {
         return [
-            'id'         => $this->notifikasi->id,
-            'tipe'       => $this->notifikasi->tipe,
-            'judul'      => $this->notifikasi->judul,
-            'pesan'      => $this->notifikasi->pesan,
-            'data'       => $this->notifikasi->data,
-            'created_at' => $this->notifikasi->created_at?->toIso8601String(),
+            'id'           => $this->notifikasi->id,
+            'type'         => $this->notifikasi->type,
+            'title'        => $this->notifikasi->title,
+            'message'      => $this->notifikasi->message,
+            'related_type' => $this->notifikasi->related_type,
+            'related_id'   => $this->notifikasi->related_id,
+            'is_read'      => $this->notifikasi->is_read,
+            'created_at'   => $this->notifikasi->created_at?->toIso8601String(),
         ];
     }
 }
