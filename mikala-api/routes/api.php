@@ -526,33 +526,6 @@ Route::middleware('auth:sanctum')->post('/push-token', [NotifikasiController::cl
 // Broadcast ke semua mitra (internal only)
 Route::middleware(['auth:sanctum','internal','role:manajemen'])->post('/internal/push/broadcast', [NotifikasiController::class, 'broadcastToMitra']);
 
-
-// TEMPORARY — test broadcast notif (hapus setelah test sukses)
-Route::get('/test-broadcast/{userId}', function($userId) {
-    try {
-        $notif = \App\Services\NotifikasiService::send(
-            (int) $userId,
-            'info',
-            'Test Notifikasi Realtime 🔔',
-            'Jika kamu lihat ini di Pusher Debug Console, broadcasting jalan!',
-            ['related_type' => 'test', 'related_id' => time()]
-        );
-        return response()->json([
-            'success'           => true,
-            'notif_id'          => $notif->id,
-            'broadcast_driver'  => config('broadcasting.default'),
-            'pusher_key_set'    => !empty(env('PUSHER_APP_KEY')),
-            'pusher_cluster'    => env('PUSHER_APP_CLUSTER'),
-        ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'success' => false,
-            'error'   => $e->getMessage(),
-            'broadcast_driver' => config('broadcasting.default'),
-        ], 500);
-    }
-});
-
 // Broadcasting authentication untuk private channel (Pusher)
 Route::middleware('auth:sanctum')->post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
     return \Illuminate\Support\Facades\Broadcast::auth($request);
