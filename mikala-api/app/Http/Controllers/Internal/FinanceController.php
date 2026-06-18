@@ -326,6 +326,17 @@ class FinanceController extends Controller
                     ]
                 );
                 $generated[] = $payroll;
+
+                // Notif realtime ke mitra: payroll baru di-generate
+                if ($mitra->user_id) {
+                    \App\Services\NotifikasiService::send(
+                        $mitra->user_id,
+                        'payroll',
+                        'Slip Gaji Tersedia 💰',
+                        "Slip gaji periode " . $request->periode . " sudah dibuat. Total: Rp " . number_format($total, 0, ',', '.') . ". Status: menunggu approval.",
+                        ['related_type' => 'payroll', 'related_id' => $payroll->id]
+                    );
+                }
             }
 
             return response()->json([
@@ -413,6 +424,18 @@ class FinanceController extends Controller
             'status'  => 'paid',
             'paid_at' => now(),
         ]);
+
+        // Notif realtime ke mitra: gaji sudah dibayar
+        $payroll->loadMissing('mitra');
+        if ($payroll->mitra && $payroll->mitra->user_id) {
+            \App\Services\NotifikasiService::send(
+                $payroll->mitra->user_id,
+                'payroll',
+                'Gaji Sudah Dibayar ✅',
+                "Gaji Anda " . $payroll->payroll_number . " sebesar Rp " . number_format($payroll->total, 0, ',', '.') . " telah ditransfer.",
+                ['related_type' => 'payroll', 'related_id' => $payroll->id]
+            );
+        }
 
         // Mark kasbon as paid jika ada potongan
         if (floatval($payroll->potongan_kasbon) > 0) {

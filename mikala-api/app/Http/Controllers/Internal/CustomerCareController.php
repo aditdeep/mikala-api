@@ -644,6 +644,18 @@ class CustomerCareController extends Controller
             // Update status mitra jadi on_job
             \App\Models\Mitra::where('id', $request->mitra_id)->update(['status' => 'on_job']);
 
+            // Notif realtime ke mitra: dapat assignment order baru
+            $mitraNotif = \App\Models\Mitra::find($request->mitra_id);
+            if ($mitraNotif && $mitraNotif->user_id) {
+                \App\Services\NotifikasiService::send(
+                    $mitraNotif->user_id,
+                    'order',
+                    'Order Baru Ditugaskan 📋',
+                    "Anda mendapat penugasan order baru #" . ($order->order_number ?? $order->id) . ". Silakan cek detail order Anda.",
+                    ['related_type' => 'order', 'related_id' => $order->id]
+                );
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Mitra berhasil di-assign',

@@ -565,6 +565,17 @@ class TrainingController extends Controller
             'updated_at'       => now(),
         ]);
 
+
+        // Notif realtime ke mitra: sertifikat terbit
+        if ($mitra->user_id) {
+            \App\Services\NotifikasiService::send(
+                $mitra->user_id,
+                'sertifikat',
+                'Sertifikat Terbit 🎓',
+                "Selamat! Anda telah lulus training. Sertifikat No. {$nomor} sudah diterbitkan dan bisa diunduh.",
+                ['related_type' => 'sertifikat', 'related_id' => $id]
+            );
+        }
         return response()->json(['success'=>true,'data'=>\DB::table('sertifikat_mitra')->find($id)]);
     }
 
