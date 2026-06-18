@@ -100,6 +100,18 @@ class FinanceController extends Controller
                 'catatan' => $request->catatan,
             ]);
 
+            // Notif realtime ke klien: tagihan baru terbit
+            $klienTagihan = \App\Models\Klien::find($tagihan->klien_id);
+            if ($klienTagihan && $klienTagihan->user_id) {
+                \App\Services\NotifikasiService::send(
+                    $klienTagihan->user_id,
+                    'tagihan',
+                    'Tagihan Baru 🧾',
+                    "Tagihan " . $tagihan->invoice_number . " sebesar Rp " . number_format($tagihan->total, 0, ',', '.') . " telah terbit. Jatuh tempo: " . $tagihan->tanggal_jatuh_tempo . ".",
+                    ['related_type' => 'tagihan', 'related_id' => $tagihan->id]
+                );
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Tagihan berhasil dibuat',

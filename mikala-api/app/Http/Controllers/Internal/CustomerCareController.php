@@ -656,6 +656,18 @@ class CustomerCareController extends Controller
                 );
             }
 
+
+            // Notif realtime ke klien: mitra sudah ditugaskan
+            $orderKlien = \App\Models\Order::with('klien')->find($id);
+            if ($orderKlien && $orderKlien->klien && $orderKlien->klien->user_id) {
+                \App\Services\NotifikasiService::send(
+                    $orderKlien->klien->user_id,
+                    'order',
+                    'Mitra Telah Ditugaskan 👩‍⚕️',
+                    "Order Anda #" . ($order->order_number ?? $order->id) . " telah mendapatkan mitra. Layanan akan segera dimulai.",
+                    ['related_type' => 'order', 'related_id' => $order->id]
+                );
+            }
             return response()->json([
                 'success' => true,
                 'message' => 'Mitra berhasil di-assign',

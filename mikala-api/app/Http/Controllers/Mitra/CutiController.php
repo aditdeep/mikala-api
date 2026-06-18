@@ -76,6 +76,18 @@ class CutiController extends Controller
             'status'          => 'pending',
         ]);
 
+        // Notif realtime ke staff Finance: ada pengajuan cuti baru
+        $financeUserIds = \App\Models\User::byRole('finance')->pluck('id')->toArray();
+        if (!empty($financeUserIds)) {
+            \App\Services\NotifikasiService::sendBulk(
+                $financeUserIds,
+                'cuti',
+                'Pengajuan Cuti Baru 📝',
+                ($mitra->nama_lengkap ?? 'Mitra') . " mengajukan cuti " . $hari . " hari (" . $request->tanggal_mulai . " s/d " . $request->tanggal_selesai . "). Perlu persetujuan.",
+                ['related_type' => 'cuti', 'related_id' => $cuti->id]
+            );
+        }
+
         return response()->json(['success'=>true,'data'=>$cuti], 201);
     }
 }
