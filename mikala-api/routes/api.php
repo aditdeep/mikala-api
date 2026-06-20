@@ -286,6 +286,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('payment-settings', [SettingController::class, 'publicPayment']);
     Route::middleware('role:klien')->prefix('klien')->group(function () {
         Route::get('profile', [KlienProfileController::class, 'show']);
+        Route::get('dashboard', [\App\Http\Controllers\Klien\KlienOrderController::class, 'dashboard']);
 
         // Layanan/Order management
         Route::get('layanan',                [\App\Http\Controllers\Klien\KlienOrderController::class, 'index']);

@@ -114,6 +114,45 @@ class KlienOrderController extends Controller
             'data'    => $order->load(['pasien:id,nama_lengkap']),
         ], 201);
     }
+    /**
+     * GET /klien/dashboard — Statistik ringkas untuk homepage klien
+     */
+    public function dashboard(Request $request)
+    {
+        $user  = $request->user();
+        $klien = $user->klien;
+        if (!$klien) return response()->json(['success'=>false,'message'=>'Klien not found'], 404);
+
+        $activeServices = Order::where('klien_id', $klien->id)
+            ->whereIn('status', ['pending', 'assigned', 'confirmed', 'in_progress'])
+            ->count();
+
+        $totalPatients = $klien->pasien()->count();
+
+        $recentServices = Order::where('klien_id', $klien->id)
+            ->with('pasien:id,nama_lengkap')
+            ->orderBy('created_at', 'desc')
+            ->limit(5)
+            ->get()
+            ->map(function ($o) {
+                return [
+                    'id'           => $o->id,
+                    'service_type' => $o->tipe_layanan,
+                    'patient_name' => $o->pasien->nama_lengkap ?? '-',
+                    'status'       => $o->status,
+                ];
+            });
+
+        return response()->json([
+            'success' => true,
+            'data' => [
+                'active_services' => $activeServices,
+                'total_patients'  => $totalPatients,
+                'recent_services' => $recentServices,
+            ],
+        ]);
+    }
+
 
     /**
      * GET /klien/order/active — Order aktif untuk dashboard
