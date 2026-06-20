@@ -1,6 +1,19 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+
+// TEMP DEBUG - hapus sebelum production
+Route::get('/debug-cc', function() {
+    $cc = \App\Models\User::byRole('customer_care')->get(['id','name','role']);
+    $allRoles = \App\Models\User::distinct()->pluck('role');
+    $lastNotif = \App\Models\Notifikasi::latest()->take(5)->get(['id','user_id','type','title']);
+    return response()->json([
+        'cc_users' => $cc,
+        'cc_count' => $cc->count(),
+        'all_roles' => $allRoles,
+        'last_5_notif' => $lastNotif,
+    ]);
+});
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Internal\DashboardController;
 use App\Http\Controllers\Internal\RekrutmenController;
