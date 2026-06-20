@@ -2,6 +2,29 @@
 
 use Illuminate\Support\Facades\Route;
 
+// TEMP DEBUG 2
+Route::get('/debug-notif', function() {
+    $columns = \Illuminate\Support\Facades\Schema::getColumnListing('notifikasi');
+    $result = ['columns' => $columns];
+    try {
+        $n = \App\Models\Notifikasi::create([
+            'user_id' => 13,
+            'type' => 'order',
+            'title' => 'DEBUG order notif',
+            'message' => 'test related',
+            'related_type' => 'order',
+            'related_id' => 999,
+            'is_read' => false,
+        ]);
+        $result['create_ok'] = true;
+        $result['created_id'] = $n->id;
+    } catch (\Throwable $e) {
+        $result['create_ok'] = false;
+        $result['error'] = $e->getMessage();
+    }
+    return response()->json($result);
+});
+
 // TEMP DEBUG - hapus sebelum production
 Route::get('/debug-cc', function() {
     $cc = \App\Models\User::byRole('customer_care')->get(['id','name','role']);
