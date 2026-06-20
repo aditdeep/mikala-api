@@ -353,6 +353,18 @@ class KlienLayananController extends Controller
                 'status' => 'pending',
             ]);
 
+            // Notif realtime ke staff Customer Care: order baru masuk
+            $ccUserIds = \App\Models\User::where('role', 'customer_care')->pluck('id')->toArray();
+            if (!empty($ccUserIds)) {
+                \App\Services\NotifikasiService::sendBulk(
+                    $ccUserIds,
+                    'order',
+                    'Order Baru Masuk 📥',
+                    "Order baru " . $order->order_number . " dari klien " . ($klien->nama_lembaga ?? $klien->nama ?? 'Klien') . " perlu di-assign mitra.",
+                    ['related_type' => 'order', 'related_id' => $order->id]
+                );
+            }
+
             return response()->json([
                 'success' => true,
                 'message' => 'Permintaan layanan berhasil dikirim',

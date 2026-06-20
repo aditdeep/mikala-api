@@ -3,40 +3,8 @@
 use Illuminate\Support\Facades\Route;
 
 // TEMP DEBUG 2
-Route::get('/debug-notif', function() {
-    $columns = \Illuminate\Support\Facades\Schema::getColumnListing('notifikasi');
-    $result = ['columns' => $columns];
-    try {
-        $n = \App\Models\Notifikasi::create([
-            'user_id' => 13,
-            'type' => 'order',
-            'title' => 'DEBUG order notif',
-            'message' => 'test related',
-            'related_type' => 'order',
-            'related_id' => 999,
-            'is_read' => false,
-        ]);
-        $result['create_ok'] = true;
-        $result['created_id'] = $n->id;
-    } catch (\Throwable $e) {
-        $result['create_ok'] = false;
-        $result['error'] = $e->getMessage();
-    }
-    return response()->json($result);
-});
 
 // TEMP DEBUG - hapus sebelum production
-Route::get('/debug-cc', function() {
-    $cc = \App\Models\User::byRole('customer_care')->get(['id','name','role']);
-    $allRoles = \App\Models\User::distinct()->pluck('role');
-    $lastNotif = \App\Models\Notifikasi::latest()->take(5)->get(['id','user_id','type','title']);
-    return response()->json([
-        'cc_users' => $cc,
-        'cc_count' => $cc->count(),
-        'all_roles' => $allRoles,
-        'last_5_notif' => $lastNotif,
-    ]);
-});
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Internal\DashboardController;
 use App\Http\Controllers\Internal\RekrutmenController;
@@ -326,7 +294,6 @@ Route::middleware('auth:sanctum')->group(function () {
 
         // Layanan/Order management
         Route::get('layanan',                [\App\Http\Controllers\Klien\KlienOrderController::class, 'index']);
-        Route::post('layanan',               [\App\Http\Controllers\Klien\KlienOrderController::class, 'store']);
         Route::get('layanan/{id}',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'show']);
         Route::patch('layanan/{id}/cancel',  [\App\Http\Controllers\Klien\KlienOrderController::class, 'cancel']);
         Route::get('order/active',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'activeOrders']);
