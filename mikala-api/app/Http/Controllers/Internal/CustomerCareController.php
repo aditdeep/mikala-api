@@ -636,6 +636,18 @@ class CustomerCareController extends Controller
 
         try {
             $order = Order::findOrFail($id);
+
+            // Guard: 1 mitra = 1 job aktif (tolak assign ke-2)
+            $mitraSibuk = Order::where('mitra_id', $request->mitra_id)
+                ->whereIn('status', ['confirmed', 'in_progress', 'active'])
+                ->where('id', '!=', $order->id)
+                ->exists();
+            if ($mitraSibuk) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mitra ini sudah memiliki job aktif dan tidak bisa di-assign ke order lain.'
+                ], 422);
+            }
             $order->update([
                 'mitra_id' => $request->mitra_id,
                 'status'   => 'confirmed',
