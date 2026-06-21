@@ -333,6 +333,10 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
             'status_rekrutmen'=>$mitra?->status_rekrutmen,
             'price_rate'=>$mitra?->price_rate,
             'payment_type'=>$mitra?->payment_type,
+            'jabatan'=>$mitra?->jabatan,
+            'gaji_bulanan'=>$mitra?->gaji_bulanan,
+            'jabatan'=>$mitra?->jabatan,
+            'gaji_bulanan'=>$mitra?->gaji_bulanan,
             'jadwal_interview'=>$jadwal,
             'catatan'=>$mitra?->catatan_rekrutmen,
         ]]);

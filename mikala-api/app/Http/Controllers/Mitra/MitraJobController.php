@@ -34,9 +34,35 @@ class MitraJobController extends Controller
 
             $orders = $query->orderBy('tanggal_mulai', 'desc')->paginate(15);
 
+            // Hitung estimasi earning per job (konsisten dgn payroll)
+            $items = collect($orders->items())->map(function ($order) use ($mitra) {
+                $model = $order->tipe_layanan === 'homecare_live_in' ? 'bulanan' : 'harian';
+                $start = $order->started_at ?? $order->tanggal_mulai;
+                $end   = $order->completed_at ?? now();
+                $hari  = 0;
+                if ($start) {
+                    $s = \Carbon\Carbon::parse($start)->startOfDay();
+                    $e = \Carbon\Carbon::parse($end)->startOfDay();
+                    $hari = $s->diffInDays($e) + 1; // hari pertama = 1
+                    if ($hari < 0) $hari = 0;
+                }
+                if ($model === 'harian') {
+                    $earning = $hari * (float)($mitra->price_rate ?? 0);
+                } else {
+                    $hariSebulan = \Carbon\Carbon::parse($end)->daysInMonth;
+                    $earning = $mitra->gaji_bulanan
+                        ? round(($hari / max($hariSebulan,1)) * (float)$mitra->gaji_bulanan)
+                        : 0;
+                }
+                $order->model_gaji       = $model;
+                $order->total_hari       = $hari;
+                $order->estimasi_earning = $earning;
+                return $order;
+            });
+
             return response()->json([
                 'success' => true,
-                'data' => $orders->items(),
+                'data' => $items,
                 'pagination' => [
                     'total' => $orders->total(),
                     'per_page' => $orders->perPage(),
