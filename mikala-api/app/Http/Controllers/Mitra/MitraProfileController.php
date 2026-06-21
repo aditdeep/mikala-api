@@ -32,7 +32,7 @@ class MitraProfileController extends Controller
                     'stats' => [
                         'total_orders' => $mitra->orders()->count(),
                         'completed_orders' => $mitra->orders()->where('status', 'completed')->count(),
-                        'active_orders' => $mitra->orders()->where('status', 'active')->count(),
+                        'active_orders' => $mitra->orders()->whereIn('status', ['confirmed', 'in_progress', 'active'])->count(),
                         'total_trainings' => $mitra->trainings()->count(),
                     ]
                 ]
