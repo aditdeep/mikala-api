@@ -289,6 +289,9 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,rekrutmen'])->prefi
     Route::post('mitra/{id}/tolak',        [RekrutmenController::class, 'tolak']);
     Route::post('mitra/{id}/interview',    [RekrutmenController::class, 'buatJadwalInterview']);
     Route::post('mitra/{id}/price-rate',    [RekrutmenController::class, 'setPriceRate']);
+    Route::get('gaji-config', function () {
+        return response()->json(['success'=>true,'data'=>\Illuminate\Support\Facades\DB::table('gaji_jabatan_config')->where('aktif',true)->orderBy('urutan')->get()]);
+    });
     Route::get('interview/list',           [RekrutmenController::class, 'jadwalInterviewList']);
     Route::post('interview/{id}/selesai',  [RekrutmenController::class, 'selesaiInterview']);
     Route::get('kredit',                   [RekrutmenController::class, 'kreditPelatihanList']);

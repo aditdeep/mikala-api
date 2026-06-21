@@ -19,7 +19,7 @@ class Mitra extends Model
         'rating','total_reviews','total_jobs',
         // Rekrutmen
         'payment_type','contract_agreed_at','status_rekrutmen',
-        'price_rate','catatan_rekrutmen','verified_at','verified_by',
+        'price_rate','jabatan','gaji_bulanan','catatan_rekrutmen','verified_at','verified_by',
         // Referral / Sumber
         'sumber_tipe','sumber_detail','lembaga_id','referrer_mitra_id',
     ];

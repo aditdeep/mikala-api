@@ -93,6 +93,7 @@ class RekrutmenController extends Controller
                 'training_status'=>$request->training_status,'foto_url'=>$request->foto_url,
                 'cv_file'=>$request->ktp_file ?? $request->cv_file,'price_rate'=>$request->price_rate,
                 'catatan_rekrutmen'=>$request->catatan_rekrutmen,'payment_type'=>$request->payment_type,
+                'jabatan'=>$request->jabatan,'gaji_bulanan'=>$request->gaji_bulanan,
             ], fn($v) => !is_null($v));
             $mitra->update($updateData);
             DB::commit();
@@ -278,7 +279,7 @@ class RekrutmenController extends Controller
 
     public function setPriceRate(Request $request, $id)
     {
-        $request->validate(['price_rate'=>'required|numeric|min:0']);
+        $request->validate(['price_rate'=>'required|numeric|min:0','jabatan'=>'nullable|string','gaji_bulanan'=>'nullable|numeric|min:0']);
         $mitra = \App\Models\Mitra::findOrFail($id);
 
         if ($mitra->status_lulus !== 'lulus') {
@@ -287,6 +288,8 @@ class RekrutmenController extends Controller
 
         $mitra->update([
             'price_rate' => $request->price_rate,
+            'jabatan' => $request->jabatan,
+            'gaji_bulanan' => $request->gaji_bulanan,
             'status'     => 'available',
             'updated_at' => now(),
         ]);
