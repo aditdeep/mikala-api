@@ -2,46 +2,6 @@
 
 use Illuminate\Support\Facades\Route;
 
-// TEMP DEBUG 2
-
-// TEMP DEBUG - hapus sebelum production
-use App\Http\Controllers\Auth\AuthController;
-use App\Http\Controllers\Internal\DashboardController;
-use App\Http\Controllers\Internal\RekrutmenController;
-use App\Http\Controllers\Internal\TrainingController;
-use App\Http\Controllers\Internal\CustomerCareController;
-use App\Http\Controllers\Internal\CmsController;
-use App\Http\Controllers\UploadController;
-use App\Http\Controllers\Internal\FinanceController;
-use App\Http\Controllers\Internal\MarketingController;
-use App\Http\Controllers\Internal\SettingController;
-use App\Http\Controllers\Mitra\MitraProfileController;
-use App\Http\Controllers\Mitra\MitraJobController;
-use App\Http\Controllers\Mitra\MitraPayrollController;
-use App\Http\Controllers\Klien\KlienProfileController;
-use App\Http\Controllers\Klien\KlienLayananController;
-use App\Http\Controllers\Klien\KlienBillingController;
-use App\Http\Controllers\Public\MGMController;
-use App\Http\Controllers\Public\MGAController;
-use App\Http\Controllers\Internal\MgaController as InternalMgaController;
-use App\Http\Controllers\NotifikasiController;
-
-/*
-|--------------------------------------------------------------------------
-| API Routes - Mikala Management System
-|--------------------------------------------------------------------------
-*/
-
-// ============================================================================
-// PUBLIC ROUTES (No Authentication)
-// ============================================================================
-
-Route::prefix('auth')->group(function () {
-    Route::post('/login', [AuthController::class, 'login']);
-    Route::post('/forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('/reset-password', [AuthController::class, 'resetPassword']);
-});
-
 // Public Website MGM & MGA
 Route::prefix('public/mgm')->group(function () {
     Route::get('/layanan', [MGMController::class, 'layanan']);
@@ -537,13 +497,3 @@ Route::middleware('auth:sanctum')->post('/broadcasting/auth', function (\Illumin
     return \Illuminate\Support\Facades\Broadcast::auth($request);
 });
 
-// TEMP DEBUG — hapus setelah verify gaji config
-Route::get('/debug-gaji-config', function () {
-    return response()->json([
-        'config' => \Illuminate\Support\Facades\DB::table('gaji_jabatan_config')->orderBy('urutan')->get(),
-        'mitra_kolom' => [
-            'jabatan'      => \Illuminate\Support\Facades\Schema::hasColumn('mitra', 'jabatan'),
-            'gaji_bulanan' => \Illuminate\Support\Facades\Schema::hasColumn('mitra', 'gaji_bulanan'),
-        ],
-    ]);
-});
