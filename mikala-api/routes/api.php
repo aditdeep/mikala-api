@@ -1,6 +1,27 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\Auth\AuthController;
+use App\Http\Controllers\Internal\DashboardController;
+use App\Http\Controllers\Internal\RekrutmenController;
+use App\Http\Controllers\Internal\TrainingController;
+use App\Http\Controllers\Internal\CustomerCareController;
+use App\Http\Controllers\Internal\CmsController;
+use App\Http\Controllers\UploadController;
+use App\Http\Controllers\Internal\FinanceController;
+use App\Http\Controllers\Internal\MarketingController;
+use App\Http\Controllers\Internal\SettingController;
+use App\Http\Controllers\Mitra\MitraProfileController;
+use App\Http\Controllers\Mitra\MitraJobController;
+use App\Http\Controllers\Mitra\MitraPayrollController;
+use App\Http\Controllers\Klien\KlienProfileController;
+use App\Http\Controllers\Klien\KlienLayananController;
+use App\Http\Controllers\Klien\KlienBillingController;
+use App\Http\Controllers\Public\MGMController;
+use App\Http\Controllers\Public\MGAController;
+use App\Http\Controllers\Internal\MgaController as InternalMgaController;
+use App\Http\Controllers\NotifikasiController;
+use App\Http\Controllers\Auth\MitraRegisterController;
 
 // Public Website MGM & MGA
 Route::prefix('public/mgm')->group(function () {
@@ -333,7 +354,6 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
 });
 
 // ── PUBLIC: Register Mitra (dari Apps Mitra) ─────────────────────────────────
-use App\Http\Controllers\Auth\MitraRegisterController;
 Route::post('/auth/mitra/register', [MitraRegisterController::class, 'register']);
 
 // Public register mitra
