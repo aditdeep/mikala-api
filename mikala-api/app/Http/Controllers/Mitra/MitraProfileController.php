@@ -56,7 +56,7 @@ class MitraProfileController extends Controller
             'alamat' => 'nullable|string',
             'tanggal_lahir' => 'nullable|date',
             'jenis_kelamin' => 'nullable|in:L,P',
-            'pendidikan' => 'nullable|string',
+            'pendidikan_terakhir' => 'nullable|string',
             'pengalaman' => 'nullable|string',
             'kota'              => 'nullable|string|max:100',
             'provinsi'          => 'nullable|string|max:100',
@@ -93,7 +93,7 @@ class MitraProfileController extends Controller
             // Update mitra profile
             $mitra->update($request->only([
                 'alamat', 'kota', 'provinsi', 'tanggal_lahir', 'jenis_kelamin',
-                'pendidikan', 'pengalaman',
+                'pendidikan_terakhir', 'pengalaman',
                 'bank_name', 'bank_account', 'bank_account_name', 'foto_url', 'cv_file'
             ]));
 
