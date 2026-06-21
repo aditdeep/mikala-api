@@ -29,6 +29,11 @@ Route::prefix('cms')->group(function () {
     Route::post('testimoni', [CmsController::class, 'storeTestimoni']);
 });
 
+// Public auth — login (TANPA middleware, user belum punya token)
+Route::post('/auth/login', [\App\Http\Controllers\Auth\AuthController::class, 'login']);
+Route::post('/auth/forgot-password', [\App\Http\Controllers\Auth\AuthController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [\App\Http\Controllers\Auth\AuthController::class, 'resetPassword']);
+
 Route::middleware('auth:sanctum')->group(function () {
 
     // Auth routes (logged-in users)
