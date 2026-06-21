@@ -536,3 +536,14 @@ Route::middleware(['auth:sanctum','internal','role:manajemen'])->post('/internal
 Route::middleware('auth:sanctum')->post('/broadcasting/auth', function (\Illuminate\Http\Request $request) {
     return \Illuminate\Support\Facades\Broadcast::auth($request);
 });
+
+// TEMP DEBUG — hapus setelah verify gaji config
+Route::get('/debug-gaji-config', function () {
+    return response()->json([
+        'config' => \Illuminate\Support\Facades\DB::table('gaji_jabatan_config')->orderBy('urutan')->get(),
+        'mitra_kolom' => [
+            'jabatan'      => \Illuminate\Support\Facades\Schema::hasColumn('mitra', 'jabatan'),
+            'gaji_bulanan' => \Illuminate\Support\Facades\Schema::hasColumn('mitra', 'gaji_bulanan'),
+        ],
+    ]);
+});
