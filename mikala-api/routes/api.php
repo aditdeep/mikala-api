@@ -342,6 +342,8 @@ Route::middleware(['auth:sanctum','role:mitra'])->prefix('mitra')->group(functio
         $jadwal = $mitra?->jadwalInterview()->where('status','scheduled')->orderBy('jadwal_at')->first();
         return response()->json(['success'=>true,'data'=>[
             'status_rekrutmen'=>$mitra?->status_rekrutmen,
+            'price_rate'=>$mitra?->price_rate,
+            'payment_type'=>$mitra?->payment_type,
             'jadwal_interview'=>$jadwal,
             'catatan'=>$mitra?->catatan_rekrutmen,
         ]]);
