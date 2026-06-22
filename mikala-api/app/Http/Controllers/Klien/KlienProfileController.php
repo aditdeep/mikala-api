@@ -17,14 +17,28 @@ class KlienProfileController extends Controller
             if (!$klien) {
                 return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
             }
+
+            // Hitung stats real-time
+            $totalPasien  = $klien->pasien()->count();
+            $totalOrders  = $klien->orders()->count();
+            $totalTagihan = $klien->tagihan()->sum('total');
+
+            // Sisipkan stats ke object klien (dibaca frontend) + tetap di stats
+            $klien->total_pasien  = $totalPasien;
+            $klien->total_patients = $totalPasien;
+            $klien->total_orders  = $totalOrders;
+            $klien->total_tagihan = $totalTagihan;
+
             return response()->json([
                 'success' => true,
                 'data' => [
                     'user' => $user,
                     'klien' => $klien,
                     'stats' => [
-                        'total_orders' => $klien->orders()->count(),
-                        'total_patients' => $klien->pasien()->count(),
+                        'total_orders'   => $totalOrders,
+                        'total_patients' => $totalPasien,
+                        'total_pasien'   => $totalPasien,
+                        'total_tagihan'  => $totalTagihan,
                     ]
                 ]
             ]);
