@@ -24,7 +24,7 @@ class ResetPasswordController extends Controller
 
         if (!$user) {
             // Email tidak ditemukan — tetap return WA sebagai fallback
-            $waMessage = urlencode("Halo Mikala, saya ingin reset password akun Mitra saya dengan email: {$request->email}");
+            $waMessage = urlencode("Halo Mikala, saya ingin reset password akun saya dengan email: {$request->email}");
             return response()->json([
                 'success'    => true,
                 'message'    => 'Jika email terdaftar, instruksi reset akan dikirim.',
@@ -43,7 +43,13 @@ class ResetPasswordController extends Controller
             ['token' => Hash::make($token), 'created_at' => now()]
         );
 
-        $resetUrl = env('FRONTEND_MITRA_URL', 'https://mikala-web-mitra.vercel.app')
+        // Deteksi role -> tentukan URL frontend yang sesuai
+        $frontendUrl = match ($user->role) {
+            'klien'  => env('FRONTEND_KLIEN_URL', 'https://mikala-web-klien.vercel.app'),
+            'mitra'  => env('FRONTEND_MITRA_URL', 'https://mikala-web-mitra.vercel.app'),
+            default  => env('FRONTEND_MITRA_URL', 'https://mikala-web-mitra.vercel.app'),
+        };
+        $resetUrl = $frontendUrl
             . '/auth/reset-password?token=' . $token . '&email=' . urlencode($user->email);
 
         // Kirim email
@@ -54,7 +60,7 @@ class ResetPasswordController extends Controller
                     ->html("
                         <div style='font-family:sans-serif;max-width:500px;margin:auto;padding:24px'>
                             <img src='https://res.cloudinary.com/djgtchmsx/image/upload/v1779019648/logo_MGM_remake_-_w_font_xtgtt0.png' height='40' style='margin-bottom:20px'>
-                            <h2 style='color:#1a1a2e'>Reset Password Akun Mitra</h2>
+                            <h2 style='color:#1a1a2e'>Reset Password Akun</h2>
                             <p>Halo <strong>{$user->name}</strong>,</p>
                             <p>Kami menerima permintaan reset password untuk akun Anda. Klik tombol di bawah untuk membuat password baru:</p>
                             <a href='{$resetUrl}' style='display:inline-block;margin:20px 0;padding:14px 28px;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:white;text-decoration:none;border-radius:12px;font-weight:700'>
@@ -74,7 +80,7 @@ class ResetPasswordController extends Controller
 
         // WA link (untuk fallback / alternatif)
         $waNumber = env('WA_CS_NUMBER', '6281296998827');
-        $waMessage = urlencode("Halo Mikala, saya {$user->name} ({$user->email}) ingin reset password akun Mitra saya.");
+        $waMessage = urlencode("Halo Mikala, saya {$user->name} ({$user->email}) ingin reset password akun saya.");
         $waUrl = "https://wa.me/{$waNumber}?text={$waMessage}";
 
         return response()->json([
