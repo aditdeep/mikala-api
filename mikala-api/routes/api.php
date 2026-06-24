@@ -52,8 +52,9 @@ Route::prefix('cms')->group(function () {
 
 // Public auth — login (TANPA middleware, user belum punya token)
 Route::post('/auth/login', [\App\Http\Controllers\Auth\AuthController::class, 'login']);
-Route::post('/auth/forgot-password', [\App\Http\Controllers\Auth\AuthController::class, 'forgotPassword']);
-Route::post('/auth/reset-password', [\App\Http\Controllers\Auth\AuthController::class, 'resetPassword']);
+Route::post('/auth/forgot-password', [\App\Http\Controllers\Auth\ResetPasswordController::class, 'forgotPassword']);
+Route::post('/auth/reset-password', [\App\Http\Controllers\Auth\ResetPasswordController::class, 'resetPassword']);
+Route::post('/auth/validate-reset-token', [\App\Http\Controllers\Auth\ResetPasswordController::class, 'validateToken']);
 
 Route::middleware('auth:sanctum')->group(function () {
 
