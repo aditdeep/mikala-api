@@ -75,7 +75,7 @@ class ResetPasswordController extends Controller
                     ");
             });
             $emailSent = true;
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::error('MAIL SEND FAILED: ' . $e->getMessage());
             $emailSent = false;
             $mailError = $e->getMessage();
