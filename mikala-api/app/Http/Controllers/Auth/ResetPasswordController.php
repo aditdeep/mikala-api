@@ -52,6 +52,7 @@ class ResetPasswordController extends Controller
         $resetUrl = $frontendUrl
             . '/auth/reset-password?token=' . $token . '&email=' . urlencode($user->email);
 
+        $mailError = null;
         // Kirim email
         try {
             Mail::send([], [], function ($message) use ($user, $resetUrl) {
@@ -77,6 +78,7 @@ class ResetPasswordController extends Controller
         } catch (\Exception $e) {
             \Log::error('MAIL SEND FAILED: ' . $e->getMessage());
             $emailSent = false;
+            $mailError = $e->getMessage();
         }
 
         // WA link (untuk fallback / alternatif)
@@ -88,6 +90,7 @@ class ResetPasswordController extends Controller
             'success'    => true,
             'message'    => 'Instruksi reset password telah dikirim.',
             'email_sent' => $emailSent,
+            'mail_error' => app()->environment('production') ? $mailError : $mailError,
             'wa_url'     => $waUrl,
             'wa_number'  => $waNumber,
             // Hanya untuk development/mailtrap — hapus di production
