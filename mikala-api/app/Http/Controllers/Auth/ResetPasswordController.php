@@ -90,7 +90,6 @@ class ResetPasswordController extends Controller
             'success'    => true,
             'message'    => 'Instruksi reset password telah dikirim.',
             'email_sent' => $emailSent,
-            'mail_error' => app()->environment('production') ? $mailError : $mailError,
             'wa_url'     => $waUrl,
             'wa_number'  => $waNumber,
             // Hanya untuk development/mailtrap — hapus di production
