@@ -60,12 +60,12 @@ class Feedback extends Model
     // Scopes
     public function scopePublished($query)
     {
-        return $query->where('is_published', true);
+        return $query->whereRaw('is_published = true');
     }
 
     public function scopeFeatured($query)
     {
-        return $query->where('is_featured', true);
+        return $query->whereRaw('is_featured = true');
     }
 
     public function scopeByMitra($query, $mitraId)

@@ -71,7 +71,7 @@ class DashboardController extends Controller
     {
         try {
             $notifications = Notifikasi::where('user_id', $request->user()->id)
-                ->where('is_read', false)
+                ->whereRaw('is_read = false')
                 ->orderBy('created_at', 'desc')
                 ->paginate(15);
 

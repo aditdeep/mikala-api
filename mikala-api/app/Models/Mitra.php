@@ -46,9 +46,9 @@ class Mitra extends Model
     public function referredMitra()  { return $this->hasMany(Mitra::class, 'referrer_mitra_id'); }
     public function feeLog()         { return $this->hasManyThrough(FeeLog::class, MitraReferral::class, 'referrer_mitra_id', 'referral_id', 'id', 'id'); }
 
-    public function scopeAvailable($q) { return $q->where('status','available')->where('is_verified',true); }
+    public function scopeAvailable($q) { return $q->where('status','available')->whereRaw('is_verified = true'); }
     public function scopeOnJob($q)     { return $q->where('status','on_job'); }
-    public function scopeVerified($q)  { return $q->where('is_verified',true); }
+    public function scopeVerified($q)  { return $q->whereRaw('is_verified = true'); }
 
     public function updateRating() {
         $this->update([

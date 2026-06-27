@@ -34,7 +34,7 @@ class NotifikasiController extends Controller
 
             // Get unread count
             $unreadCount = Notifikasi::where('user_id', $user->id)
-                ->where('is_read', false)
+                ->whereRaw('is_read = false')
                 ->count();
 
             return response()->json([
@@ -95,7 +95,7 @@ class NotifikasiController extends Controller
             $user = auth()->user();
 
             $updated = Notifikasi::where('user_id', $user->id)
-                ->where('is_read', false)
+                ->whereRaw('is_read = false')
                 ->update([
                     'is_read' => true,
                     'read_at' => now()
@@ -124,7 +124,7 @@ class NotifikasiController extends Controller
             $user = auth()->user();
 
             $count = Notifikasi::where('user_id', $user->id)
-                ->where('is_read', false)
+                ->whereRaw('is_read = false')
                 ->count();
 
             return response()->json([

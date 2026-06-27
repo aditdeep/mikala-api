@@ -73,7 +73,7 @@ class Klien extends Model
 
     public function scopeVerified($query)
     {
-        return $query->where('is_verified', true);
+        return $query->whereRaw('is_verified = true');
     }
 
     public function scopeIndividu($query)

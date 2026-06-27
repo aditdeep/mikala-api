@@ -417,7 +417,7 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,training_center'])-
 Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', function() {
     $mitra = auth()->user()->mitra;
     if (!$mitra) return response()->json(['success'=>false],404);
-    $materi  = \App\Models\TrainingMateri::where('is_active',true)->orderBy('kategori')->orderBy('urutan')->get();
+    $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')->orderBy('kategori')->orderBy('urutan')->get();
     $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)->get()->keyBy('materi_id');
     $total   = $materi->count();
     $selesai = $checks->count();

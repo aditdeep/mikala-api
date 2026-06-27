@@ -51,7 +51,7 @@ class Notifikasi extends Model
     // Scopes
     public function scopeUnread($query)
     {
-        return $query->where('is_read', false);
+        return $query->whereRaw('is_read = false');
     }
 
     public function scopeByType($query, $type)

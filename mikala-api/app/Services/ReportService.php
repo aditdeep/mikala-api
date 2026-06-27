@@ -72,7 +72,7 @@ class ReportService
         $onJob = Mitra::where('status', 'on_job')->count();
         $training = Mitra::where('status', 'training')->count();
 
-        $topRated = Mitra::where('is_verified', true)
+        $topRated = Mitra::whereRaw('is_verified = true')
             ->orderBy('rating', 'desc')
             ->limit(10)
             ->get(['id', 'nama_lengkap', 'rating', 'total_reviews']);

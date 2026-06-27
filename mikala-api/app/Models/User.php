@@ -68,7 +68,7 @@ class User extends Authenticatable
 
     public function unreadNotifikasi()
     {
-        return $this->hasMany(Notifikasi::class)->where('is_read', false);
+        return $this->hasMany(Notifikasi::class)->whereRaw('is_read = false');
     }
 
     // Scopes

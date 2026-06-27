@@ -32,7 +32,7 @@ class TrainingController extends Controller
             }
 
             $mitra = $query->orderBy('nama_lengkap')->paginate(20);
-            $total = \App\Models\TrainingMateri::where('is_active', true)->count();
+            $total = \App\Models\TrainingMateri::whereRaw('is_active = true')->count();
 
             $items = collect($mitra->items())->map(function($m) use ($total) {
                 $selesai = \App\Models\TrainingChecklist::where('mitra_id', $m->id)->count();
@@ -445,7 +445,7 @@ class TrainingController extends Controller
 
     // ── Checklist Materi ──────────────────────────────────────────────────────
     public function materiList() {
-        $materi = \App\Models\TrainingMateri::where('is_active',true)
+        $materi = \App\Models\TrainingMateri::whereRaw('is_active = true')
             ->orderBy('kategori')->orderBy('urutan')->get();
         return response()->json(['success'=>true,'data'=>$materi]);
     }
@@ -453,7 +453,7 @@ class TrainingController extends Controller
     public function mitraProgress($mitraId)
     {
         $mitra = \DB::table('mitra')->find($mitraId);
-        $materi = \DB::table('training_materi')->where('is_active',true)->orderBy('urutan')->get();
+        $materi = \DB::table('training_materi')->whereRaw('is_active = true')->orderBy('urutan')->get();
         $checks = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->with('checker:id,name')->get()->keyBy('materi_id');
 
         $total   = $materi->count();
@@ -515,7 +515,7 @@ class TrainingController extends Controller
         // Recalculate rata-rata + status lulus
         $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)->get();
         $avgRating = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
-        $totalMateri = \App\Models\TrainingMateri::where('is_active', true)->count();
+        $totalMateri = \App\Models\TrainingMateri::whereRaw('is_active = true')->count();
 
         $statusLulus = 'training';
         if ($checks->count() >= $totalMateri && $avgRating >= 4.5) $statusLulus = 'lulus';
