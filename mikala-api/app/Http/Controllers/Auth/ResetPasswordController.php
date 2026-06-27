@@ -45,9 +45,9 @@ class ResetPasswordController extends Controller
 
         // Deteksi role -> tentukan URL frontend yang sesuai
         $frontendUrl = match ($user->role) {
-            'klien'  => env('FRONTEND_KLIEN_URL', 'https://mikala-web-klien.vercel.app'),
-            'mitra'  => env('FRONTEND_MITRA_URL', 'https://mikala-web-mitra.vercel.app'),
-            default  => env('FRONTEND_MITRA_URL', 'https://mikala-web-mitra.vercel.app'),
+            'klien'  => config('services.frontend.klien'),
+            'mitra'  => config('services.frontend.mitra'),
+            default  => config('services.frontend.mitra'),
         };
         $resetUrl = $frontendUrl
             . '/auth/reset-password?token=' . $token . '&email=' . urlencode($user->email);

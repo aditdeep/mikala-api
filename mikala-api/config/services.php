@@ -35,4 +35,10 @@ return [
         ],
     ],
 
+
+    'frontend' => [
+        'mitra' => env('FRONTEND_MITRA_URL', 'https://mitra.mikalaglobalmedika.com'),
+        'klien' => env('FRONTEND_KLIEN_URL', 'https://klien.mikalaglobalmedika.com'),
+    ],
+
 ];
