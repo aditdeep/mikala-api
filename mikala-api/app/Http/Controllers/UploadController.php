@@ -10,11 +10,13 @@ class UploadController extends Controller
 {
     private function getCloudinary()
     {
+        $url = config('cloudinary.cloud_url');
+        $parsed = parse_url($url);
         Configuration::instance([
             'cloud' => [
-                'cloud_name' => env('CLOUDINARY_CLOUD_NAME'),
-                'api_key'    => env('CLOUDINARY_API_KEY'),
-                'api_secret' => env('CLOUDINARY_API_SECRET'),
+                'cloud_name' => $parsed['host'],
+                'api_key'    => $parsed['user'],
+                'api_secret' => $parsed['pass'],
             ],
             'url' => ['secure' => true]
         ]);
