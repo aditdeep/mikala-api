@@ -49,7 +49,7 @@ class MitraRegisterController extends Controller
                 'pengalaman'          => $request->pengalaman,
                 'status'              => 'training',
                 'training_status'     => 'pending',
-                'is_verified'         => false,
+                'is_verified'=>DB::raw('false'),
                 'status_rekrutmen'    => 'pending',
                 'payment_type'        => $request->payment_type,
                 'contract_agreed_at'  => now(),

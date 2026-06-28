@@ -17,7 +17,7 @@ class TrainingController extends Controller
     {
         try {
             $query = Mitra::with(['user'])
-                ->whereIn('status_rekrutmen', ['verified']);
+                ->where('status', 'training');
 
             if ($request->has('training_status')) {
                 $query->where('training_status', $request->training_status);

@@ -61,7 +61,7 @@ class CustomerCareController extends Controller
                 'kota' => $request->kota,
                 'provinsi' => $request->provinsi,
                 'status' => 'active',
-                'is_verified' => false,
+                'is_verified'=>DB::raw('false'),
             ]);
 
             // Send welcome notification

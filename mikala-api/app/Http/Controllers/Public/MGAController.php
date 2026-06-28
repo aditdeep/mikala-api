@@ -199,7 +199,7 @@ class MGAController extends Controller
                 'pendidikan_terakhir' => $request->pendidikan_terakhir,
                 'pengalaman' => $request->pengalaman,
                 'status' => 'pending',
-                'is_verified' => false,
+                'is_verified'=>DB::raw('false'),
                 'training_status' => 'pending',
             ]);
 

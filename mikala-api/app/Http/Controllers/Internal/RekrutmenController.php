@@ -26,7 +26,7 @@ class RekrutmenController extends Controller
                       ->orWhereHas('user', fn($q2) => $q2->where('name','like',"%{$search}%")->orWhere('email','like',"%{$search}%"));
                 });
             }
-            $mitra = $query->orderBy('created_at','desc')->paginate(15);
+            $mitra = $query->orderBy('created_at','desc')->paginate($request->get('per_page', 15));
             return response()->json(['success'=>true,'data'=>$mitra->items(),'pagination'=>[
                 'total'=>$mitra->total(),'per_page'=>$mitra->perPage(),
                 'current_page'=>$mitra->currentPage(),'last_page'=>$mitra->lastPage()
@@ -56,7 +56,7 @@ class RekrutmenController extends Controller
                 'tanggal_lahir'=>$request->tanggal_lahir,'jenis_kelamin'=>$request->jenis_kelamin,
                 'pendidikan_terakhir'=>$request->pendidikan,'pengalaman'=>$request->pengalaman,
                 'foto_url'=>$request->foto_url,'cv_file'=>$request->ktp_file,
-                'status'=>'training','training_status'=>'pending','is_verified'=>false,
+                'status'=>'training','training_status'=>'pending','is_verified'=>DB::raw('false'),
                 'status_rekrutmen'=>'pending',
             ]);
             DB::commit();
@@ -125,7 +125,7 @@ class RekrutmenController extends Controller
             $mitra->update([
                 'status_rekrutmen'=>'verified','status'=>'training',
                 'price_rate'=>$request->price_rate,'catatan_rekrutmen'=>$request->catatan_rekrutmen,
-                'verified_at'=>now(),'verified_by'=>auth()->id(),'is_verified'=>true,
+                'verified_at'=>now(),'verified_by'=>auth()->id(),'is_verified'=>DB::raw('true'),
             ]);
             if ($mitra->payment_type === 'kredit' && $request->total_biaya > 0) {
                 MitraKreditPelatihan::create([
@@ -176,7 +176,7 @@ class RekrutmenController extends Controller
         $data = MitraJadwalInterview::with(['mitra:id,nama_lengkap,foto_url','interviewer:id,name'])
             ->when($request->status, fn($q) => $q->where('status',$request->status))
             ->when($request->mitra_id, fn($q) => $q->where('mitra_id',$request->mitra_id))
-            ->orderBy('jadwal_at')->paginate(15);
+            ->orderBy('jadwal_at')->paginate($request->get('per_page', 15));
         return response()->json($data);
     }
 
@@ -184,7 +184,7 @@ class RekrutmenController extends Controller
     {
         $data = MitraKreditPelatihan::with('mitra:id,nama_lengkap,foto_url,no_hp')
             ->when($request->status, fn($q) => $q->where('status',$request->status))
-            ->orderBy('created_at','desc')->paginate(15);
+            ->orderBy('created_at','desc')->paginate($request->get('per_page', 15));
         return response()->json(['success'=>true,'data'=>$data]);
     }
 
