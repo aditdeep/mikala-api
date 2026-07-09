@@ -87,6 +87,9 @@ class CmsController extends Controller
             'wa_number','email_cs','alamat',
             'facebook','instagram','tiktok','youtube',
             'stats_customer','stats_nakes','stats_mitra',
+            'hero_slides','stats_google','profile_text','profile_images',
+            'video_url','video_title','alasan_list','sertifikat_images',
+            'google_review_url',
         ])->pluck('value','key');
         return response()->json(['success'=>true,'data'=>$settings]);
     }
