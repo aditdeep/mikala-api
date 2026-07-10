@@ -4,23 +4,13 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Cloudinary\Cloudinary;
-use Cloudinary\Configuration\Configuration;
 
 class UploadController extends Controller
 {
     private function getCloudinary()
     {
         $url = config('cloudinary.cloud_url');
-        $parsed = parse_url($url);
-        Configuration::instance([
-            'cloud' => [
-                'cloud_name' => $parsed['host'],
-                'api_key'    => $parsed['user'],
-                'api_secret' => $parsed['pass'],
-            ],
-            'url' => ['secure' => true]
-        ]);
-        return new Cloudinary();
+        return new Cloudinary($url);
     }
 
     public function upload(Request $request)
