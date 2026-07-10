@@ -15,7 +15,7 @@ return new class extends Migration {
             $table->string('gambar')->nullable();
             $table->integer('urutan')->default(0);
             $table->string('wa_link')->nullable();
-            $table->boolean('is_active')->default(true);
+            $table->smallInteger('is_active')->default(1);
             $table->timestamps();
         });
     }
