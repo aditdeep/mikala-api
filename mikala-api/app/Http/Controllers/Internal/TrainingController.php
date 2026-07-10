@@ -31,7 +31,7 @@ class TrainingController extends Controller
                 });
             }
 
-            $mitra = $query->orderBy('nama_lengkap')->paginate(20);
+            $mitra = $query->orderBy('nama_lengkap')->paginate($request->get('per_page', 20));
             $total = \App\Models\TrainingMateri::whereRaw('is_active = true')->count();
 
             $items = collect($mitra->items())->map(function($m) use ($total) {

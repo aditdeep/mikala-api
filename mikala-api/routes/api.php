@@ -464,7 +464,7 @@ Route::prefix('mga')->group(function() {
     Route::get('/settings', [InternalMgaController::class, 'getSettings']);
     Route::get('/artikel', [InternalMgaController::class, 'artikelIndex']);
     Route::get('/artikel/{slug}', function($slug) {
-        $a = \DB::table('mga_artikel')->where('slug',$slug)->where('status','published')->first();
+        $a = \DB::table('mga_artikel')->where('slug',$slug)->where('status','published')->where('published_at','<=', now())->first();
         return $a ? response()->json(['success'=>true,'data'=>$a]) : response()->json(['success'=>false],404);
     });
     Route::get('/galeri', [InternalMgaController::class, 'galeriIndex']);

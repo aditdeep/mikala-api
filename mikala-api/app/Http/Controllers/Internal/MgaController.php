@@ -24,7 +24,12 @@ class MgaController extends Controller
     public function artikelIndex(Request $request) {
         $data = DB::table('mga_artikel')
             ->when($request->search, fn($q) => $q->where('judul','like',"%{$request->search}%"))
-            ->when($request->status, fn($q) => $q->where('status',$request->status))
+            ->when($request->user(), function($q) use ($request) {
+                if ($request->status) $q->where('status',$request->status);
+            }, function($q) {
+                $q->where('status','published')->where('published_at','<=', now());
+            })
+            ->orderBy('published_at','desc')
             ->orderBy('created_at','desc')
             ->paginate($request->per_page ?? 10);
         return response()->json(['success'=>true,'data'=>$data->items(),'pagination'=>['total'=>$data->total(),'last_page'=>$data->lastPage()]]);
@@ -36,16 +41,28 @@ class MgaController extends Controller
             'konten'=>$request->konten,'ringkasan'=>$request->ringkasan,
             'gambar'=>$request->gambar,'kategori'=>$request->kategori??'Informasi',
             'author'=>$request->author??auth()->user()->name,
-            'status'=>$request->status??'draft','created_at'=>now(),'updated_at'=>now(),
+            'status'=>$this->mgaStatus($request),'published_at'=>$this->mgaPublishedAt($request),'created_at'=>now(),'updated_at'=>now(),
         ]);
         return response()->json(['success'=>true,'data'=>DB::table('mga_artikel')->find($id)],201);
     }
     public function artikelUpdate(Request $request, $id) {
-        DB::table('mga_artikel')->where('id',$id)->update(array_merge(
-            $request->only(['judul','konten','ringkasan','gambar','kategori','author','status']),
-            ['updated_at'=>now()]
-        ));
+        $upd = $request->only(['judul','konten','ringkasan','gambar','kategori','author','status']);
+        if ($request->filled('published_at')) {
+            $upd['published_at'] = $this->mgaPublishedAt($request);
+            $upd['status'] = $this->mgaStatus($request);
+        }
+        $upd['updated_at'] = now();
+        DB::table('mga_artikel')->where('id',$id)->update($upd);
         return response()->json(['success'=>true,'data'=>DB::table('mga_artikel')->find($id)]);
+    }
+    private function mgaPublishedAt(Request $request) {
+        return $request->published_at ? \Carbon\Carbon::parse($request->published_at) : now();
+    }
+    private function mgaStatus(Request $request) {
+        $status = $request->status ?? 'draft';
+        $pub = $this->mgaPublishedAt($request);
+        if ($status === 'published' && $pub->isFuture()) return 'scheduled';
+        return $status;
     }
     public function artikelDestroy($id) {
         DB::table('mga_artikel')->where('id',$id)->delete();

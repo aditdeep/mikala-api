@@ -9,18 +9,38 @@ class CmsController extends Controller
 {
     // Artikel
     public function indexArtikel(Request $request) {
-        $q = \App\Models\CmsArtikel::orderBy('created_at','desc');
-        if ($request->status) $q->where('status', $request->status);
+        $q = \App\Models\CmsArtikel::orderBy('published_at','desc')->orderBy('created_at','desc');
+        if ($request->user()) {
+            // admin: tampil semua, bisa filter status
+            if ($request->status) $q->where('status', $request->status);
+        } else {
+            // publik: hanya published & sudah waktunya
+            $q->where('status','published')->where('published_at','<=', now());
+        }
         return response()->json(['success'=>true,'data'=>$q->paginate(12)]);
     }
     public function storeArtikel(Request $request) {
         $request->validate(['judul'=>'required','konten'=>'required','slug'=>'required']);
-        $artikel = \App\Models\CmsArtikel::create($request->all() + ['author_id'=>$request->user()->id]);
+        $data = $request->all();
+        $publishedAt = $request->published_at ? \Carbon\Carbon::parse($request->published_at) : now();
+        $data['published_at'] = $publishedAt;
+        if (($data['status'] ?? 'published') === 'published' && $publishedAt->isFuture()) {
+            $data['status'] = 'scheduled';
+        }
+        $artikel = \App\Models\CmsArtikel::create($data + ['author_id'=>$request->user()->id]);
         return response()->json(['success'=>true,'data'=>$artikel],201);
     }
     public function updateArtikel(Request $request, $id) {
         $artikel = \App\Models\CmsArtikel::findOrFail($id);
-        $artikel->update($request->all());
+        $data = $request->all();
+        if ($request->filled('published_at')) {
+            $publishedAt = \Carbon\Carbon::parse($request->published_at);
+            $data['published_at'] = $publishedAt;
+            if (($data['status'] ?? $artikel->status) === 'published' && $publishedAt->isFuture()) {
+                $data['status'] = 'scheduled';
+            }
+        }
+        $artikel->update($data);
         return response()->json(['success'=>true,'data'=>$artikel]);
     }
     public function deleteArtikel($id) {
@@ -28,7 +48,7 @@ class CmsController extends Controller
         return response()->json(['success'=>true]);
     }
     public function showArtikel($slug) {
-        $a = \App\Models\CmsArtikel::where('slug',$slug)->where('status','published')->firstOrFail();
+        $a = \App\Models\CmsArtikel::where('slug',$slug)->where('status','published')->where('published_at','<=', now())->firstOrFail();
         // Clean literal \n from content
         $a->konten = str_replace(['\\n', '\\r', '\n\n\n'], ['', '', '\n'], $a->konten ?? '');
         return response()->json(['success'=>true,'data'=>$a]);

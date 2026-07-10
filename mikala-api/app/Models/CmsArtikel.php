@@ -5,5 +5,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class CmsArtikel extends Model {
     use SoftDeletes;
     protected $table = 'cms_artikel';
-    protected $fillable = ['judul','slug','konten','excerpt','thumbnail','kategori','status','author_id','meta_title','meta_description','tags','views'];
+    protected $casts = ['published_at' => 'datetime'];
+
+    protected $fillable = ['judul','slug','konten','excerpt','thumbnail','thumbnail_caption','kategori','status','published_at','author_id','meta_title','meta_description','tags','views'];
 }
