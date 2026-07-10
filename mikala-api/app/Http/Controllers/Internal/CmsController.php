@@ -72,6 +72,24 @@ class CmsController extends Controller
         return response()->json(['success'=>true]);
     }
 
+    // Penunjang Kesehatan
+    public function indexPenunjang(Request $request) {
+        return response()->json(['success'=>true,'data'=>\App\Models\CmsPenunjang::orderBy('urutan')->get()]);
+    }
+    public function storePenunjang(Request $request) {
+        $p = \App\Models\CmsPenunjang::create($request->all());
+        return response()->json(['success'=>true,'data'=>$p],201);
+    }
+    public function updatePenunjang(Request $request, $id) {
+        $p = \App\Models\CmsPenunjang::findOrFail($id);
+        $p->update($request->all());
+        return response()->json(['success'=>true,'data'=>$p]);
+    }
+    public function deletePenunjang($id) {
+        \App\Models\CmsPenunjang::findOrFail($id)->delete();
+        return response()->json(['success'=>true]);
+    }
+
     // Galeri
     public function indexGaleri() {
         return response()->json(['success'=>true,'data'=>\App\Models\CmsGaleri::orderBy('created_at','desc')->get()]);

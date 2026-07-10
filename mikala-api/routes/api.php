@@ -44,6 +44,7 @@ Route::prefix('cms')->group(function () {
     Route::get('artikel', [CmsController::class, 'indexArtikel']);
     Route::get('artikel/{slug}', [CmsController::class, 'showArtikel']);
     Route::get('layanan', [CmsController::class, 'indexLayanan']);
+    Route::get('penunjang', [CmsController::class, 'indexPenunjang']);
     Route::get('galeri', [CmsController::class, 'indexGaleri']);
     Route::get('testimoni', [CmsController::class, 'indexTestimoni']);
     Route::get('settings', [CmsController::class, 'getSettings']);
@@ -204,6 +205,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('layanan', [CmsController::class, 'storeLayanan']);
             Route::patch('layanan/{id}', [CmsController::class, 'updateLayanan']);
             Route::delete('layanan/{id}', [CmsController::class, 'deleteLayanan']);
+            Route::get('penunjang', [CmsController::class, 'indexPenunjang']);
+            Route::post('penunjang', [CmsController::class, 'storePenunjang']);
+            Route::patch('penunjang/{id}', [CmsController::class, 'updatePenunjang']);
+            Route::delete('penunjang/{id}', [CmsController::class, 'deletePenunjang']);
             Route::get('galeri', [CmsController::class, 'indexGaleri']);
             Route::post('galeri', [CmsController::class, 'storeGaleri']);
             Route::delete('galeri/{id}', [CmsController::class, 'deleteGaleri']);
