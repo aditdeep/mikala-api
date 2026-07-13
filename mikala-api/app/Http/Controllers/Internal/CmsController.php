@@ -17,6 +17,9 @@ class CmsController extends Controller
             // publik: hanya published & sudah waktunya
             $q->where('status','published')->where('published_at','<=', now());
         }
+        if ($request->search) {
+            $q->where('judul', 'ILIKE', '%'.$request->search.'%');
+        }
         return response()->json(['success'=>true,'data'=>$q->paginate(12)]);
     }
     public function storeArtikel(Request $request) {
