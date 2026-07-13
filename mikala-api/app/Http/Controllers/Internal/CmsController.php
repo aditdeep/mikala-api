@@ -131,6 +131,16 @@ class CmsController extends Controller
             'hero_slides','stats_google','profile_text','profile_images',
             'video_url','video_title','alasan_list','sertifikat_images',
             'google_review_url',
+            // Halaman Perusahaan
+            'prsh_hero_images','prsh_hero_title','prsh_hero_text',
+            'prsh_direktur_nama','prsh_direktur_jabatan','prsh_direktur_foto',
+            'prsh_direktur_sambutan','prsh_direktur_sambutan_lengkap',
+            'prsh_visi',
+            'prsh_misi_list',
+            'prsh_legalitas_images','prsh_legalitas_sk','prsh_legalitas_nib','prsh_legalitas_izin',
+            'prsh_checklist_list',
+            'prsh_mga_text','prsh_mga_images','prsh_mga_url',
+            'prsh_loker_text','prsh_loker_image','prsh_loker_url',
         ])->pluck('value','key');
         return response()->json(['success'=>true,'data'=>$settings]);
     }
