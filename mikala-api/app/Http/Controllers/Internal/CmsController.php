@@ -141,6 +141,8 @@ class CmsController extends Controller
             'prsh_checklist_list',
             'prsh_mga_text','prsh_mga_images','prsh_mga_url',
             'prsh_loker_text','prsh_loker_image','prsh_loker_url',
+            // Halaman Layanan
+            'layanan_hero_images',
         ])->pluck('value','key');
         return response()->json(['success'=>true,'data'=>$settings]);
     }
