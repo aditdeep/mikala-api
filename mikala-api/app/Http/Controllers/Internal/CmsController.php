@@ -138,7 +138,7 @@ class CmsController extends Controller
             'prsh_visi',
             'prsh_misi_list',
             'prsh_legalitas_images','prsh_legalitas_sk','prsh_legalitas_nib','prsh_legalitas_izin',
-            'prsh_checklist_list',
+            'prsh_checklist_list','prsh_checklist_image',
             'prsh_mga_text','prsh_mga_images','prsh_mga_url',
             'prsh_loker_text','prsh_loker_image','prsh_loker_url',
             // Halaman Layanan
