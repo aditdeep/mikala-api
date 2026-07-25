@@ -143,6 +143,8 @@ class CmsController extends Controller
             'prsh_loker_text','prsh_loker_image','prsh_loker_url',
             // Halaman Layanan
             'layanan_hero_images',
+            // Footer
+            'footer_social_icons',
         ])->pluck('value','key');
         return response()->json(['success'=>true,'data'=>$settings]);
     }
