@@ -21,7 +21,7 @@ class CmsController extends Controller
             $q->where('judul', 'ILIKE', '%'.$request->search.'%');
         }
         if ($request->kategori && $request->kategori !== 'Semuanya' && $request->kategori !== 'Semua') {
-            $q->where('kategori', $request->kategori);
+            $q->whereRaw('LOWER(TRIM(kategori)) = ?', [mb_strtolower(trim($request->kategori))]);
         }
         $perPage = (int) ($request->per_page ?: 12);
         return response()->json(['success'=>true,'data'=>$q->paginate($perPage)]);
