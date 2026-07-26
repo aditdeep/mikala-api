@@ -20,7 +20,11 @@ class CmsController extends Controller
         if ($request->search) {
             $q->where('judul', 'ILIKE', '%'.$request->search.'%');
         }
-        return response()->json(['success'=>true,'data'=>$q->paginate(12)]);
+        if ($request->kategori && $request->kategori !== 'Semuanya' && $request->kategori !== 'Semua') {
+            $q->where('kategori', $request->kategori);
+        }
+        $perPage = (int) ($request->per_page ?: 12);
+        return response()->json(['success'=>true,'data'=>$q->paginate($perPage)]);
     }
     public function storeArtikel(Request $request) {
         $request->validate(['judul'=>'required','konten'=>'required','slug'=>'required']);
