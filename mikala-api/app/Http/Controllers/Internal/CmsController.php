@@ -7,6 +7,31 @@ use Illuminate\Http\Request;
 
 class CmsController extends Controller
 {
+    // Pencarian global: artikel, layanan, penunjang
+    public function search(Request $request) {
+        $q = trim($request->q ?? '');
+        if ($q === '') return response()->json(['success'=>true,'data'=>[]]);
+        $like = '%'.$q.'%';
+
+        $artikel = \App\Models\CmsArtikel::where('status','published')->where('published_at','<=', now())
+            ->where(function($w) use ($like) { $w->where('judul','ILIKE',$like)->orWhere('excerpt','ILIKE',$like); })
+            ->orderBy('published_at','desc')->limit(10)->get()
+            ->map(fn($a) => ['type'=>'artikel','title'=>$a->judul,'excerpt'=>$a->excerpt,'thumbnail'=>$a->thumbnail,'slug'=>$a->slug]);
+
+        $layanan = \App\Models\CmsLayanan::where(function($w) use ($like) {
+                $w->where('nama','ILIKE',$like)->orWhere('deskripsi','ILIKE',$like)->orWhere('deskripsi_panjang','ILIKE',$like);
+            })->orderBy('urutan')->limit(10)->get()
+            ->map(fn($l) => ['type'=>'layanan','title'=>$l->nama,'excerpt'=>$l->deskripsi,'thumbnail'=>$l->gambar,'nama'=>$l->nama]);
+
+        $penunjang = \App\Models\CmsPenunjang::where(function($w) use ($like) {
+                $w->where('nama','ILIKE',$like)->orWhere('deskripsi','ILIKE',$like)->orWhere('deskripsi_panjang','ILIKE',$like);
+            })->orderBy('urutan')->limit(10)->get()
+            ->map(fn($p) => ['type'=>'penunjang','title'=>$p->nama,'excerpt'=>$p->deskripsi,'thumbnail'=>$p->gambar,'nama'=>$p->nama]);
+
+        $results = collect()->concat($layanan)->concat($penunjang)->concat($artikel)->values();
+        return response()->json(['success'=>true,'data'=>$results]);
+    }
+
     // Artikel
     public function indexArtikel(Request $request) {
         $q = \App\Models\CmsArtikel::orderBy('published_at','desc')->orderBy('created_at','desc');

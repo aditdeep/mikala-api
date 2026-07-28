@@ -41,6 +41,7 @@ Route::prefix('public/mga')->group(function () {
 
 // CMS Public Routes (untuk frontend MGM)
 Route::prefix('cms')->group(function () {
+    Route::get('search', [CmsController::class, 'search']);
     Route::get('artikel', [CmsController::class, 'indexArtikel']);
     Route::get('artikel/{slug}', [CmsController::class, 'showArtikel']);
     Route::get('layanan', [CmsController::class, 'indexLayanan']);
