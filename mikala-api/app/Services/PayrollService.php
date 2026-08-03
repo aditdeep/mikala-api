@@ -38,11 +38,10 @@ class PayrollService
             // Notify mitra
             $this->notifikasiService->send(
                 $order->mitra->user_id,
+                'payroll',
                 'Payroll Dibuat',
                 "Payroll {$payroll->payroll_number} sebesar Rp " . number_format($payroll->total, 0, ',', '.') . " telah dibuat dan menunggu persetujuan.",
-                'info',
-                Payroll::class,
-                $payroll->id
+                ['related_type' => Payroll::class, 'related_id' => $payroll->id]
             );
 
             return $payroll;
@@ -62,11 +61,10 @@ class PayrollService
 
         $this->notifikasiService->send(
             $payroll->mitra->user_id,
+            'payroll',
             'Payroll Disetujui',
             "Payroll {$payroll->payroll_number} telah disetujui. Pembayaran akan segera diproses.",
-            'success',
-            Payroll::class,
-            $payroll->id
+            ['related_type' => Payroll::class, 'related_id' => $payroll->id]
         );
 
         return true;
@@ -86,11 +84,10 @@ class PayrollService
 
         $this->notifikasiService->send(
             $payroll->mitra->user_id,
+            'payroll',
             'Payroll Dibayarkan',
             "Payroll {$payroll->payroll_number} sebesar Rp " . number_format($payroll->total, 0, ',', '.') . " telah dibayarkan.",
-            'success',
-            Payroll::class,
-            $payroll->id
+            ['related_type' => Payroll::class, 'related_id' => $payroll->id]
         );
 
         return true;

@@ -39,21 +39,22 @@ class BillingService
             // Send notification to klien, finance, and customer care
             $this->notifikasiService->send(
                 $order->klien->user_id,
+                'billing',
                 'Tagihan Baru',
                 "Tagihan {$tagihan->invoice_number} sebesar Rp " . number_format($tagihan->total, 0, ',', '.') . " telah dibuat.",
-                'billing',
-                Tagihan::class,
-                $tagihan->id
+                ['related_type' => Tagihan::class, 'related_id' => $tagihan->id]
             );
 
-            $this->notifikasiService->sendToRole(
-                'finance',
-                'Tagihan Baru Dibuat',
-                "Tagihan {$tagihan->invoice_number} untuk klien {$order->klien->nama_lengkap} telah dibuat.",
-                'billing',
-                Tagihan::class,
-                $tagihan->id
-            );
+            $financeUserIds = \App\Models\User::byRole('finance')->pluck('id')->toArray();
+            if (!empty($financeUserIds)) {
+                $this->notifikasiService->sendBulk(
+                    $financeUserIds,
+                    'billing',
+                    'Tagihan Baru Dibuat',
+                    "Tagihan {$tagihan->invoice_number} untuk klien {$order->klien->nama_lengkap} telah dibuat.",
+                    ['related_type' => Tagihan::class, 'related_id' => $tagihan->id]
+                );
+            }
 
             return $tagihan;
         });
@@ -84,11 +85,10 @@ class BillingService
         // Notify
         $this->notifikasiService->send(
             $tagihan->klien->user_id,
+            'billing',
             'Pembayaran Diterima',
             "Pembayaran sebesar Rp " . number_format($amount, 0, ',', '.') . " untuk tagihan {$tagihan->invoice_number} telah diterima.",
-            'success',
-            Tagihan::class,
-            $tagihan->id
+            ['related_type' => Tagihan::class, 'related_id' => $tagihan->id]
         );
 
         return true;
@@ -137,18 +137,12 @@ class BillingService
             default => "Pengingat pembayaran tagihan {$tagihan->invoice_number}",
         };
 
-        $sendEmail = in_array($stage, ['H-1', 'Overdue']);
-
         $this->notifikasiService->send(
             $tagihan->klien->user_id,
+            'billing',
             'Pengingat Pembayaran',
             $message,
-            'billing',
-            Tagihan::class,
-            $tagihan->id,
-            null,
-            true,
-            $sendEmail
+            ['related_type' => Tagihan::class, 'related_id' => $tagihan->id]
         );
 
         $tagihan->update(['overdue_notified_at' => now()]);

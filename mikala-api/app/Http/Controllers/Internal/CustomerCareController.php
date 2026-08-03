@@ -67,8 +67,9 @@ class CustomerCareController extends Controller
             // Send welcome notification
             $this->notifikasiService->send(
                 $user->id,
-                'Welcome to Mikala! Your account has been created successfully.',
-                'welcome'
+                'welcome',
+                'Selamat Datang di Mikala 👋',
+                'Akun Anda berhasil dibuat. Selamat bergabung di Mikala Global Medika.'
             );
 
             DB::commit();
@@ -360,16 +361,18 @@ class CustomerCareController extends Controller
             $klien = Klien::find($request->klien_id);
             $this->notifikasiService->send(
                 $klien->user_id,
-                "New order #{$order->id} has been created.",
-                'order_created'
+                'order_created',
+                'Pesanan Baru Dibuat 📋',
+                "Order #{$order->id} telah dibuat."
             );
 
             // Notify mitra if assigned
             if ($order->mitra_id) {
                 $this->notifikasiService->send(
                     $order->mitra->user_id,
-                    "You have been assigned to order #{$order->id}.",
-                    'order_assigned'
+                    'order_assigned',
+                    'Penugasan Order Baru 📋',
+                    "Anda ditugaskan pada order #{$order->id}."
                 );
             }
 
@@ -414,15 +417,17 @@ class CustomerCareController extends Controller
             // Notify both parties
             $this->notifikasiService->send(
                 $order->klien->user_id,
-                "Order #{$order->id} status changed to {$request->status}.",
-                'order_status_changed'
+                'order_status_changed',
+                'Status Order Berubah 🔄',
+                "Order #{$order->id} berubah status menjadi {$request->status}."
             );
 
             if ($order->mitra_id) {
                 $this->notifikasiService->send(
                     $order->mitra->user_id,
-                    "Order #{$order->id} status changed to {$request->status}.",
-                    'order_status_changed'
+                    'order_status_changed',
+                    'Status Order Berubah 🔄',
+                    "Order #{$order->id} berubah status menjadi {$request->status}."
                 );
             }
 
