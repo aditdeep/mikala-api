@@ -24,7 +24,7 @@ class NotifikasiController extends Controller
 
             // Filter by read status
             if ($request->has('is_read')) {
-                $query->where('is_read', $request->is_read === 'true' || $request->is_read === '1');
+                $query->where('is_read', ($request->is_read === 'true' || $request->is_read === '1') ? 1 : 0);
             }
 
             // Order by most recent first
@@ -34,7 +34,7 @@ class NotifikasiController extends Controller
 
             // Get unread count
             $unreadCount = Notifikasi::where('user_id', $user->id)
-                ->whereRaw('is_read = false')
+                ->whereRaw('is_read = 0')
                 ->count();
 
             return response()->json([
@@ -95,7 +95,7 @@ class NotifikasiController extends Controller
             $user = auth()->user();
 
             $updated = Notifikasi::where('user_id', $user->id)
-                ->whereRaw('is_read = false')
+                ->whereRaw('is_read = 0')
                 ->update([
                     'is_read' => true,
                     'read_at' => now()
@@ -124,7 +124,7 @@ class NotifikasiController extends Controller
             $user = auth()->user();
 
             $count = Notifikasi::where('user_id', $user->id)
-                ->whereRaw('is_read = false')
+                ->whereRaw('is_read = 0')
                 ->count();
 
             return response()->json([
