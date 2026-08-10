@@ -695,4 +695,75 @@ class CustomerCareController extends Controller
         }
     }
 
+    /**
+     * Leads pipeline dashboard summary (Stage 1: Layanan breakdown).
+     * Menurunkan baris "Jenis Layanan x Tier" dari cms_layanan + tier_data,
+     * digabung dengan hitungan leads (proses/deal/loss) & exchange.
+     */
+    public function leadsSummary(Request $request)
+    {
+        try {
+            $totalLeads = \App\Models\Lead::count();
+            $totalDeal  = \App\Models\Lead::deal()->count();
+            $totalLoss  = \App\Models\Lead::batal()->count();
+
+            $layananList = \App\Models\CmsLayanan::orderBy('urutan')->get();
+
+            $rows = [];
+            foreach ($layananList as $layanan) {
+                $tiers = [];
+                if (!empty($layanan->tier_data)) {
+                    $decoded = json_decode($layanan->tier_data, true);
+                    if (is_array($decoded)) $tiers = $decoded;
+                }
+
+                if (empty($tiers)) {
+                    $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, null);
+                } else {
+                    foreach ($tiers as $tier) {
+                        $tierNama = $tier['nama'] ?? null;
+                        $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, $tierNama);
+                    }
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'total_leads' => $totalLeads,
+                    'total_deal'  => $totalDeal,
+                    'total_loss'  => $totalLoss,
+                    'by_layanan'  => $rows,
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    private function buildLeadsRow($layananId, $layananNama, $tierNama)
+    {
+        $base = \App\Models\Lead::where('cms_layanan_id', $layananId);
+        if ($tierNama !== null) {
+            $base = $base->where('tier_nama', $tierNama);
+        } else {
+            $base = $base->whereNull('tier_nama');
+        }
+
+        $leads = (clone $base)->count();
+        $deal  = (clone $base)->deal()->count();
+        $loss  = (clone $base)->batal()->count();
+        $exchange = \App\Models\LeadExchange::whereIn('lead_id', (clone $base)->pluck('id'))->count();
+
+        return [
+            'layanan_id'   => $layananId,
+            'layanan_nama' => $layananNama,
+            'tier_nama'    => $tierNama,
+            'leads'        => $leads,
+            'deal'         => $deal,
+            'loss'         => $loss,
+            'exchange'     => $exchange,
+        ];
+    }
+
 }

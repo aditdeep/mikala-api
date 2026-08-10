@@ -163,6 +163,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('report/handling', [CustomerCareController::class, 'reportHandling']);
             Route::get('report/deal', [CustomerCareController::class, 'reportDeal']);
             Route::get('report/loss', [CustomerCareController::class, 'reportLoss']);
+            Route::get('leads/summary', [CustomerCareController::class, 'leadsSummary']);
         });
 
         // Finance
