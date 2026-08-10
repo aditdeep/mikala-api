@@ -853,6 +853,58 @@ class CustomerCareController extends Controller
         }
     }
 
+    /**
+     * List semua histori Exchange (tukar mitra) lintas leads.
+     */
+    public function indexLeadsExchange(Request $request)
+    {
+        try {
+            $data = \App\Models\LeadExchange::with(['lead.layanan', 'mitraLama.user', 'mitraBaru.user', 'creator'])
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            return response()->json(['success' => true, 'data' => $data]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Catat Exchange (tukar mitra) untuk sebuah lead yang sudah Deal.
+     */
+    public function storeLeadExchange(Request $request, $id)
+    {
+        $request->validate([
+            'mitra_baru_id' => 'required|exists:mitra,id',
+            'alasan'        => 'required|string',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            $mitraLamaId = $lead->mitra_id;
+
+            $exchange = \App\Models\LeadExchange::create([
+                'nomor'         => \App\Models\LeadExchange::generateNomor(),
+                'lead_id'       => $lead->id,
+                'mitra_lama_id' => $mitraLamaId,
+                'mitra_baru_id' => $request->mitra_baru_id,
+                'alasan'        => $request->alasan,
+                'exchanged_at'  => now(),
+                'created_by'    => $request->user()?->id,
+            ]);
+
+            $lead->update(['mitra_id' => $request->mitra_baru_id]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Exchange berhasil dicatat',
+                'data'    => $exchange->fresh(['lead.layanan', 'mitraLama.user', 'mitraBaru.user']),
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     private function buildLeadsRow($layananId, $layananNama, $tierNama)
     {
         $base = \App\Models\Lead::where('cms_layanan_id', $layananId);

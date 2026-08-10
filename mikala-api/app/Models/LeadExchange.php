@@ -44,4 +44,12 @@ class LeadExchange extends Model
     {
         return $this->belongsTo(User::class, 'created_by');
     }
+
+    public static function generateNomor(): string
+    {
+        $now = now();
+        $prefix = 'V2.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
+        $count = self::whereYear('created_at', $now->year)->whereMonth('created_at', $now->month)->count() + 1;
+        return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+    }
 }

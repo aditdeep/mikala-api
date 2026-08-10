@@ -168,6 +168,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::post('leads', [CustomerCareController::class, 'storeLead']);
             Route::patch('leads/{id}/deal', [CustomerCareController::class, 'markLeadDeal']);
             Route::patch('leads/{id}/batal', [CustomerCareController::class, 'markLeadBatal']);
+            Route::get('leads-exchange', [CustomerCareController::class, 'indexLeadsExchange']);
+            Route::post('leads/{id}/exchange', [CustomerCareController::class, 'storeLeadExchange']);
         });
 
         // Finance
