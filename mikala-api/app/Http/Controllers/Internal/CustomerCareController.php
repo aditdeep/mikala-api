@@ -741,6 +741,118 @@ class CustomerCareController extends Controller
         }
     }
 
+    /**
+     * List leads (dengan filter status opsional).
+     */
+    public function indexLeads(Request $request)
+    {
+        try {
+            $query = \App\Models\Lead::with(['layanan', 'klien.user', 'mitra.user', 'creator'])
+                ->orderBy('created_at', 'desc');
+
+            if ($request->filled('status')) {
+                $query->where('status', $request->status);
+            }
+
+            return response()->json(['success' => true, 'data' => $query->get()]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Tambah Leads baru (intake form).
+     */
+    public function storeLead(Request $request)
+    {
+        $request->validate([
+            'cms_layanan_id' => 'nullable|exists:cms_layanan,id',
+            'tier_nama'      => 'nullable|string|max:100',
+            'nama_leads'     => 'required|string|max:255',
+            'kontak'         => 'required|string|max:50',
+            'nama_pasien'    => 'nullable|string|max:255',
+            'sumber'         => 'nullable|string|max:50',
+            'catatan'        => 'nullable|string',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::create([
+                'nomor'           => \App\Models\Lead::generateNomor(),
+                'cms_layanan_id'  => $request->cms_layanan_id,
+                'tier_nama'       => $request->tier_nama,
+                'nama_leads'      => $request->nama_leads,
+                'kontak'          => $request->kontak,
+                'nama_pasien'     => $request->nama_pasien,
+                'sumber'          => $request->sumber,
+                'catatan'         => $request->catatan,
+                'status'          => \App\Models\Lead::STATUS_PROSES,
+                'created_by'      => $request->user()?->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads berhasil ditambahkan',
+                'data'    => $lead->fresh(['layanan']),
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Tandai Leads sebagai Deal (opsional langsung assign mitra).
+     */
+    public function markLeadDeal(Request $request, $id)
+    {
+        $request->validate([
+            'mitra_id' => 'nullable|exists:mitra,id',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            $lead->update([
+                'status'   => \App\Models\Lead::STATUS_DEAL,
+                'mitra_id' => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
+                'deal_at'  => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads ditandai Deal',
+                'data'    => $lead->fresh(['layanan', 'mitra.user']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Tandai Leads sebagai Batal (Loss) dengan alasan.
+     */
+    public function markLeadBatal(Request $request, $id)
+    {
+        $request->validate([
+            'alasan_batal' => 'required|string',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            $lead->update([
+                'status'       => \App\Models\Lead::STATUS_BATAL,
+                'alasan_batal' => $request->alasan_batal,
+                'batal_at'     => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads ditandai Batal',
+                'data'    => $lead->fresh(['layanan']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
     private function buildLeadsRow($layananId, $layananNama, $tierNama)
     {
         $base = \App\Models\Lead::where('cms_layanan_id', $layananId);

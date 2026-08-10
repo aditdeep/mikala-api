@@ -164,6 +164,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('report/deal', [CustomerCareController::class, 'reportDeal']);
             Route::get('report/loss', [CustomerCareController::class, 'reportLoss']);
             Route::get('leads/summary', [CustomerCareController::class, 'leadsSummary']);
+            Route::get('leads', [CustomerCareController::class, 'indexLeads']);
+            Route::post('leads', [CustomerCareController::class, 'storeLead']);
+            Route::patch('leads/{id}/deal', [CustomerCareController::class, 'markLeadDeal']);
+            Route::patch('leads/{id}/batal', [CustomerCareController::class, 'markLeadBatal']);
         });
 
         // Finance
