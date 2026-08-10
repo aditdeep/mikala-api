@@ -768,6 +768,7 @@ class CustomerCareController extends Controller
         $request->validate([
             'cms_layanan_id' => 'nullable|exists:cms_layanan,id',
             'tier_nama'      => 'nullable|string|max:100',
+            'klien_id'       => 'nullable|exists:klien,id',
             'nama_leads'     => 'required|string|max:255',
             'kontak'         => 'required|string|max:50',
             'nama_pasien'    => 'nullable|string|max:255',
@@ -780,6 +781,7 @@ class CustomerCareController extends Controller
                 'nomor'           => \App\Models\Lead::generateNomor(),
                 'cms_layanan_id'  => $request->cms_layanan_id,
                 'tier_nama'       => $request->tier_nama,
+                'klien_id'        => $request->klien_id,
                 'nama_leads'      => $request->nama_leads,
                 'kontak'          => $request->kontak,
                 'nama_pasien'     => $request->nama_pasien,
@@ -792,7 +794,7 @@ class CustomerCareController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => 'Leads berhasil ditambahkan',
-                'data'    => $lead->fresh(['layanan']),
+                'data'    => $lead->fresh(['layanan', 'klien.user']),
             ], 201);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
