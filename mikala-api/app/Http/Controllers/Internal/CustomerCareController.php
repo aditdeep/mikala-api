@@ -747,7 +747,7 @@ class CustomerCareController extends Controller
     public function indexLeads(Request $request)
     {
         try {
-            $query = \App\Models\Lead::with(['layanan', 'klien.user', 'mitra.user', 'creator'])
+            $query = \App\Models\Lead::with(['layanan', 'klien.user', 'mitra.user', 'creator', 'referensiKlien.user', 'referensiMitra.user'])
                 ->withCount('exchanges')
                 ->orderBy('created_at', 'desc');
 
@@ -773,14 +773,34 @@ class CustomerCareController extends Controller
             // Cust/PJ = penanggung jawab pasien
             'nama_leads'      => 'required|string|max:255',
             'kontak'          => 'required|string|max:50',
-            'alamat_cust_pj'  => 'nullable|string',
+            'no_rumah'            => 'nullable|string|max:50',
+            'alamat_cust_pj'      => 'nullable|string',
+            'no_ktp_cust_pj'      => 'nullable|string|max:30',
+            'hubungan_dengan_pasien' => 'nullable|string|max:100',
+            'email_cust_pj'       => 'nullable|email|max:255',
             // Klien = pasien
-            'nama_pasien'     => 'nullable|string|max:255',
-            'alamat_klien'    => 'nullable|string',
-            'diagnosis_awal'  => 'nullable|string',
-            'alat_pendukung'  => 'nullable|string',
-            'sumber'          => 'nullable|string|max:50',
-            'catatan'         => 'nullable|string',
+            'nama_pasien'         => 'nullable|string|max:255',
+            'alamat_klien'        => 'nullable|string',
+            'alamat_klien_2'      => 'nullable|string',
+            'tanggal_lahir_klien' => 'nullable|date',
+            'no_wa_klien'         => 'nullable|string|max:50',
+            'tinggi_badan'        => 'nullable|string|max:20',
+            'berat_badan'         => 'nullable|string|max:20',
+            'jenis_kelamin_klien' => 'nullable|in:L,P',
+            'diagnosis_awal'      => 'nullable|string',
+            'deskripsi_diagnosa'  => 'nullable|string',
+            'alat_pendukung'      => 'nullable|string',
+            'alat_medis'          => 'nullable|array',
+            'alat_medis.*'        => 'nullable|string|max:255',
+            // Referensi
+            'sumber'              => 'nullable|string|max:50',
+            'referensi_tipe'      => 'nullable|string|max:50',
+            'referensi_sub'       => 'nullable|string|max:50',
+            'referensi_klien_id'  => 'nullable|exists:klien,id',
+            'referensi_mitra_id'  => 'nullable|exists:mitra,id',
+            'nama_referensi'      => 'nullable|string|max:255',
+            'kontak_referensi'    => 'nullable|string|max:50',
+            'catatan'             => 'nullable|string',
         ]);
 
         try {
@@ -791,12 +811,30 @@ class CustomerCareController extends Controller
                 'klien_id'        => $request->klien_id,
                 'nama_leads'      => $request->nama_leads,
                 'kontak'          => $request->kontak,
+                'no_rumah'        => $request->no_rumah,
                 'alamat_cust_pj'  => $request->alamat_cust_pj,
+                'no_ktp_cust_pj'  => $request->no_ktp_cust_pj,
+                'hubungan_dengan_pasien' => $request->hubungan_dengan_pasien,
+                'email_cust_pj'   => $request->email_cust_pj,
                 'nama_pasien'     => $request->nama_pasien,
                 'alamat_klien'    => $request->alamat_klien,
+                'alamat_klien_2'  => $request->alamat_klien_2,
+                'tanggal_lahir_klien' => $request->tanggal_lahir_klien,
+                'no_wa_klien'     => $request->no_wa_klien,
+                'tinggi_badan'    => $request->tinggi_badan,
+                'berat_badan'     => $request->berat_badan,
+                'jenis_kelamin_klien' => $request->jenis_kelamin_klien,
                 'diagnosis_awal'  => $request->diagnosis_awal,
+                'deskripsi_diagnosa' => $request->deskripsi_diagnosa,
                 'alat_pendukung'  => $request->alat_pendukung,
+                'alat_medis'      => $request->has('alat_medis') ? json_encode(array_values(array_filter($request->alat_medis))) : null,
                 'sumber'          => $request->sumber,
+                'referensi_tipe'  => $request->referensi_tipe,
+                'referensi_sub'   => $request->referensi_sub,
+                'referensi_klien_id' => $request->referensi_klien_id,
+                'referensi_mitra_id' => $request->referensi_mitra_id,
+                'nama_referensi'  => $request->nama_referensi,
+                'kontak_referensi' => $request->kontak_referensi,
                 'catatan'         => $request->catatan,
                 'status'          => \App\Models\Lead::STATUS_PROSES,
                 'created_by'      => $request->user()?->id,
@@ -813,20 +851,47 @@ class CustomerCareController extends Controller
     }
 
     /**
-     * Tandai Leads sebagai Deal (opsional langsung assign mitra).
+     * Tandai Leads sebagai Deal: generate NIK, opsional assign mitra + field klinis/negosiasi jasa.
      */
     public function markLeadDeal(Request $request, $id)
     {
         $request->validate([
-            'mitra_id' => 'nullable|exists:mitra,id',
+            'mitra_id'         => 'nullable|exists:mitra,id',
+            'mitra_nim'        => 'nullable|string|max:100',
+            'biaya_admin'      => 'nullable|numeric',
+            'honor_mitra'      => 'nullable|numeric',
+            'uang_cuti_mitra'  => 'nullable|numeric',
+            'kesadaran'        => 'nullable|string|max:255',
+            'komunikasi'       => 'nullable|string|max:255',
+            'kelemahan'        => 'nullable|string|max:255',
+            'mobilisasi'       => 'nullable|string|max:255',
+            'jasa_diminta'     => 'nullable|string|max:255',
+            'jasa_disarankan'  => 'nullable|string|max:255',
+            'jasa_disetujui'   => 'nullable|string|max:255',
+            'pembantu'         => 'nullable|string|max:255',
+            'cara_mencuci_baju' => 'nullable|string|max:255',
         ]);
 
         try {
             $lead = \App\Models\Lead::findOrFail($id);
             $lead->update([
-                'status'   => \App\Models\Lead::STATUS_DEAL,
-                'mitra_id' => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
-                'deal_at'  => now(),
+                'status'    => \App\Models\Lead::STATUS_DEAL,
+                'nik'       => $lead->nik ?: \App\Models\Lead::generateNik(),
+                'mitra_id'  => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
+                'mitra_nim' => $request->filled('mitra_nim') ? $request->mitra_nim : $lead->mitra_nim,
+                'biaya_admin' => $request->filled('biaya_admin') ? $request->biaya_admin : $lead->biaya_admin,
+                'honor_mitra' => $request->filled('honor_mitra') ? $request->honor_mitra : $lead->honor_mitra,
+                'uang_cuti_mitra' => $request->filled('uang_cuti_mitra') ? $request->uang_cuti_mitra : $lead->uang_cuti_mitra,
+                'kesadaran' => $request->kesadaran ?? $lead->kesadaran,
+                'komunikasi' => $request->komunikasi ?? $lead->komunikasi,
+                'kelemahan' => $request->kelemahan ?? $lead->kelemahan,
+                'mobilisasi' => $request->mobilisasi ?? $lead->mobilisasi,
+                'jasa_diminta' => $request->jasa_diminta ?? $lead->jasa_diminta,
+                'jasa_disarankan' => $request->jasa_disarankan ?? $lead->jasa_disarankan,
+                'jasa_disetujui' => $request->jasa_disetujui ?? $lead->jasa_disetujui,
+                'pembantu' => $request->pembantu ?? $lead->pembantu,
+                'cara_mencuci_baju' => $request->cara_mencuci_baju ?? $lead->cara_mencuci_baju,
+                'deal_at'  => $lead->deal_at ?: now(),
             ]);
 
             return response()->json([
@@ -840,12 +905,41 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Tandai Leads sebagai Gantung (on-hold).
+     */
+    public function markLeadGantung(Request $request, $id)
+    {
+        $request->validate([
+            'alasan_status' => 'nullable|array',
+            'alasan_status.*' => 'nullable|string|max:500',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            $lead->update([
+                'status'        => \App\Models\Lead::STATUS_GANTUNG,
+                'alasan_status' => $request->has('alasan_status') ? json_encode(array_values(array_filter($request->alasan_status))) : $lead->alasan_status,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads ditandai Gantung',
+                'data'    => $lead->fresh(['layanan']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Tandai Leads sebagai Batal (Loss) dengan alasan.
      */
     public function markLeadBatal(Request $request, $id)
     {
         $request->validate([
-            'alasan_batal' => 'required|string',
+            'alasan_batal'     => 'required|string',
+            'alasan_status'    => 'nullable|array',
+            'alasan_status.*'  => 'nullable|string|max:500',
         ]);
 
         try {
@@ -853,6 +947,7 @@ class CustomerCareController extends Controller
             $lead->update([
                 'status'       => \App\Models\Lead::STATUS_BATAL,
                 'alasan_batal' => $request->alasan_batal,
+                'alasan_status' => $request->has('alasan_status') ? json_encode(array_values(array_filter($request->alasan_status))) : $lead->alasan_status,
                 'batal_at'     => now(),
             ]);
 
