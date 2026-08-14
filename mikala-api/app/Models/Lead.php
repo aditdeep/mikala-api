@@ -22,9 +22,15 @@ class Lead extends Model
         'cms_layanan_id',
         'tier_nama',
         'klien_id',
+        // Cust/PJ = penanggung jawab pasien (yang bayar/kontak)
         'nama_leads',
         'kontak',
+        'alamat_cust_pj',
+        // Klien = pasien (istilah baru; nama_pasien tetap dipakai sebagai nama kolom)
         'nama_pasien',
+        'alamat_klien',
+        'diagnosis_awal',
+        'alat_pendukung',
         'sumber',
         'catatan',
         'mitra_id',
@@ -81,11 +87,12 @@ class Lead extends Model
         return $query->where('status', self::STATUS_PROSES);
     }
 
+    // NIK format sesuai dokumen: V1.DD.MM.YY-001 (V1 = Leads/Deal)
     public static function generateNomor(): string
     {
         $now = now();
-        $prefix = 'V1.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
-        $count = self::whereYear('created_at', $now->year)->whereMonth('created_at', $now->month)->count() + 1;
+        $prefix = 'V1.' . str_pad($now->day, 2, '0', STR_PAD_LEFT) . '.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
+        $count = self::whereYear('created_at', $now->year)->whereMonth('created_at', $now->month)->whereDay('created_at', $now->day)->count() + 1;
         return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
     }
 }

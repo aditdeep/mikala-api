@@ -748,6 +748,7 @@ class CustomerCareController extends Controller
     {
         try {
             $query = \App\Models\Lead::with(['layanan', 'klien.user', 'mitra.user', 'creator'])
+                ->withCount('exchanges')
                 ->orderBy('created_at', 'desc');
 
             if ($request->filled('status')) {
@@ -766,14 +767,20 @@ class CustomerCareController extends Controller
     public function storeLead(Request $request)
     {
         $request->validate([
-            'cms_layanan_id' => 'nullable|exists:cms_layanan,id',
-            'tier_nama'      => 'nullable|string|max:100',
-            'klien_id'       => 'nullable|exists:klien,id',
-            'nama_leads'     => 'required|string|max:255',
-            'kontak'         => 'required|string|max:50',
-            'nama_pasien'    => 'nullable|string|max:255',
-            'sumber'         => 'nullable|string|max:50',
-            'catatan'        => 'nullable|string',
+            'cms_layanan_id'  => 'nullable|exists:cms_layanan,id',
+            'tier_nama'       => 'nullable|string|max:100',
+            'klien_id'        => 'nullable|exists:klien,id',
+            // Cust/PJ = penanggung jawab pasien
+            'nama_leads'      => 'required|string|max:255',
+            'kontak'          => 'required|string|max:50',
+            'alamat_cust_pj'  => 'nullable|string',
+            // Klien = pasien
+            'nama_pasien'     => 'nullable|string|max:255',
+            'alamat_klien'    => 'nullable|string',
+            'diagnosis_awal'  => 'nullable|string',
+            'alat_pendukung'  => 'nullable|string',
+            'sumber'          => 'nullable|string|max:50',
+            'catatan'         => 'nullable|string',
         ]);
 
         try {
@@ -784,7 +791,11 @@ class CustomerCareController extends Controller
                 'klien_id'        => $request->klien_id,
                 'nama_leads'      => $request->nama_leads,
                 'kontak'          => $request->kontak,
+                'alamat_cust_pj'  => $request->alamat_cust_pj,
                 'nama_pasien'     => $request->nama_pasien,
+                'alamat_klien'    => $request->alamat_klien,
+                'diagnosis_awal'  => $request->diagnosis_awal,
+                'alat_pendukung'  => $request->alat_pendukung,
                 'sumber'          => $request->sumber,
                 'catatan'         => $request->catatan,
                 'status'          => \App\Models\Lead::STATUS_PROSES,
@@ -882,11 +893,12 @@ class CustomerCareController extends Controller
         ]);
 
         try {
-            $lead = \App\Models\Lead::findOrFail($id);
+            $lead = \App\Models\Lead::with('layanan')->findOrFail($id);
             $mitraLamaId = $lead->mitra_id;
+            $kategori = $this->layananKategoriCode($lead->layanan?->nama);
 
             $exchange = \App\Models\LeadExchange::create([
-                'nomor'         => \App\Models\LeadExchange::generateNomor(),
+                'nomor'         => \App\Models\LeadExchange::generateNomor($kategori),
                 'lead_id'       => $lead->id,
                 'mitra_lama_id' => $mitraLamaId,
                 'mitra_baru_id' => $request->mitra_baru_id,
@@ -905,6 +917,26 @@ class CustomerCareController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Kode kategori 2 huruf untuk NIM Exchange, mis. Caregiver -> CG.
+     */
+    private function layananKategoriCode(?string $layananNama): string
+    {
+        if (!$layananNama) return 'XX';
+        $map = [
+            'caregiver'      => 'CG',
+            'perawat medis'  => 'PM',
+            'perawat jiwa'   => 'PW',
+            'babysitter'     => 'BS',
+            'terapi'         => 'TR',
+        ];
+        $lower = strtolower($layananNama);
+        foreach ($map as $key => $code) {
+            if (str_contains($lower, $key)) return $code;
+        }
+        return strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $layananNama), 0, 2)) ?: 'XX';
     }
 
     private function buildLeadsRow($layananId, $layananNama, $tierNama)

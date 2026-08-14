@@ -45,11 +45,13 @@ class LeadExchange extends Model
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public static function generateNomor(): string
+    // NIM format sesuai dokumen: V2.{kategori 2 huruf}.MM.YY-001, contoh V2.CG.03.26-001
+    public static function generateNomor(string $kategori = 'XX'): string
     {
         $now = now();
-        $prefix = 'V2.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
-        $count = self::whereYear('created_at', $now->year)->whereMonth('created_at', $now->month)->count() + 1;
+        $kategori = strtoupper(substr(preg_replace('/[^A-Za-z]/', '', $kategori), 0, 2)) ?: 'XX';
+        $prefix = 'V2.' . $kategori . '.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
+        $count = self::where('nomor', 'like', 'V2.' . $kategori . '.%')->count() + 1;
         return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
     }
 }
