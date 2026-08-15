@@ -9,7 +9,7 @@ class LeadExchange extends Model
 {
     use HasFactory;
 
-    protected $table = 'leads_exchange';
+    protected $table = 'cc_leads_exchange';
 
     protected $fillable = [
         'nomor',

@@ -10,7 +10,9 @@ class Lead extends Model
 {
     use HasFactory, SoftDeletes;
 
-    protected $table = 'leads';
+    // Catatan: tabel dinamai 'cc_leads' (bukan 'leads') karena nama 'leads' sudah dipakai
+    // oleh tabel marketing-leads lama (App\Models\Leads, lihat MarketingController/MGMController).
+    protected $table = 'cc_leads';
 
     // status: 0 = baru/proses, 1 = deal, 2 = batal (loss), 3 = gantung (on-hold)
     const STATUS_PROSES = 0;

@@ -6,8 +6,11 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
     public function up(): void {
-        if (Schema::hasTable('leads')) return;
-        Schema::create('leads', function (Blueprint $table) {
+        // Catatan: dinamai 'cc_leads' (bukan 'leads') karena 'leads' sudah dipakai tabel
+        // marketing-leads lama (lihat 2024_01_01_000012_create_leads_table.php) -- collision
+        // yang sempat menyebabkan tabel CC Leads gagal terbuat di produksi.
+        if (Schema::hasTable('cc_leads')) return;
+        Schema::create('cc_leads', function (Blueprint $table) {
             $table->id();
             $table->string('nomor')->nullable()->unique(); // kode NIK: V1.01.03.25-001
             $table->unsignedBigInteger('cms_layanan_id')->nullable();
@@ -34,6 +37,6 @@ return new class extends Migration {
         });
     }
     public function down(): void {
-        Schema::dropIfExists('leads');
+        Schema::dropIfExists('cc_leads');
     }
 };
