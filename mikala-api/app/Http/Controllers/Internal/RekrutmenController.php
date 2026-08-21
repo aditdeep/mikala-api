@@ -58,6 +58,15 @@ class RekrutmenController extends Controller
                 'foto_url'=>$request->foto_url,'cv_file'=>$request->ktp_file,
                 'status'=>'training','training_status'=>'pending','is_verified'=>DB::raw('false'),
                 'status_rekrutmen'=>'pending',
+                // FIX: field2 ini sudah diisi di form pendaftaran (payment_type, & komponen
+                // SumberInline utk sumber_tipe/sumber_detail/lembaga_id/referrer_mitra_id)
+                // tapi sebelumnya tidak pernah ikut disimpan -- selalu null, bikin fee referral
+                // & laporan sumber mitra tidak pernah kebentuk.
+                'payment_type'=>$request->payment_type ?? 'cash',
+                'sumber_tipe'=>$request->sumber_tipe ?? 'sendiri',
+                'sumber_detail'=>$request->sumber_detail,
+                'lembaga_id'=>$request->lembaga_id,
+                'referrer_mitra_id'=>$request->referrer_mitra_id,
             ]);
             DB::commit();
             return response()->json(['success'=>true,'message'=>'Mitra berhasil didaftarkan','data'=>$mitra->load('user')],201);
@@ -84,9 +93,14 @@ class RekrutmenController extends Controller
             $mitra = Mitra::with('user')->findOrFail($id);
             if ($request->has('name') || $request->has('email') || $request->has('phone'))
                 $mitra->user->update($request->only(['name','email','phone']));
-            $fields = ['alamat','tanggal_lahir','jenis_kelamin','pendidikan_terakhir'=>$request->pendidikan,
-                'pengalaman','status','training_status','foto_url','cv_file','price_rate','catatan_rekrutmen','payment_type'];
             $updateData = array_filter([
+                // FIX (Edit Mitra tidak tersimpan): nik/kota/provinsi/nama_lengkap dan seluruh
+                // field Sumber Referral (sumber_tipe/sumber_detail/lembaga_id/referrer_mitra_id)
+                // sudah dikirim frontend tapi sebelumnya TIDAK ada di whitelist ini sama sekali,
+                // jadi perubahan pada field2 itu diam2 tidak pernah tersimpan ke DB.
+                'nik'=>$request->nik,
+                'nama_lengkap'=>$request->name, // sinkron dgn user.name, dipakai list/detail (item.nama_lengkap)
+                'kota'=>$request->kota,'provinsi'=>$request->provinsi,
                 'alamat'=>$request->alamat,'tanggal_lahir'=>$request->tanggal_lahir,
                 'jenis_kelamin'=>$request->jenis_kelamin,'pendidikan_terakhir'=>$request->pendidikan,
                 'pengalaman'=>$request->pengalaman,'status'=>$request->status,
@@ -94,6 +108,8 @@ class RekrutmenController extends Controller
                 'cv_file'=>$request->ktp_file ?? $request->cv_file,'price_rate'=>$request->price_rate,
                 'catatan_rekrutmen'=>$request->catatan_rekrutmen,'payment_type'=>$request->payment_type,
                 'jabatan'=>$request->jabatan,'gaji_bulanan'=>$request->gaji_bulanan,
+                'sumber_tipe'=>$request->sumber_tipe,'sumber_detail'=>$request->sumber_detail,
+                'lembaga_id'=>$request->lembaga_id,'referrer_mitra_id'=>$request->referrer_mitra_id,
             ], fn($v) => !is_null($v));
             $mitra->update($updateData);
             DB::commit();

@@ -431,8 +431,21 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,training_center'])-
 Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', function() {
     $mitra = auth()->user()->mitra;
     if (!$mitra) return response()->json(['success'=>false],404);
-    $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')->orderBy('kategori')->orderBy('urutan')->get();
-    $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)->get()->keyBy('materi_id');
+
+    // Filter kategori materi sesuai tipe_pekerjaan mitra (di-encode di kolom `pengalaman`,
+    // lihat App\Http\Controllers\Internal\TrainingController::isMitraPhc()). CG-only mitra
+    // cuma lihat/dinilai materi Dasar; PHC lihat/dinilai Dasar+PHC.
+    $isPhc = true;
+    if (!empty($mitra->pengalaman) && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $mitra->pengalaman, $tpMatch)) {
+        $isPhc = trim($tpMatch[1]) === 'Perawat Homecare';
+    }
+    $relevantKat = $isPhc ? ['Dasar', 'PHC'] : ['Dasar'];
+
+    $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')
+        ->whereIn('kategori', $relevantKat)->orderBy('kategori')->orderBy('urutan')->get();
+    $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)
+        ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+        ->get()->keyBy('materi_id');
     $total   = $materi->count();
     $selesai = $checks->count();
     $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;

@@ -116,7 +116,13 @@ class TrainingController extends Controller
                 ]);
                 
                 // Update mitra training status
-                $training->mitra->training_status = 'available';
+                // FIX: sebelumnya diisi 'available' (bukan value valid utk training_status,
+                // enum-nya pending/in_progress/completed/failed - lihat updateStatus() di bawah),
+                // sehingga mitra yg selesai training lewat jalur checklist lama ini tidak pernah
+                // muncul di tab "Selesai". Samakan dgn pola updateStatus().
+                $training->mitra->training_status = 'completed';
+                $training->mitra->training_completed_at = now();
+                $training->mitra->status = 'available';
                 $training->mitra->save();
             }
 
@@ -450,16 +456,60 @@ class TrainingController extends Controller
         return response()->json(['success'=>true,'data'=>$materi]);
     }
 
+    /**
+     * tipe_pekerjaan tidak punya kolom sendiri di tabel mitra -- di-encode di dalam
+     * kolom `pengalaman` (lihat rekrutmen/page.tsx parsePengalamanBlob() / handleSubmit()).
+     * Helper ini parse balik nilainya utk menentukan apakah mitra tsb PHC (Perawat Homecare)
+     * atau Caregiver kategori lain (Babysitter, Perawat Lansia, dll -- non-PHC).
+     */
+    private function isMitraPhc($mitra): bool
+    {
+        $pengalaman = is_object($mitra) ? ($mitra->pengalaman ?? '') : '';
+        $tipe = 'Perawat Homecare'; // default, samakan dgn default frontend
+        if ($pengalaman && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $pengalaman, $m)) {
+            $tipe = trim($m[1]) ?: $tipe;
+        }
+        return $tipe === 'Perawat Homecare';
+    }
+
+    /**
+     * Kategori materi yang relevan utk mitra tsb:
+     * - Caregiver non-PHC -> hanya kategori "Dasar" (materi CG)
+     * - PHC (Perawat Homecare) -> kategori "Dasar" + "PHC"
+     */
+    private function relevantKategoriFor($mitra): array
+    {
+        return $this->isMitraPhc($mitra) ? ['Dasar', 'PHC'] : ['Dasar'];
+    }
+
     public function mitraProgress($mitraId)
     {
         $mitra = \DB::table('mitra')->find($mitraId);
-        $materi = \DB::table('training_materi')->whereRaw('is_active = true')->orderBy('urutan')->get();
-        $checks = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->with('checker:id,name')->get()->keyBy('materi_id');
+        $isPhc = $this->isMitraPhc($mitra);
+        $relevantKat = $this->relevantKategoriFor($mitra);
+
+        $materi = \DB::table('training_materi')->whereRaw('is_active = true')
+            ->whereIn('kategori', $relevantKat)->orderBy('urutan')->get();
+        $checks = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)
+            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+            ->with('checker:id,name')->get()->keyBy('materi_id');
 
         $total   = $materi->count();
         $selesai = $checks->count();
         $persen  = $total > 0 ? round(($selesai/$total)*100) : 0;
         $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
+
+        // Semua materi yg sudah diceklis (dipakai utk auto-populate list CV nanti;
+        // layout CV menyusul, di sini cukup sediakan datanya).
+        $cvMateri = $checks->values()->map(function($c) use ($materi) {
+            $m = $materi->firstWhere('id', $c->materi_id);
+            return [
+                'materi_id' => $c->materi_id,
+                'nama'      => $m->nama ?? null,
+                'kategori'  => $m->kategori ?? null,
+                'rating'    => $c->rating,
+            ];
+        })->values();
 
         $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks) {
             $selesai = $items->filter(fn($m)=>$checks->has($m->id))->count();
@@ -495,10 +545,23 @@ class TrainingController extends Controller
             'status_lulus' => $mitra->status_lulus ?? 'training',
             'sertifikat' => $sertifikat,
             'by_kategori' => $byKat,
+            'is_phc' => $isPhc,
+            'cv_materi' => $cvMateri,
         ]);
     }
-    
+
     public function toggleChecklist(\Illuminate\Http\Request $request, $mitraId, $materiId) {
+        $mitra = \DB::table('mitra')->find($mitraId);
+        $relevantKat = $this->relevantKategoriFor($mitra);
+
+        $materiObj = \App\Models\TrainingMateri::find($materiId);
+        if ($materiObj && !in_array($materiObj->kategori, $relevantKat)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Materi kategori "'.$materiObj->kategori.'" tidak berlaku utk tipe pekerjaan mitra ini.',
+            ], 422);
+        }
+
         $existing = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->where('materi_id',$materiId)->first();
         if ($existing) {
             $existing->delete();
@@ -512,22 +575,51 @@ class TrainingController extends Controller
             ]);
         }
 
-        // Recalculate rata-rata + status lulus
-        $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)->get();
+        // Recalculate rata-rata + status lulus -- hanya dari materi kategori yg relevan
+        // buat mitra ini (CG-only mitra tidak boleh kena pengaruh materi PHC, dan sebaliknya).
+        $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)
+            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+            ->get();
         $avgRating = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
-        $totalMateri = \App\Models\TrainingMateri::whereRaw('is_active = true')->count();
+        $totalMateri = \App\Models\TrainingMateri::whereRaw('is_active = true')
+            ->whereIn('kategori', $relevantKat)->count();
 
         $statusLulus = 'training';
         if ($checks->count() >= $totalMateri && $avgRating >= 4.5) $statusLulus = 'lulus';
         elseif ($checks->count() >= $totalMateri && $avgRating < 4.5) $statusLulus = 'tidak_lulus';
 
-        \DB::table('mitra')->where('id', $mitraId)->update([
+        // FIX (tab "Selesai" Training Center kosong): sebelumnya toggleChecklist tidak pernah
+        // menyentuh kolom training_status sama sekali -- hanya status_lulus yg terupdate.
+        // Padahal tab status di halaman Training pakai training_status (pending/in_progress/
+        // completed/failed). Sinkronkan training_status di sini berdasar progress checklist
+        // (dibatasi kategori materi yg relevan buat mitra ybs -- lihat relevantKategoriFor()).
+        if ($checks->count() === 0) {
+            $trainingStatus = 'pending';
+        } elseif ($checks->count() < $totalMateri) {
+            $trainingStatus = 'in_progress';
+        } else {
+            $trainingStatus = $avgRating >= 4.5 ? 'completed' : 'failed';
+        }
+
+        $updateData = [
             'nilai_rata' => $avgRating,
             'status_lulus' => $statusLulus,
+            'training_status' => $trainingStatus,
             'updated_at' => now(),
-        ]);
+        ];
+        if ($trainingStatus === 'completed') {
+            $updateData['training_completed_at'] = now();
+            $updateData['status'] = 'available'; // samakan dgn updateStatus() manual
+        }
 
-        return response()->json(['success'=>true,'nilai_rata'=>$avgRating,'status_lulus'=>$statusLulus]);
+        \DB::table('mitra')->where('id', $mitraId)->update($updateData);
+
+        return response()->json([
+            'success' => true,
+            'nilai_rata' => $avgRating,
+            'status_lulus' => $statusLulus,
+            'training_status' => $trainingStatus,
+        ]);
     }
 
 
