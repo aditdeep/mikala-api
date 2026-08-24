@@ -160,6 +160,8 @@ class CmsController extends Controller
             'hero_slides','stats_google','profile_text','profile_images',
             'video_url','video_title','alasan_list','sertifikat_images',
             'google_review_url',
+            // SEO / Analytics -- AW-xxxxxxxxx dari Google Ads (conversion tracking), BUKAN GTM-xxxxxxx
+            'google_ads_id',
             // Halaman Perusahaan
             'prsh_hero_images','prsh_hero_title','prsh_hero_text',
             'prsh_direktur_nama','prsh_direktur_jabatan','prsh_direktur_foto',
