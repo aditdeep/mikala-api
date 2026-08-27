@@ -22,6 +22,9 @@ class Mitra extends Model
         'price_rate','jabatan','gaji_bulanan','catatan_rekrutmen','verified_at','verified_by',
         // Referral / Sumber
         'sumber_tipe','sumber_detail','lembaga_id','referrer_mitra_id',
+        // Data pribadi/fisik -- dulu di-encode di blob `pengalaman`, sekarang kolom asli
+        'tempat_lahir','tinggi_badan','berat_badan','vaksin','agama','status_nikah',
+        'takut_hewan','bisa_memasak','tipe_pekerjaan','suku','pengalaman_pelatihan',
     ];
 
     protected $casts = [

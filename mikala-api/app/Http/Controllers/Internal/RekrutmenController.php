@@ -67,6 +67,19 @@ class RekrutmenController extends Controller
                 'sumber_detail'=>$request->sumber_detail,
                 'lembaga_id'=>$request->lembaga_id,
                 'referrer_mitra_id'=>$request->referrer_mitra_id,
+                // FIX: field2 ini dulu di-encode manual ke dalam blob teks `pengalaman`
+                // (rapuh, gampang gagal parse) -- sekarang kolom asli masing2.
+                'tempat_lahir'=>$request->tempat_lahir,
+                'tinggi_badan'=>$request->tinggi,
+                'berat_badan'=>$request->berat,
+                'vaksin'=>$request->vaksin,
+                'agama'=>$request->agama,
+                'status_nikah'=>$request->status_nikah,
+                'takut_hewan'=>$request->takut_hewan,
+                'bisa_memasak'=>$request->bisa_memasak,
+                'tipe_pekerjaan'=>$request->tipe_pekerjaan,
+                'suku'=>$request->suku,
+                'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
             ]);
             DB::commit();
             return response()->json(['success'=>true,'message'=>'Mitra berhasil didaftarkan','data'=>$mitra->load('user')],201);
@@ -110,6 +123,12 @@ class RekrutmenController extends Controller
                 'jabatan'=>$request->jabatan,'gaji_bulanan'=>$request->gaji_bulanan,
                 'sumber_tipe'=>$request->sumber_tipe,'sumber_detail'=>$request->sumber_detail,
                 'lembaga_id'=>$request->lembaga_id,'referrer_mitra_id'=>$request->referrer_mitra_id,
+                'tempat_lahir'=>$request->tempat_lahir,'tinggi_badan'=>$request->tinggi,
+                'berat_badan'=>$request->berat,'vaksin'=>$request->vaksin,
+                'agama'=>$request->agama,'status_nikah'=>$request->status_nikah,
+                'takut_hewan'=>$request->takut_hewan,'bisa_memasak'=>$request->bisa_memasak,
+                'tipe_pekerjaan'=>$request->tipe_pekerjaan,'suku'=>$request->suku,
+                'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
             ], fn($v) => !is_null($v));
             $mitra->update($updateData);
             DB::commit();

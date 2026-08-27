@@ -57,6 +57,21 @@ class MitraRegisterController extends Controller
                 'sumber_detail'       => $request->sumber_detail,
                 'lembaga_id'          => $request->lembaga_id,
                 'referrer_mitra_id'   => $request->referrer_mitra_id,
+                // FIX: form pendaftaran publik (apps/mitra/auth/register) SUDAH mengumpulkan &
+                // mengirim field2 ini (tinggi/berat/vaksin/tipe_pekerjaan/dll), tapi controller
+                // ini diam2 tidak pernah menyimpannya -- makanya selalu kosong/default begitu
+                // mitra tsb dibuka di modal Edit Rekrutmen internal.
+                'tempat_lahir'        => $request->tempat_lahir,
+                'tinggi_badan'        => $request->tinggi,
+                'berat_badan'         => $request->berat,
+                'vaksin'              => $request->vaksin,
+                'agama'               => $request->agama,
+                'status_nikah'        => $request->status_nikah,
+                'takut_hewan'         => $request->takut_hewan,
+                'bisa_memasak'        => $request->bisa_memasak,
+                'tipe_pekerjaan'      => $request->tipe_pekerjaan,
+                'suku'                => $request->suku,
+                'pengalaman_pelatihan'=> $request->pengalaman_pelatihan,
             ]);
 
             DB::commit();
