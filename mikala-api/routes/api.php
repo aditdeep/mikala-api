@@ -432,13 +432,15 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     $mitra = auth()->user()->mitra;
     if (!$mitra) return response()->json(['success'=>false],404);
 
-    // Filter kategori materi sesuai tipe_pekerjaan mitra (di-encode di kolom `pengalaman`,
-    // lihat App\Http\Controllers\Internal\TrainingController::isMitraPhc()). CG-only mitra
+    // Filter kategori materi sesuai tipe_pekerjaan mitra -- kolom asli `mitra.tipe_pekerjaan`
+    // (dulu di-encode di blob `pengalaman`, sudah dipindah, lihat migration
+    // split_pengalaman_blob_fields_on_mitra + TrainingController::isMitraPhc()). CG-only mitra
     // cuma lihat/dinilai materi Dasar; PHC lihat/dinilai Dasar+PHC.
-    $isPhc = true;
-    if (!empty($mitra->pengalaman) && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $mitra->pengalaman, $tpMatch)) {
-        $isPhc = trim($tpMatch[1]) === 'Perawat Homecare';
+    $tipePekerjaan = $mitra->tipe_pekerjaan ?: null;
+    if (!$tipePekerjaan && !empty($mitra->pengalaman) && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $mitra->pengalaman, $tpMatch)) {
+        $tipePekerjaan = trim($tpMatch[1]);
     }
+    $isPhc = ($tipePekerjaan ?: 'Perawat Homecare') === 'Perawat Homecare';
     $relevantKat = $isPhc ? ['Dasar', 'PHC'] : ['Dasar'];
 
     $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')

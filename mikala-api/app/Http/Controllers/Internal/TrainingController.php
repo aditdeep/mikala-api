@@ -464,11 +464,20 @@ class TrainingController extends Controller
      */
     private function isMitraPhc($mitra): bool
     {
-        $pengalaman = is_object($mitra) ? ($mitra->pengalaman ?? '') : '';
-        $tipe = 'Perawat Homecare'; // default, samakan dgn default frontend
-        if ($pengalaman && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $pengalaman, $m)) {
-            $tipe = trim($m[1]) ?: $tipe;
+        // FIX regresi: tipe_pekerjaan dulu di-encode di dalam blob `pengalaman`, tapi sejak
+        // migration split_pengalaman_blob_fields_on_mitra field ini sudah jadi kolom asli
+        // sendiri (`mitra.tipe_pekerjaan`) dan `pengalaman` sudah dirapikan jadi cuma teks
+        // pengalaman kerja -- jadi regex lama di sini tidak akan pernah nemu apa2 lagi dan
+        // selalu jatuh ke default (PHC), bikin filter materi CG/PHC balik rusak. Utamakan
+        // kolom asli; fallback ke blob HANYA kalau kolomnya kosong (record lama blm ke-backfill).
+        $tipe = is_object($mitra) ? ($mitra->tipe_pekerjaan ?? null) : null;
+        if (!$tipe) {
+            $pengalaman = is_object($mitra) ? ($mitra->pengalaman ?? '') : '';
+            if ($pengalaman && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $pengalaman, $m)) {
+                $tipe = trim($m[1]);
+            }
         }
+        $tipe = $tipe ?: 'Perawat Homecare'; // default, samakan dgn default frontend
         return $tipe === 'Perawat Homecare';
     }
 
