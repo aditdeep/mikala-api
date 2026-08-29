@@ -47,7 +47,9 @@ class MitraRegisterController extends Controller
                 'jenis_kelamin'       => $request->jenis_kelamin ?? 'P',
                 'pendidikan_terakhir' => $request->pendidikan,
                 'pengalaman'          => $request->pengalaman,
-                'status'              => 'training',
+                // FIX: sama seperti RekrutmenController::store() -- status operasional harus
+                // 'pending' dulu sampai tim Rekrutmen klik "Terima", bukan langsung 'training'.
+                'status'              => 'pending',
                 'training_status'     => 'pending',
                 'is_verified'=>DB::raw('false'),
                 'status_rekrutmen'    => 'pending',

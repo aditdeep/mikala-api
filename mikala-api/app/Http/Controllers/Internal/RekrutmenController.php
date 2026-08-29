@@ -56,7 +56,12 @@ class RekrutmenController extends Controller
                 'tanggal_lahir'=>$request->tanggal_lahir,'jenis_kelamin'=>$request->jenis_kelamin,
                 'pendidikan_terakhir'=>$request->pendidikan,'pengalaman'=>$request->pengalaman,
                 'foto_url'=>$request->foto_url,'cv_file'=>$request->ktp_file,
-                'status'=>'training','training_status'=>'pending','is_verified'=>DB::raw('false'),
+                // FIX: status operasional dulu langsung 'training' sejak pendaftaran, padahal
+                // belum direview -- bikin mitra baru daftar langsung nongol di Training Center
+                // & bisa login sbg mitra, padahal belum di-"Terima" oleh Rekrutmen. Constraint
+                // DB (mitra_status_check) sudah mengizinkan 'pending' sejak migration
+                // 2026_05_19_200001, jadi pakai itu; terima() yg akan ubah ke 'training'.
+                'status'=>'pending','training_status'=>'pending','is_verified'=>DB::raw('false'),
                 'status_rekrutmen'=>'pending',
                 // FIX: field2 ini sudah diisi di form pendaftaran (payment_type, & komponen
                 // SumberInline utk sumber_tipe/sumber_detail/lembaga_id/referrer_mitra_id)

@@ -36,6 +36,19 @@ class AuthController extends Controller
             ], 403);
         }
 
+        // FIX: mitra yg baru daftar (belum di-"Terima" tim Rekrutmen) bisa langsung login ke
+        // apps mitra padahal harusnya belum boleh, karena User.status selalu 'active' begitu
+        // register (terlepas dari status review mitra-nya). Blokir di sini berdasar
+        // Mitra.status_rekrutmen, bukan User.status.
+        if ($user->role === 'mitra') {
+            $mitra = $user->mitra;
+            if ($mitra && $mitra->status_rekrutmen !== 'verified') {
+                return response()->json([
+                    'message' => 'Pendaftaran Anda masih menunggu verifikasi tim Rekrutmen. Silakan tunggu konfirmasi sebelum bisa login.',
+                ], 403);
+            }
+        }
+
         // Create token with role
         $token = $user->createToken('auth-token', [$user->role])->plainTextToken;
 
