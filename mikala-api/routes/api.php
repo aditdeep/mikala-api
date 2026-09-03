@@ -176,6 +176,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('leads-exchange', [CustomerCareController::class, 'indexLeadsExchange']);
             Route::post('leads/{id}/exchange', [CustomerCareController::class, 'storeLeadExchange']);
             Route::get('leads-exchange/{id}/adendum/download', [CustomerCareController::class, 'downloadAdendumExchange']);
+            Route::post('leads-exchange/{id}/tagih-transport', [CustomerCareController::class, 'tagihBiayaTransport']);
+            Route::get('leads-exchange/{id}/invoice-transport/download', [CustomerCareController::class, 'downloadInvoiceTransport']);
             Route::post('leads/{id}/tagih-admin', [CustomerCareController::class, 'tagihBiayaAdmin']);
             Route::get('leads/{id}/invoice-admin/download', [CustomerCareController::class, 'downloadInvoiceAdmin']);
         });

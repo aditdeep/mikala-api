@@ -25,17 +25,20 @@ class LeadExchange extends Model
         'surat_tugas_lama',
         'surat_tugas_baru',
         'biaya_transport',
+        'invoice_transport_nomor',
+        'invoice_transport_ditagih_at',
         'exchanged_at',
         'created_by',
     ];
 
     protected $casts = [
-        'exchanged_at'    => 'datetime',
-        'biaya_jasa_lama' => 'decimal:2',
-        'biaya_jasa_baru' => 'decimal:2',
-        'uang_cuti_lama'  => 'decimal:2',
-        'uang_cuti_baru'  => 'decimal:2',
-        'biaya_transport' => 'decimal:2',
+        'exchanged_at'                 => 'datetime',
+        'biaya_jasa_lama'              => 'decimal:2',
+        'biaya_jasa_baru'              => 'decimal:2',
+        'uang_cuti_lama'               => 'decimal:2',
+        'uang_cuti_baru'               => 'decimal:2',
+        'biaya_transport'              => 'decimal:2',
+        'invoice_transport_ditagih_at' => 'datetime',
     ];
 
     public function lead()
@@ -75,5 +78,14 @@ class LeadExchange extends Model
         $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
         $count = self::whereNotNull('nomor_adendum')->count() + 1;
         return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/ST/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
+    }
+
+    // Nomor Invoice Biaya Transport (Exchange Step). Format: INV-TR/{urut}/MGM/{bulan romawi}/{tahun}.
+    public static function generateNomorInvoiceTransport(): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('invoice_transport_nomor')->count() + 1;
+        return 'INV-TR/' . str_pad($count, 4, '0', STR_PAD_LEFT) . '/MGM/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
     }
 }

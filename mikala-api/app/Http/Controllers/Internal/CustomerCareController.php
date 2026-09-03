@@ -1225,8 +1225,18 @@ class CustomerCareController extends Controller
         if (!$lead->mitra) {
             return response()->json(['success' => false, 'message' => 'Leads ini belum di-assign Mitra'], 422);
         }
+        // Sesuai flow "Check Out": mitra harus berstatus Available (siap ditempatkan) sebelum
+        // Kontrak 2 (Surat Tugas Penempatan) diterbitkan. Kalau sudah on_job krn penempatan
+        // Kontrak 2 ini sendiri (regenerate/redownload), tetap diperbolehkan.
+        if (!in_array($lead->mitra->status, ['available', 'on_job'])) {
+            return response()->json(['success' => false, 'message' => 'Mitra "' . ($lead->mitra->nama_lengkap ?? '-') . '" berstatus "' . $lead->mitra->status . '", harus "Available" terlebih dahulu sebelum bisa ditempatkan (Check Out)'], 422);
+        }
         if (!$lead->nomor_kontrak_mitra) {
             $lead->update(['nomor_kontrak_mitra' => \App\Models\Lead::generateNomorKontrakMitra()]);
+            // Penempatan resmi terjadi di titik ini (penerbitan Kontrak 2) -> mitra jadi on_job.
+            if ($lead->mitra->status === 'available') {
+                $lead->mitra->update(['status' => 'on_job']);
+            }
         }
 
         $html = $this->buildKontrak2Html($lead);
@@ -1677,8 +1687,12 @@ class CustomerCareController extends Controller
         ]);
 
         try {
-            $lead = \App\Models\Lead::with('layanan')->findOrFail($id);
+            $lead = \App\Models\Lead::with(['layanan', 'mitra'])->findOrFail($id);
             $mitraLamaId = $lead->mitra_id;
+            $mitraBaru = \App\Models\Mitra::findOrFail($request->mitra_baru_id);
+            if ($mitraBaru->status !== 'available') {
+                return response()->json(['success' => false, 'message' => 'Mitra pengganti "' . $mitraBaru->nama_lengkap . '" berstatus "' . $mitraBaru->status . '", harus "Available" terlebih dahulu'], 422);
+            }
             $kategori = $this->layananKategoriCode($lead->layanan?->nama);
 
             // Snapshot "Sebelum/Sesudah" utk tabel di Adendum -- Exchange (biaya jasa, uang cuti,
@@ -1715,6 +1729,12 @@ class CustomerCareController extends Controller
                 'uang_cuti_mitra'     => $uangCutiBaru,
                 'nomor_kontrak_mitra' => null,
             ]);
+
+            // Mitra baru resmi ditempatkan (on_job); mitra lama dilepas kembali jadi available.
+            $mitraBaru->update(['status' => 'on_job']);
+            if ($lead->mitra && $lead->mitra->id !== $mitraBaru->id && $lead->mitra->status === 'on_job') {
+                $lead->mitra->update(['status' => 'available']);
+            }
 
             return response()->json([
                 'success' => true,
@@ -1937,6 +1957,130 @@ class CustomerCareController extends Controller
             <tr><th>Keterangan</th><th style="text-align:right;">Jumlah</th></tr>
             <tr><td>Biaya Administrasi (sekali diawal)</td><td style="text-align:right;">' . $this->rupiah($lead->biaya_admin) . '</td></tr>
             <tr><td><strong>TOTAL TAGIHAN</strong></td><td style="text-align:right;"><strong>' . $this->rupiah($lead->biaya_admin) . '</strong></td></tr>
+        </table>
+        <br>
+        <p><strong>Pembayaran wajib ditransfer ke rekening:</strong></p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="30%">Bank</td><td width="2%">:</td><td>Bank Central Asia (BCA)</td></tr>
+            <tr><td>Cabang</td><td>:</td><td>Rawamangun</td></tr>
+            <tr><td>No. Rekening</td><td>:</td><td>6330713192</td></tr>
+            <tr><td>Atas Nama</td><td>:</td><td>Muji Mulyaningsih</td></tr>
+        </table>
+        <p style="margin-top:8px;">Mohon cantumkan Nama Pasien / Nama Penanggung Jawab pada saat transfer, atau konfirmasi ke Bagian Keuangan di nomor 0812-9699-8827.</p>
+        <p style="margin-top:16px;">Terima kasih atas kepercayaan Anda menggunakan layanan PT. Mikala Global Medika.</p>';
+    }
+
+    /**
+     * Exchange Step: pop up biaya transport -> "Tagih Biaya Transport" utk pengantaran mitra
+     * pengganti, generate nomor invoice (sekali saja) + notif realtime ke klien.
+     */
+    public function tagihBiayaTransport(Request $request, $exchangeId)
+    {
+        $exchange = \App\Models\LeadExchange::with(['lead.klien.user'])->findOrFail($exchangeId);
+        if (!$exchange->biaya_transport || (float) $exchange->biaya_transport <= 0) {
+            return response()->json(['success' => false, 'message' => 'Biaya Transport belum diisi pada data Exchange ini'], 422);
+        }
+
+        if (!$exchange->invoice_transport_nomor) {
+            $exchange->update([
+                'invoice_transport_nomor'      => \App\Models\LeadExchange::generateNomorInvoiceTransport(),
+                'invoice_transport_ditagih_at' => now(),
+            ]);
+        }
+
+        $lead = $exchange->lead;
+        if ($lead && $lead->klien && $lead->klien->user_id) {
+            \App\Services\NotifikasiService::send(
+                $lead->klien->user_id,
+                'invoice',
+                'Tagihan Biaya Transport Mitra Pengganti 🚗',
+                'Anda memiliki tagihan Biaya Transportasi pengantaran mitra pengganti sebesar ' . $this->rupiah($exchange->biaya_transport) . '. Silakan cek dan lakukan pembayaran melalui rekening resmi PT. Mikala Global Medika.',
+                ['related_type' => 'cc_leads_exchange', 'related_id' => $exchange->id]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tagihan Biaya Transport berhasil dibuat' . ($lead && $lead->klien ? ' dan notifikasi terkirim ke klien' : ''),
+            'data'    => $exchange->fresh(),
+        ]);
+    }
+
+    /**
+     * Generate & stream PDF invoice Biaya Transport. Wajib panggil tagihBiayaTransport()
+     * terlebih dahulu supaya nomor invoice sudah tersedia.
+     */
+    public function downloadInvoiceTransport($exchangeId)
+    {
+        $exchange = \App\Models\LeadExchange::with(['lead', 'mitraBaru'])->findOrFail($exchangeId);
+        if (!$exchange->invoice_transport_nomor) {
+            return response()->json(['success' => false, 'message' => 'Belum ditagih. Klik "Tagih Biaya Transport" terlebih dahulu'], 422);
+        }
+
+        $html = $this->buildInvoiceTransportHtml($exchange);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Invoice ' . $exchange->invoice_transport_nomor);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Invoice-Transport-' . str_replace('/', '-', $exchange->invoice_transport_nomor) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Invoice Biaya Transport -- dokumen tagihan pengantaran mitra pengganti (Exchange Step).
+     */
+    private function buildInvoiceTransportHtml($exchange): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $lead = $exchange->lead;
+        $namaCust = $lead->nama_leads ?? '-';
+        $namaMitraBaru = $exchange->mitraBaru->nama_lengkap ?? '-';
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; }
+            h1 { font-size:15pt; margin-bottom:0; }
+            table.dt td { padding:2px 4px; vertical-align:top; }
+            table.items th, table.items td { padding:6px 8px; border:1px solid #999; font-size:10pt; }
+        </style>
+        <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+                <td width="60%">
+                    <h1>PT. MIKALA GLOBAL MEDIKA</h1>
+                    <p>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi<br>0821-1448-8878 / 0815-1338-2031 / 0812-9699-8827</p>
+                </td>
+                <td width="40%" style="text-align:right;">
+                    <p style="font-size:14pt; font-weight:bold; margin-bottom:0;">INVOICE</p>
+                    <p>No. ' . e($exchange->invoice_transport_nomor) . '<br>Tanggal: ' . $now->day . ' ' . $bulanIndo[(int)$now->format('n')] . ' ' . $now->year . '</p>
+                </td>
+            </tr>
+        </table>
+        <p><strong>Ditagihkan kepada:</strong></p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="30%">Nama</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+            <tr><td>No. Adendum</td><td>:</td><td>' . e($exchange->nomor_adendum ?: '-') . '</td></tr>
+            <tr><td>Mitra Pengganti</td><td>:</td><td>' . e($namaMitraBaru) . '</td></tr>
+        </table>
+        <br>
+        <table class="items" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+            <tr><th>Keterangan</th><th style="text-align:right;">Jumlah</th></tr>
+            <tr><td>Biaya Transportasi Pengantaran Mitra Pengganti</td><td style="text-align:right;">' . $this->rupiah($exchange->biaya_transport) . '</td></tr>
+            <tr><td><strong>TOTAL TAGIHAN</strong></td><td style="text-align:right;"><strong>' . $this->rupiah($exchange->biaya_transport) . '</strong></td></tr>
         </table>
         <br>
         <p><strong>Pembayaran wajib ditransfer ke rekening:</strong></p>
