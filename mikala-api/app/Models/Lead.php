@@ -25,6 +25,8 @@ class Lead extends Model
         'nomor_kontrak_klien',
         'nomor_kontrak_mitra',
         'nomor_kontrak_klien_mitra',
+        'invoice_admin_nomor',
+        'invoice_admin_ditagih_at',
         'nik',
         'cms_layanan_id',
         'tier_nama',
@@ -89,6 +91,7 @@ class Lead extends Model
         'deal_at' => 'datetime',
         'batal_at' => 'datetime',
         'tanggal_lahir_klien' => 'date',
+        'invoice_admin_ditagih_at' => 'datetime',
         'biaya_admin' => 'decimal:2',
         'honor_mitra' => 'decimal:2',
         'uang_cuti_mitra' => 'decimal:2',
@@ -193,5 +196,14 @@ class Lead extends Model
         $count = self::whereNotNull('nomor_kontrak_klien_mitra')->count() + 1;
         $segment = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '-', trim($layananSegment))) ?: 'LAYANAN';
         return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/' . $segment . '-KLIEN/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
+    }
+
+    // Nomor Invoice Biaya Admin (step "Financial"). Format: INV/{urut}/MGM/{bulan romawi}/{tahun}.
+    public static function generateNomorInvoiceAdmin(): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('invoice_admin_nomor')->count() + 1;
+        return 'INV/' . str_pad($count, 4, '0', STR_PAD_LEFT) . '/MGM/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
     }
 }

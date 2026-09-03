@@ -1824,6 +1824,133 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Step "Financial" (4th Step di customer care flow sistem.pdf): tim CC klik "Tagih Biaya
+     * Admin" setelah leads Deal -> generate nomor invoice (sekali saja) + kirim notif realtime
+     * ke apk klien (jika leads sudah terhubung ke akun klien terdaftar).
+     */
+    public function tagihBiayaAdmin(Request $request, $id)
+    {
+        $lead = \App\Models\Lead::with(['klien.user'])->findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+            return response()->json(['success' => false, 'message' => 'Tagihan hanya bisa dibuat untuk leads yang sudah Deal'], 422);
+        }
+        if (!$lead->biaya_admin || (float) $lead->biaya_admin <= 0) {
+            return response()->json(['success' => false, 'message' => 'Biaya Admin belum diisi pada data Deal leads ini'], 422);
+        }
+
+        if (!$lead->invoice_admin_nomor) {
+            $lead->update([
+                'invoice_admin_nomor'      => \App\Models\Lead::generateNomorInvoiceAdmin(),
+                'invoice_admin_ditagih_at' => now(),
+            ]);
+        }
+
+        // Notif realtime ke klien (jika leads ini terhubung ke akun klien terdaftar)
+        if ($lead->klien && $lead->klien->user_id) {
+            \App\Services\NotifikasiService::send(
+                $lead->klien->user_id,
+                'invoice',
+                'Tagihan Biaya Admin 🧾',
+                'Anda memiliki tagihan Biaya Administrasi sebesar ' . $this->rupiah($lead->biaya_admin) . '. Silakan cek dan lakukan pembayaran melalui rekening resmi PT. Mikala Global Medika.',
+                ['related_type' => 'cc_lead', 'related_id' => $lead->id]
+            );
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Tagihan Biaya Admin berhasil dibuat' . ($lead->klien ? ' dan notifikasi terkirim ke klien' : ''),
+            'data'    => $lead->fresh(),
+        ]);
+    }
+
+    /**
+     * Generate & stream PDF invoice Biaya Admin. Wajib panggil tagihBiayaAdmin() terlebih
+     * dahulu supaya nomor invoice sudah tersedia.
+     */
+    public function downloadInvoiceAdmin($id)
+    {
+        $lead = \App\Models\Lead::with(['layanan'])->findOrFail($id);
+        if (!$lead->invoice_admin_nomor) {
+            return response()->json(['success' => false, 'message' => 'Belum ditagih. Klik "Tagih Biaya Admin" terlebih dahulu'], 422);
+        }
+
+        $html = $this->buildInvoiceAdminHtml($lead);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Invoice ' . $lead->invoice_admin_nomor);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Invoice-' . str_replace('/', '-', $lead->invoice_admin_nomor) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Invoice Biaya Admin -- dokumen tagihan sederhana, mengikuti pola pembayaran & rekening
+     * yang sama dgn Kontrak 1.1 (Pasal II Tata Cara Pembayaran).
+     */
+    private function buildInvoiceAdminHtml($lead): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $namaCust = $lead->nama_leads ?? '-';
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; }
+            h1 { font-size:15pt; margin-bottom:0; }
+            table.dt td { padding:2px 4px; vertical-align:top; }
+            table.items th, table.items td { padding:6px 8px; border:1px solid #999; font-size:10pt; }
+        </style>
+        <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+                <td width="60%">
+                    <h1>PT. MIKALA GLOBAL MEDIKA</h1>
+                    <p>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi<br>0821-1448-8878 / 0815-1338-2031 / 0812-9699-8827</p>
+                </td>
+                <td width="40%" style="text-align:right;">
+                    <p style="font-size:14pt; font-weight:bold; margin-bottom:0;">INVOICE</p>
+                    <p>No. ' . e($lead->invoice_admin_nomor) . '<br>Tanggal: ' . $now->day . ' ' . $bulanIndo[(int)$now->format('n')] . ' ' . $now->year . '</p>
+                </td>
+            </tr>
+        </table>
+        <p><strong>Ditagihkan kepada:</strong></p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="30%">Nama</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+            <tr><td>No. Order</td><td>:</td><td>' . e($lead->nomor) . '</td></tr>
+            <tr><td>Layanan</td><td>:</td><td>' . e($lead->layanan->nama ?? $lead->tier_nama ?? '-') . '</td></tr>
+        </table>
+        <br>
+        <table class="items" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+            <tr><th>Keterangan</th><th style="text-align:right;">Jumlah</th></tr>
+            <tr><td>Biaya Administrasi (sekali diawal)</td><td style="text-align:right;">' . $this->rupiah($lead->biaya_admin) . '</td></tr>
+            <tr><td><strong>TOTAL TAGIHAN</strong></td><td style="text-align:right;"><strong>' . $this->rupiah($lead->biaya_admin) . '</strong></td></tr>
+        </table>
+        <br>
+        <p><strong>Pembayaran wajib ditransfer ke rekening:</strong></p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="30%">Bank</td><td width="2%">:</td><td>Bank Central Asia (BCA)</td></tr>
+            <tr><td>Cabang</td><td>:</td><td>Rawamangun</td></tr>
+            <tr><td>No. Rekening</td><td>:</td><td>6330713192</td></tr>
+            <tr><td>Atas Nama</td><td>:</td><td>Muji Mulyaningsih</td></tr>
+        </table>
+        <p style="margin-top:8px;">Mohon cantumkan Nama Pasien / Nama Penanggung Jawab pada saat transfer, atau konfirmasi ke Bagian Keuangan di nomor 0812-9699-8827.</p>
+        <p style="margin-top:16px;">Terima kasih atas kepercayaan Anda menggunakan layanan PT. Mikala Global Medika.</p>';
+    }
+
+    /**
      * Kode kategori 2 huruf untuk NIM Exchange, mis. Caregiver -> CG.
      */
     private function layananKategoriCode(?string $layananNama): string
