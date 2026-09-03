@@ -171,6 +171,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('leads/{id}/gantung', [CustomerCareController::class, 'markLeadGantung']);
             Route::patch('leads/{id}/kontrak', [CustomerCareController::class, 'updateKontrakKlien']);
             Route::get('leads/{id}/kontrak/download', [CustomerCareController::class, 'downloadKontrakKlien']);
+            Route::get('leads/{id}/kontrak2/download', [CustomerCareController::class, 'downloadKontrakMitra']);
+            Route::get('leads/{id}/kontrak3/download', [CustomerCareController::class, 'downloadKontrakKlienMitra']);
             Route::get('leads-exchange', [CustomerCareController::class, 'indexLeadsExchange']);
             Route::post('leads/{id}/exchange', [CustomerCareController::class, 'storeLeadExchange']);
         });

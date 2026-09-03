@@ -23,6 +23,8 @@ class Lead extends Model
     protected $fillable = [
         'nomor',
         'nomor_kontrak_klien',
+        'nomor_kontrak_mitra',
+        'nomor_kontrak_klien_mitra',
         'nik',
         'cms_layanan_id',
         'tier_nama',
@@ -172,5 +174,24 @@ class Lead extends Model
         $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
         $count = self::whereNotNull('nomor_kontrak_klien')->count() + 1;
         return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/KLIEN/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
+    }
+
+    // Nomor Kontrak 2 (Perjanjian Penempatan MGM-Mitra). Format: {urut}/MGM/KK/{bulan romawi}/{tahun}.
+    public static function generateNomorKontrakMitra(): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('nomor_kontrak_mitra')->count() + 1;
+        return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/KK/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
+    }
+
+    // Nomor Kontrak 3 (Perjanjian Kerja Mitra-Klien). Format: {urut}/MGM/{layanan disetujui}-KLIEN/{bulan romawi}/{tahun}.
+    public static function generateNomorKontrakKlienMitra(string $layananSegment = 'LAYANAN'): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('nomor_kontrak_klien_mitra')->count() + 1;
+        $segment = strtoupper(preg_replace('/[^A-Za-z0-9]+/', '-', trim($layananSegment))) ?: 'LAYANAN';
+        return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/' . $segment . '-KLIEN/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
     }
 }

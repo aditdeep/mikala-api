@@ -1212,6 +1212,384 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Generate & stream PDF Kontrak 2 (Perjanjian Penempatan MGM-Mitra), langsung dari data
+     * leads/deal + profil mitra -- sesuai dokumen "Kontrak 2 - Perjanjian Penempatan MG-Mitra
+     * fix acc Yani.docx". Berlaku di step "Check Out" setelah leads Deal & mitra sudah di-assign.
+     */
+    public function downloadKontrakMitra($id)
+    {
+        $lead = \App\Models\Lead::with(['layanan', 'mitra.user'])->findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+            return response()->json(['success' => false, 'message' => 'Kontrak hanya bisa dibuat untuk leads yang sudah Deal'], 422);
+        }
+        if (!$lead->mitra) {
+            return response()->json(['success' => false, 'message' => 'Leads ini belum di-assign Mitra'], 422);
+        }
+        if (!$lead->nomor_kontrak_mitra) {
+            $lead->update(['nomor_kontrak_mitra' => \App\Models\Lead::generateNomorKontrakMitra()]);
+        }
+
+        $html = $this->buildKontrak2Html($lead);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_mitra);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Kontrak2-' . str_replace('/', '-', $lead->nomor_kontrak_mitra) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Generate & stream PDF Kontrak 3 (Perjanjian Kerja Mitra-Klien / MGM-Mitra-Klien), sesuai
+     * dokumen "Kontrak 3 - MG-Mitra-Klien fix acc yani.docx". Berlaku di step "Check Out".
+     */
+    public function downloadKontrakKlienMitra($id)
+    {
+        $lead = \App\Models\Lead::with(['layanan', 'mitra.user'])->findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+            return response()->json(['success' => false, 'message' => 'Kontrak hanya bisa dibuat untuk leads yang sudah Deal'], 422);
+        }
+        if (!$lead->mitra) {
+            return response()->json(['success' => false, 'message' => 'Leads ini belum di-assign Mitra'], 422);
+        }
+        if (!$lead->nomor_kontrak_klien_mitra) {
+            $segment = $lead->jasa_disetujui ?: ($lead->tier_nama ?: 'LAYANAN');
+            $lead->update(['nomor_kontrak_klien_mitra' => \App\Models\Lead::generateNomorKontrakKlienMitra($segment)]);
+        }
+
+        $html = $this->buildKontrak3Html($lead);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_klien_mitra);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Kontrak3-' . str_replace('/', '-', $lead->nomor_kontrak_klien_mitra) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Kontrak 2 -- Perjanjian Penempatan PT. Mikala Global Medika dengan Tenaga/Pekerja Kesehatan
+     * (Mitra). Teks pasal I-X mengikuti dokumen "Kontrak 2 - Perjanjian Penempatan MG-Mitra fix
+     * acc Yani.docx".
+     */
+    private function buildKontrak2Html($lead): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $mitra = $lead->mitra;
+        $namaMitra = $mitra->nama_lengkap ?? '-';
+        $ttl = trim(($mitra->tempat_lahir ?: '-') . ', ' . ($mitra->tanggal_lahir ? \Carbon\Carbon::parse($mitra->tanggal_lahir)->translatedFormat('d F Y') : '-'));
+        $usiaPasien = $lead->tanggal_lahir_klien ? \Carbon\Carbon::parse($lead->tanggal_lahir_klien)->age . ' tahun' : '-';
+        $gajiLabel = $lead->jasa_disetujui ?: ($lead->tier_nama ?: '-');
+        $isHarian = str_contains(strtolower($lead->tier_nama ?? ''), 'harian');
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; text-align:justify; }
+            h1 { font-size:13pt; text-align:center; margin-bottom:0; }
+            h2 { font-size:11pt; text-align:center; margin-top:14px; }
+            table.dt td { padding:1px 4px; vertical-align:top; }
+        </style>
+        <h1>PERJANJIAN PENEMPATAN</h1>
+        <p style="text-align:center;">ANTARA PT. MIKALA GLOBAL MEDIKA DENGAN TENAGA / PEKERJA KESEHATAN</p>
+        <p style="text-align:center;">No. ' . e($lead->nomor_kontrak_mitra) . '</p>
+        <p>Yang bertanda tangan di bawah ini:</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama</td><td width="2%">:</td><td>Muji Mulyaningsih, ST</td></tr>
+            <tr><td>NIK</td><td>:</td><td>MG.24.01-001</td></tr>
+            <tr><td>Jabatan</td><td>:</td><td>Direktur</td></tr>
+            <tr><td>Nama Lembaga</td><td>:</td><td>PT. Mikala Global Medika</td></tr>
+            <tr><td>Alamat Kantor</td><td>:</td><td>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi</td></tr>
+            <tr><td>No. Telp</td><td>:</td><td>0821-1448-8878 / 0815-1338-2031 / 0812-9699-8827</td></tr>
+        </table>
+        <p>Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong> sebagai perwakilan PT. Mikala Global Medika.</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama</td><td width="2%">:</td><td>' . e($namaMitra) . '</td></tr>
+            <tr><td>NIK</td><td>:</td><td>' . e($mitra->nik ?: '-') . '</td></tr>
+            <tr><td>Tempat Tanggal Lahir</td><td>:</td><td>' . e($ttl) . '</td></tr>
+            <tr><td>Alamat Sesuai KTP</td><td>:</td><td>' . e($mitra->alamat ?: '-') . '</td></tr>
+            <tr><td>No. Telp</td><td>:</td><td>' . e($mitra->user->phone ?? '-') . '</td></tr>
+            <tr><td>Alamat Domisili</td><td>:</td><td>' . e($mitra->alamat ?: '-') . '</td></tr>
+        </table>
+        <p>Selanjutnya disebut sebagai <strong>PIHAK KEDUA</strong> sebagai Tenaga/Pekerja Kesehatan yang akan ditempatkan ke pengguna jasa oleh PT. Mikala Global Medika.</p>
+        <p>Bahwa pada hari ini tanggal ' . $now->day . ' bulan ' . $bulanIndo[(int)$now->format('n')] . ' Tahun ' . $now->year . ', telah mengadakan perjanjian penempatan antara PIHAK PERTAMA (PT. Mikala Global Medika) dengan PIHAK KEDUA (Tenaga/Pekerja Kesehatan). Maka dengan ini, PIHAK PERTAMA dan PIHAK KEDUA telah menyetujui untuk mengikatkan diri di dalam Surat Kontrak Perjanjian Penempatan. Segala ketentuan, peraturan, maupun pasal-pasal yang merupakan bagian penting atas perjanjian ini telah dipahami dan disepakati sebagai satu kesatuan dalam perjanjian ini.</p>
+
+        <h2>PASAL I<br>KETENTUAN UMUM</h2>
+        <ol>
+            <li>PIHAK PERTAMA adalah PT. MIKALA GLOBAL MEDIKA, yang bergerak pada bidang usaha penyalur tenaga/pekerja kesehatan homecare (di rumah) yang beralamat di Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi. PT. MIKALA GLOBAL MEDIKA yang merupakan wadah bagi perawat homecare (PHC), caregiver (CG), babysitter (BS), governess, dan layanan jasa kesehatan homecare lainnya, berfungsi dalam menjaga kualitas pekerjaan, meningkatkan keterampilan dengan memberikan pelatihan, pengarahan, koordinasi, dan pembagian tugas.</li>
+            <li>PIHAK KEDUA adalah Tenaga/Pekerja Kesehatan yang telah memenuhi standar kompetensi dan ditugaskan memberikan pelayanan kepada pengguna jasa yang membutuhkan bantuan layanan kesehatan dan disalurkan bekerja sesuai penempatan dari PIHAK PERTAMA.</li>
+            <li>Pengguna Jasa adalah individu yang merupakan pasien, anak, keluarga, atau sebagainya yang bertindak sebagai pengguna jasa yang membutuhkan pelayanan dari PIHAK KEDUA melalui PIHAK PERTAMA. Dan/atau individu yang bertanggung jawab atas pembiayaan yang terjadi dalam penggunaan jasa, gaji pekerja, biaya layanan jasa dalam merawat atau menjaga pasien/anak.</li>
+            <li>PIHAK PERTAMA mewakili PIHAK KEDUA dalam melakukan negosiasi gaji dan/atau upah dengan pengguna jasa atau calon pengguna jasa.</li>
+            <li>Dalam hal pembayaran upah PIHAK KEDUA dilakukan secara langsung oleh pengguna jasa, dan PIHAK KEDUA memberikan kuasa kepada PIHAK PERTAMA untuk menerima pembayaran upah tersebut atas nama PIHAK KEDUA.</li>
+            <li>PIHAK PERTAMA wajib menyalurkan pembayaran yang menjadi hak PIHAK KEDUA sesuai dengan nilai upah yang telah disepakati diawal sebelum penempatan kerja.</li>
+            <li>PIHAK PERTAMA menempatkan PIHAK KEDUA kepada pengguna jasa sebagai ' . e($gajiLabel) . '.</li>
+            <li>PIHAK PERTAMA menempatkan PIHAK KEDUA kepada pengguna jasa dengan masa kontrak sesuai kesepakatan dan sesuai kebutuhan dan atau (minimal 3 bulan) dengan bertanggungjawab dan melunasi seluruh biaya yang timbul pada saat bergabung dengan PIHAK PERTAMA.</li>
+            <li>PIHAK PERTAMA menempatkan PIHAK KEDUA kepada pengguna jasa di wilayah Negara Kesatuan Republik Indonesia.</li>
+            <li>PIHAK KEDUA telah membaca, menyetujui dan mematuhi tata tertib tugas yang merupakan satu kesatuan dari perjanjian ini.</li>
+        </ol>
+
+        <h2>PASAL II<br>HAK PIHAK PERTAMA</h2>
+        <ol>
+            <li>PIHAK PERTAMA melakukan verifikasi dan memvalidasi dokumen identitas berupa KTP, Kartu Keluarga, Surat Keterangan Status Perkawinan, Surat Izin Orang Tua/Wali dan Surat Izin lainnya sesuai dengan syarat ketentuan yang berlaku saat PIHAK KEDUA mendaftarkan diri mengikuti pelatihan di LPK Mikala Global Akademi.</li>
+            <li>PIHAK PERTAMA berhak mendapatkan informasi yang benar dari PIHAK KEDUA sesuai dengan pendidikan, keahlian, dan keterampilan agar dapat bekerja dengan baik.</li>
+            <li>PIHAK PERTAMA berhak menempatkan PIHAK KEDUA kepada pengguna jasa sesuai dengan pendidikan, keahlian, dan keterampilannya.</li>
+            <li>PIHAK PERTAMA berhak menolak dan/atau memulangkan PIHAK KEDUA apabila diketahui memiliki permasalahan pribadinya di masa mendatang seperti sakit, hamil, dsb., ketidak-jujuran dalam memberikan informasi, atau terindikasi adanya mensrea yang mengakibatkan kerugian materiil dan/atau non-materiil kepada PIHAK PERTAMA maupun pengguna jasa.</li>
+            <li>PIHAK PERTAMA berhak meminta PIHAK KEDUA untuk mentaati semua ketentuan dan tata tertib yang disepakati PIHAK PERTAMA, selama tinggal di asrama dan selama tinggal di rumah pengguna jasa atau lokasi penempatan kerja lainnya yang telah ditentukan oleh PIHAK PERTAMA.</li>
+            <li>PIHAK PERTAMA berhak menegur, mengoreksi, dan/atau memberikan sanksi kepada PIHAK KEDUA jika melanggar atau mengabaikan tata tertib, peraturan, perjanjian yang telah disepakati bersama.</li>
+            <li>PIHAK PERTAMA berhak mendapatkan pembayaran segala bentuk biaya yang timbul selama masa pelatihan dan/atau penantian penempatan kerja dari PIHAK KEDUA, untuk dialokasikan kepada Lembaga Pelatihan Kerja (LPK) Mikala Global Akademi, sebagaimana perjanjian, syarat, dan ketentuan sebelumnya antara PIHAK KEDUA dengan LPK Mikala Global Akademi.</li>
+            <li>PIHAK PERTAMA menerima pengembalian dari PIHAK KEDUA atas segala bentuk biaya yang timbul selama masa kerja di lokasi penempatan kerja, jika PIHAK KEDUA mengundurkan dan/atau melarikan diri.</li>
+            <li>PIHAK PERTAMA berhak menerima pelunasan dari PIHAK KEDUA atas segala bentuk biaya yang timbul selama tinggal di asrama pada masa pelatihan dan/atau penantian penempatan kerja masa kerja di lokasi penempatan kerja, jika PIHAK KEDUA memohon izin untuk cuti, pulang kampung, istirahat dalam waktu yang cukup lama sehingga harus digantikan dengan tenaga/pekerja kesehatan lainnya (inval).</li>
+            <li>PIHAK PERTAMA menerima pengembalian dari PIHAK KEDUA atas segala bentuk biaya yang timbul selama tinggal di asrama pada masa pelatihan dan/atau penantian penempatan kerja, jika PIHAK KEDUA mengundurkan dan/atau melarikan diri, untuk dialokasikan kepada Lembaga Pelatihan Kerja (LPK) Mikala Global Akademi.</li>
+        </ol>
+
+        <h2>PASAL III<br>KEWAJIBAN PIHAK PERTAMA</h2>
+        <ol>
+            <li>PIHAK PERTAMA berkewajiban memberikan informasi uraian tugas sesuai dengan jabatan kepada PIHAK KEDUA.</li>
+            <li>PIHAK PERTAMA berkewajiban menempatkan PIHAK KEDUA untuk bekerja di pengguna jasa sesuai dengan jabatan.</li>
+            <li>PIHAK PERTAMA berkewajiban menjadi mediator apabila ada permasalahan antara PIHAK KEDUA dengan pengguna jasa.</li>
+            <li>PIHAK PERTAMA berkewajiban melakukan monitoring dan evaluasi PIHAK KEDUA selama bekerja di pengguna jasa.</li>
+            <li>PIHAK PERTAMA berkewajiban memberikan perlindungan hukum kepada PIHAK KEDUA, apabila di lokasi penempatan kerja PIHAK KEDUA mendapatkan perbuatan yang dinilai kurang manusiawi dan/atau melanggar Hak Asasi Manusia (HAM) dari pengguna jasa, anggota keluarga pengguna jasa, atau kerabat yang berhubungan dengan pengguna jasa, dengan cara memberikan persetujuan kepada PIHAK PERTAMA untuk bertindak sebagai penengah dalam proses mediasi.</li>
+            <li>PIHAK PERTAMA berkewajiban memberikan gaji sesuai dengan kesepakatan awal dengan PIHAK KEDUA sebelum penempatan kerja.</li>
+            <li>PIHAK PERTAMA berkewajiban memberikan Orientasi Pra Penempatan (pembekalan) kepada PIHAK KEDUA sebelum PIHAK KEDUA ditempatkan kepada pengguna jasa meliputi: perjanjian penempatan kerja; kondisi pasien yang dirawat dan lingkungan kerja beserta aturan yang dipersyaratkan pengguna jasa secara detail; mental, disiplin, dan etos kerja; serta tata tertib dan peraturan ketika di lokasi penempatan kerja, maupun setelah dan sebelum penempatan kerja.</li>
+        </ol>
+
+        <h2>PASAL IV<br>HAK PIHAK KEDUA</h2>
+        <ol>
+            <li>PIHAK KEDUA berhak mendapatkan informasi uraian tugas sesuai dengan jabatan dari PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan pekerjaan yang sesuai dengan jabatan dari PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan mediasi dari PIHAK PERTAMA apabila ada permasalahan dengan pengguna jasa.</li>
+            <li>PIHAK KEDUA berhak memberikan informasi, situasi, dan kondisi di lokasi penempatan kerja selama bekerja di pengguna jasa kepada PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan pelindungan dari PIHAK PERTAMA sebagai mediator atau penengah sejak dari perekrutan sampai dengan di lokasi penempatan kerja, apabila di lokasi penempatan kerja PIHAK KEDUA mendapatkan perbuatan yang dinilai kurang manusiawi dan/atau melanggar Hak Asasi Manusia (HAM).</li>
+            <li>PIHAK KEDUA berhak mendapatkan gaji sesuai dengan kesepakatan diawal dengan PIHAK PERTAMA sebelum penempatan kerja.</li>
+            <li>PIHAK KEDUA berhak mendapatkan Orientasi Pra Penempatan (pembekalan) dari PIHAK PERTAMA sebelum ditempatkan di pengguna jasa, meliputi: perjanjian penempatan kerja; kondisi pasien yang dirawat dan lingkungan kerja beserta aturan yang dipersyaratkan pengguna jasa secara detail; mental, disiplin, dan etos kerja; serta tata tertib dan peraturan ketika di lokasi penempatan kerja, maupun setelah dan sebelum penempatan kerja.</li>
+        </ol>
+
+        <h2>PASAL V<br>KEWAJIBAN PIHAK KEDUA</h2>
+        <ol>
+            <li>PIHAK KEDUA berkewajiban melengkapi persyaratan sesuai dengan persyaratan kerja, dokumen identitas KTP, Kartu Keluarga, SKCK, Surat Ijin Orang Tua, Surat Keterangan Sehat, rontgen paru-paru, dan ijazah terakhir, untuk dilakukan verifikasi dan validasi oleh PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan informasi yang jelas dan benar mengenai identitas, pendidikan, keahlian, keterampilan, dan kondisi kesehatan kepada PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan pelayanan yang baik, dengan bersikap sopan, jujur, disiplin dan sabar dalam menjalankan tugasnya.</li>
+            <li>PIHAK KEDUA berkewajiban mematuhi dan/atau menerima setiap penempatan, penugasan, pemindahan dan pemberhentian sewaktu-waktu dari PIHAK PERTAMA atas tugas yang telah diberikan.</li>
+            <li>PIHAK KEDUA berkewajiban mematuhi segala bentuk peraturan dan tata tertib yang tertuang dalam Pasal VI sebelum, saat, dan setelah PIHAK KEDUA ditempatkan kepada pengguna jasa, selama masih menginduk kepada PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban menerima dan siap atas segala bentuk sanksi sebagaimana tertuang dalam Pasal VII yang diberikan oleh PIHAK PERTAMA, jika PIHAK KEDUA ditemukan/diketahui/didapatkan terlibat melakukan pelanggaran terhadap tata tertib dan/atau peraturan dalam Pasal VI, baik sengaja atau tidak disengaja.</li>
+            <li>PIHAK KEDUA berkewajiban menerima segala bentuk konsekuensi yang terjadi, jika dengan sengaja berniat melakukan tindakan tidak terpuji (mensrea) dan menyebabkan kerugian materiil dan non-materiil terhadap PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban menyerahkan pembayaran atas segala bentuk biaya yang timbul selama masa pelatihan dan/atau penantian penempatan kerja kepada PIHAK PERTAMA, untuk dialokasikan kepada Lembaga Pelatihan Kerja (LPK) Mikala Global Akademi.</li>
+            <li>PIHAK KEDUA berkewajiban membayarkan pengembalian kepada PIHAK PERTAMA atas segala bentuk biaya yang timbul selama masa kerja di lokasi penempatan kerja, jika PIHAK KEDUA mengundurkan dan/atau melarikan diri.</li>
+            <li>PIHAK KEDUA berkewajiban membayarkan pelunasan kepada PIHAK PERTAMA atas segala bentuk biaya yang timbul selama tinggal di asrama pada masa pelatihan, penantian penempatan kerja, dan/atau ketika masa kerja di lokasi penempatan kerja, jika PIHAK KEDUA memohon izin untuk cuti, pulang kampung, istirahat dalam waktu yang cukup lama sehingga harus digantikan dengan tenaga/pekerja kesehatan lainnya (inval).</li>
+            <li>PIHAK KEDUA berkewajiban mentaati dan melaksanakan seluruh ketentuan dalam perjanjian kerja ini.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan informasi dan/atau pemberitahuan secara langsung kepada PIHAK PERTAMA apabila akan dan/atau ingin mengundurkan diri paling lambat 1 (satu) bulan sebelum berhenti bekerja.</li>
+            <li>PIHAK KEDUA berkewajiban menjaga nama baik PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA diharapkan memiliki kartu jaminan kesehatan secara pribadi.</li>
+        </ol>
+
+        <h2>PASAL VI<br>TATA TERTIB</h2>
+        <p>Selama di area penempatan kerja dan di area PIHAK KEDUA, tidak diperkenankan melakukan segala bentuk tindakan berikut: melakukan perbuatan yang melanggar hukum, adat istiadat dan norma agama; memberitahukan alamat dan nomor telepon pribadi pengguna jasa kepada pihak lain yang tidak dikenal; membawa orang lain ke lokasi penempatan kerja tanpa sepengetahuan pengguna jasa dan PIHAK PERTAMA; meninggalkan pasien tanpa izin; melakukan pencurian, penggelapan dan tindak kriminal lainnya; melakukan penganiayan dan tindak kriminal dalam bentuk apapun terhadap pimpinan perusahaan, keluarganya, seluruh civitas PT. MIKALA GLOBAL MEDIKA dan Unit Usaha di bawah MIKALA GLOBAL GRUP, maupun terhadap pasien/klien/pemberi kerja/penanggung jawab beserta keluarga dan kerabatnya; merusak barang milik perusahaan/klien; memberikan keterangan palsu atau menghasut; mabuk, berjudi, menggunakan narkotika/zat adiktif, membuat onar atau bertengkar; terlibat cinta lokasi di tempat tugas tanpa sepengetahuan PIHAK PERTAMA; menghina atau mencemarkan nama baik perusahaan/pimpinan/keluarganya; menyalahgunakan fasilitas tempat tugas untuk kepentingan pribadi; membocorkan rahasia perusahaan atau menyebarkan isu yang merugikan; sengaja melalaikan tugas/perintah; terlambat atau mangkir tanpa alasan sah; melakukan tindak pidana atau pelanggaran HAM; melakukan perbuatan tidak terpuji/asusila di lingkungan kerja; serta meminjam uang/barang berharga dari pemberi kerja atau keluarganya. PIHAK KEDUA juga tidak diperkenankan berhenti bertugas sebelum melunasi seluruh biaya yang timbul selama masa pelatihan, dilarang memanipulasi masa kerja/jam kerja, dan bertanggung jawab pribadi atas kelalaian tindakan keperawatan maupun tindakan pribadi lainnya baik perdata maupun pidana.</p>
+
+        <h2>PASAL VII<br>SANKSI-SANKSI</h2>
+        <ol>
+            <li>Apabila PIHAK KEDUA melanggar tata tertib Pasal VI, maka akan ditegur dan diberikan peringatan; jika melanggar kedua kalinya akan ditegur dan dievaluasi; jika melanggar kembali atau melakukan pelanggaran berat yang merugikan PIHAK PERTAMA, maka akan diberhentikan paksa dengan kewajiban melunasi biaya tertunggak serta denda minimal Rp25.000.000,- jika terbukti mencemarkan nama baik PIHAK PERTAMA dengan sengaja.</li>
+            <li>Apabila PIHAK KEDUA melakukan pelanggaran dengan mengambil alih pengguna jasa (bertugas langsung dengan pengguna jasa), maka PIHAK PERTAMA akan mengenakan denda sebesar Rp50.000.000,-.</li>
+            <li>Apabila PIHAK KEDUA telah mengundurkan diri secara sah, PIHAK KEDUA dilarang menggunakan atribut apapun (seragam, name tag, dsb.) milik PIHAK PERTAMA untuk bertugas di tempat lain; pelanggaran ini dikenakan denda Rp50.000.000,-.</li>
+        </ol>
+
+        <h2>PASAL VIII<br>INFORMASI PENEMPATAN KERJA</h2>
+        <table class="dt" cellpadding="2" cellspacing="0">
+            <tr><td width="55%">Nama pemberi kerja / penanggung jawab pasien</td><td>' . e($lead->nama_leads) . '</td></tr>
+            <tr><td>Nama pasien / anak / klien</td><td>' . e($lead->nama_pasien ?: '-') . '</td></tr>
+            <tr><td>Usia pasien / anak / klien</td><td>' . e($usiaPasien) . '</td></tr>
+            <tr><td>Diagnosa pasien / anak / klien</td><td>' . e($lead->deskripsi_diagnosa ?: $lead->diagnosis_awal) . '</td></tr>
+            <tr><td>Alat bantu pasien / anak / klien</td><td>' . e($lead->alat_pendukung ?: '-') . '</td></tr>
+            <tr><td>Gaji per ' . ($isHarian ? 'hari' : 'bulan') . '</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
+            <tr><td>Uang cuti per hari</td><td>' . $this->rupiah($lead->uang_cuti_mitra) . '</td></tr>
+        </table>
+
+        <h2>PASAL IX<br>PENYELESAIAN KASUS</h2>
+        <p>Apabila selama berlangsungnya hubungan kerja terjadi perselisihan antara PIHAK PERTAMA dengan PIHAK KEDUA, hendaknya upaya yang ditempuh oleh kedua belah pihak dengan cara musyawarah dan mufakat. Dalam hal musyawarah dan mufakat tidak tercapai, penyelesaian perselisihan dilakukan dengan cara mediasi oleh Ketua RT dan Ketua RW setempat di lokasi penempatan kerja.</p>
+
+        <h2>PASAL X<br>PENUTUP</h2>
+        <p>Demikianlah Surat Perjanjian Penempatan ini dibuat dan ditandatangani masing-masing pihak dengan benar, dalam keadaan sadar, sehat jasmani dan rohani tanpa ada unsur paksaan dari pihak manapun. Surat Perjanjian Penempatan ini dibuat rangkap 2 (dua) dan mempunyai kekuatan hukum yang sama.</p>
+        <br>
+        <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td width="50%" style="text-align:center;">Pihak Pertama</td>
+                <td width="50%" style="text-align:center;">Pihak Kedua</td>
+            </tr>
+            <tr><td><br><br><br></td><td></td></tr>
+            <tr>
+                <td style="text-align:center;">( Muji Mulyaningsih )</td>
+                <td style="text-align:center;">( ' . e($namaMitra) . ' )</td>
+            </tr>
+        </table>';
+    }
+
+    /**
+     * Kontrak 3 -- Perjanjian Kerja antara Tenaga Kerja (Mitra) dengan Pemberi Kerja (Cust/PJ),
+     * disaksikan/difasilitasi PT. Mikala Global Medika. Teks pasal 1-9 mengikuti dokumen
+     * "Kontrak 3 - MG-Mitra-Klien fix acc yani.docx".
+     */
+    private function buildKontrak3Html($lead): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $mitra = $lead->mitra;
+        $namaMitra = $mitra->nama_lengkap ?? '-';
+        $namaCust = $lead->nama_leads ?? '-';
+        $total = (float)($lead->honor_mitra ?? 0) + (float)($lead->uang_cuti_mitra ?? 0);
+        $jabatan = $lead->jasa_disetujui ?: ($lead->tier_nama ?: '-');
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; text-align:justify; }
+            h1 { font-size:13pt; text-align:center; margin-bottom:0; }
+            h2 { font-size:11pt; text-align:center; margin-top:14px; }
+            table.dt td { padding:1px 4px; vertical-align:top; }
+        </style>
+        <h1>PERJANJIAN KERJA</h1>
+        <p style="text-align:center;">ANTARA TENAGA KERJA DENGAN PEMBERI KERJA</p>
+        <p style="text-align:center;">No. ' . e($lead->nomor_kontrak_klien_mitra) . '</p>
+        <p>Yang bertanda tangan di bawah ini:</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>NIK (ID Penduduk)</td><td>:</td><td>' . e($lead->no_ktp_cust_pj ?: '-') . '</td></tr>
+            <tr><td>NIK (ID Klien)</td><td>:</td><td>' . e($lead->nik ?: '-') . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>No. Telp</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+        </table>
+        <p>Selanjutnya disebut sebagai <strong>PIHAK PERTAMA (pemberi kerja)</strong>.</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama</td><td width="2%">:</td><td>' . e($namaMitra) . '</td></tr>
+            <tr><td>NIK (ID Penduduk)</td><td>:</td><td>' . e($mitra->nik ?: '-') . '</td></tr>
+            <tr><td>NIM (ID Mitra)</td><td>:</td><td>' . e($lead->mitra_nim ?: '-') . '</td></tr>
+            <tr><td>Tempat Tanggal Lahir</td><td>:</td><td>' . e(trim(($mitra->tempat_lahir ?: '-') . ', ' . ($mitra->tanggal_lahir ? \Carbon\Carbon::parse($mitra->tanggal_lahir)->translatedFormat('d F Y') : '-'))) . '</td></tr>
+            <tr><td>Alamat Sesuai KTP</td><td>:</td><td>' . e($mitra->alamat ?: '-') . '</td></tr>
+            <tr><td>No. Telp</td><td>:</td><td>' . e($mitra->user->phone ?? '-') . '</td></tr>
+        </table>
+        <p>Selanjutnya disebut sebagai <strong>PIHAK KEDUA (tenaga kerja)</strong>.</p>
+        <p>Bahwa pada hari ini tanggal ' . $now->day . ' bulan ' . $bulanIndo[(int)$now->format('n')] . ' Tahun ' . $now->year . ', telah mengadakan perjanjian kerja antara PIHAK PERTAMA (pemberi kerja) dengan PIHAK KEDUA (tenaga kerja) yang disaksikan dan difasilitasi oleh PT. Mikala Global Medika.</p>
+
+        <h2>PASAL 1<br>KETENTUAN UMUM</h2>
+        <ol>
+            <li>PIHAK PERTAMA (pemberi kerja) memberikan pekerjaan kepada PIHAK KEDUA (tenaga kerja) dengan jabatan ' . e($jabatan) . '.</li>
+            <li>PIHAK KEDUA berhak mendapatkan libur 2x24 jam setiap 1 bulan bekerja, atau mendapat uang pengganti libur sesuai dengan tarif yang berlaku, dan dibayarkan langsung oleh PIHAK PERTAMA ke PIHAK KEDUA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan cuti selama 14 (empat belas) hari atau mendapatkan setengah bulan gaji setelah 1 tahun bekerja di rumah PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan kenaikan gaji atas penyesuaian inflasi atau penilaian kinerja setelah 1 tahun bekerja di PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan Tunjangan Hari Raya (THR) yang disesuaikan dengan lamanya bekerja di PIHAK PERTAMA, dengan ketentuan PIHAK KEDUA dalam kondisi bekerja pada PIHAK PERTAMA.</li>
+            <li>Uraian Tugas dan Tata Tertib PIHAK KEDUA merupakan satu kesatuan tak terpisahkan yang sama kuatnya dengan perjanjian ini.</li>
+            <li>Apabila ada pekerjaan di luar uraian tugas yang seharusnya, maka atas kesepakatan antara PIHAK PERTAMA dan PIHAK KEDUA, diberikan uang kompensasi tambahan, dan hal ini harus diketahui oleh saksi/fasilitator yaitu PT. Mikala Global Medika.</li>
+            <li>Saksi/fasilitator (PT. Mikala Global Medika) tidak bertanggung jawab atas segala utang piutang antara PIHAK PERTAMA dan PIHAK KEDUA secara pribadi.</li>
+            <li>Demi keamanan bersama, barang-barang berharga PIHAK PERTAMA sebaiknya disimpan di tempat terkunci, demikian pula barang bawaan PIHAK KEDUA sebelum meninggalkan tempat kerja wajib diperiksa. Saksi/fasilitator tidak bertanggung jawab atas kehilangan barang berharga, uang, dan sejenisnya.</li>
+            <li>Apabila terjadi tindakan asusila dan pelanggaran harkat/martabat terhadap PIHAK KEDUA, saksi/fasilitator (PT. Mikala Global Medika) akan bertindak sebagai wakil PIHAK KEDUA untuk melakukan perbuatan hukum yang diperlukan.</li>
+            <li>PIHAK KEDUA bertanggung jawab secara pribadi atas segala tindakannya baik di bidang perdata atau pidana, termasuk pelanggaran kesusilaan atau harkat/martabat, serta pelanggaran atas ketentuan perundangan yang berlaku.</li>
+            <li>PIHAK PERTAMA dapat sewaktu-waktu memberhentikan PIHAK KEDUA dalam terjadinya perbuatan/tindakan yang dimaksud pada ayat 11 di atas.</li>
+            <li>Apabila PIHAK KEDUA ditemukan menggunakan HP saat bertugas atau melanggar kesepakatan dengan pengguna jasa/keluarganya, PIHAK KEDUA dikenakan sanksi pemotongan gaji sebesar 20% pada periode penggajian bulan berjalan.</li>
+            <li>Apabila PIHAK KEDUA berhenti atas kemauan sendiri dalam masa kontrak, wajib memberi tahu paling lambat 2 (dua) minggu sebelumnya, dan berhak mendapatkan gaji/kompensasi berdasarkan perhitungan lamanya waktu bekerja.</li>
+            <li>Apabila PIHAK PERTAMA memberhentikan PIHAK KEDUA secara sepihak tanpa alasan yang bisa dibenarkan secara hukum, PIHAK PERTAMA wajib memberitahukan paling lambat 2 minggu sebelumnya dan membayarkan sisa gaji PIHAK KEDUA secara proporsional. Jika pemberhentian karena pelanggaran kontrak/tindakan kriminal, PIHAK PERTAMA hanya membayarkan sisa gaji PIHAK KEDUA.</li>
+        </ol>
+
+        <h2>PASAL 2<br>HAK PIHAK PERTAMA</h2>
+        <ol>
+            <li>Memperoleh informasi mengenai PIHAK KEDUA / Tenaga Kerja.</li>
+            <li>Mendapatkan Tenaga Kerja yang sesuai dengan jobdesk/jabatannya agar dapat bekerja dengan baik.</li>
+            <li>Mendapatkan hasil kerja yang baik dari Tenaga Kerja.</li>
+            <li>Meminta pertanggungjawaban atas kelalaian dalam tindakan keperawatan yang dilakukan PIHAK KEDUA, yang menjadi tanggung jawab pribadi PIHAK KEDUA; para pihak sepakat membebaskan saksi/fasilitator (PT. Mikala Global Medika) dari segala tuntutan hukum yang timbul.</li>
+            <li>Meminta pertanggungjawaban atas segala tindakan pribadi PIHAK KEDUA, baik perdata maupun pidana, yang menjadi tanggung jawab pribadi PIHAK KEDUA.</li>
+            <li>Mendapatkan pelayanan yang baik, sikap sopan, jujur dan terbuka, serta ketaatan atas uraian tugas dan perintah yang disepakati.</li>
+            <li>Mendapatkan evaluasi layanan/kinerja dari PT. Mikala Global Medika terhadap tugas PIHAK KEDUA.</li>
+        </ol>
+
+        <h2>PASAL 3<br>KEWAJIBAN PIHAK PERTAMA</h2>
+        <ol>
+            <li>Membayar upah/gaji dengan rincian dan ketentuan pada Pasal 7.</li>
+            <li>Memberikan makanan dan minuman yang sehat dan bergizi kepada PIHAK KEDUA.</li>
+            <li>Memberikan perlengkapan/kebutuhan sehari-hari: fasilitas makanan bergizi 3 kali sehari (nasi, lauk, sayur, buah yang cukup), peralatan mandi serta cuci pakaian, serta tempat tidur/istirahat yang cukup.</li>
+            <li>Memberikan hak istirahat yang cukup, waktu beribadah sesuai keyakinan, waktu kerja yang manusiawi, dan cuti sesuai kesepakatan.</li>
+            <li>Memulangkan PIHAK KEDUA apabila masa kontrak berakhir atau tidak melanjutkan penugasan, untuk selanjutnya diserahkan kembali ke PT. Mikala Global Medika.</li>
+            <li>Mengakhiri hubungan kerja apabila PIHAK KEDUA tidak melaksanakan kesepakatan/perjanjian kerja.</li>
+            <li>Memberikan lingkungan kerja yang aman dan sehat, serta menjaga keamanan dari tindakan kekerasan, penindasan dan eksploitasi.</li>
+            <li>Memberikan cuti tambahan sementara apabila PIHAK KEDUA kurang istirahat akibat kondisi pasien/anak; PT. Mikala Global Medika akan membantu mencarikan pengganti sementara.</li>
+            <li>Memberikan kesempatan berobat jika PIHAK KEDUA sakit, dan menanggung biaya pengobatan untuk kecelakaan atau sakit ringan/rawat jalan selama bertugas.</li>
+            <li>Memberikan hak PERUSAHAAN untuk melakukan pengawasan terhadap tugas PIHAK KEDUA sebagai bagian dari pelayanan.</li>
+            <li>Selama masa kontrak, PIHAK PERTAMA dan PIHAK KEDUA wajib saling bersikap jujur, disiplin, bertanggung jawab, sopan, beretika dan saling menghargai, serta mentaati kesepakatan kontrak kerja.</li>
+            <li>Memberikan THR minimal 1 (satu) bulan gaji bagi yang telah bertugas 1 tahun penuh atau lebih; proporsional bagi yang bertugas kurang dari 1 tahun.</li>
+        </ol>
+
+        <h2>PASAL 4<br>HAK PIHAK KEDUA</h2>
+        <p>PIHAK KEDUA berhak atas: upah/gaji sesuai Pasal 7; makanan dan minuman sehat bergizi; perlengkapan kebutuhan sehari-hari (fasilitas makan 3x sehari, peralatan mandi/cuci, tempat istirahat yang cukup); hak istirahat yang cukup; waktu beribadah sesuai keyakinan; waktu kerja yang manusiawi; cuti sesuai kesepakatan; akomodasi pemulangan setelah masa kerja berakhir (melalui PT. Mikala Global Medika); mengakhiri hubungan kerja bila PIHAK PERTAMA tidak melaksanakan kesepakatan; lingkungan kerja yang aman dan sehat serta bebas dari kekerasan/penindasan/eksploitasi; cuti tambahan sementara bila kurang istirahat akibat kondisi pasien/anak; kesempatan dan biaya berobat jika sakit; evaluasi dan penilaian dari PT. Mikala Global Medika; serta THR minimal 1 bulan gaji (proporsional bila bertugas kurang dari 1 tahun).</p>
+
+        <h2>PASAL 5<br>KEWAJIBAN PIHAK KEDUA</h2>
+        <ol>
+            <li>Memberikan informasi yang jelas dan benar mengenai identitas, keterampilan kerja, dan kondisi kesehatan kepada PIHAK PERTAMA.</li>
+            <li>Mentaati dan melaksanakan seluruh ketentuan dalam perjanjian kerja ini.</li>
+            <li>Meminta izin kepada pemberi kerja apabila berhalangan melakukan pekerjaan.</li>
+            <li>Melakukan pekerjaan berdasarkan tata cara kerja yang benar dan aman.</li>
+            <li>Memberitahukan kepada pemberi kerja apabila mengundurkan diri paling lambat 1 (satu) bulan sebelum berhenti bekerja.</li>
+            <li>Menjaga nama baik dan privasi pemberi kerja beserta keluarganya.</li>
+            <li>Memberikan pertanggungjawaban atas kelalaian dalam tindakan keperawatan/medis yang dilakukan, yang menjadi tanggung jawab pribadi PIHAK KEDUA; para pihak sepakat membebaskan saksi/fasilitator (PT. Mikala Global Medika) dari tuntutan hukum yang timbul.</li>
+            <li>Bertanggung jawab pribadi atas segala tindakan yang melanggar norma, hukum, kode etik, atau perundang-undangan Republik Indonesia, baik perdata maupun pidana.</li>
+            <li>Memberikan pelayanan yang baik, bersikap sopan, jujur dan terbuka, serta mentaati uraian tugas dan perintah yang disepakati.</li>
+        </ol>
+
+        <h2>PASAL 6<br>MASA KONTRAK</h2>
+        <ol>
+            <li>Masa kontrak akan berakhir apabila tugas dari PIHAK KEDUA telah selesai.</li>
+            <li>Setelah masa kontrak berakhir, PIHAK PERTAMA setuju untuk TIDAK MENGAMBIL ALIH PIHAK KEDUA dan mempekerjakannya tanpa sepengetahuan PT. Mikala Global Medika, termasuk mempekerjakan PIHAK KEDUA yang sudah berhenti dari PT. Mikala Global Medika.</li>
+            <li>Apabila PIHAK PERTAMA melanggar ayat 2 di atas, PIHAK PERTAMA setuju membayar Rp50.000.000,- (lima puluh juta rupiah) sebagai ganti rugi materiil/immaterial kepada PT. Mikala Global Medika.</li>
+            <li>Apabila kontrak kerja akan berakhir, PIHAK KEDUA memberitahukan ada/tidaknya perpanjangan kontrak paling lambat 2 (dua) minggu sebelum berakhirnya kontrak.</li>
+        </ol>
+
+        <h2>PASAL 7<br>RINCIAN GAJI PIHAK KEDUA</h2>
+        <p>PIHAK KEDUA menerima pembayaran gaji dengan sistem transfer atas uang yang dititipkan oleh PIHAK PERTAMA kepada PT. Mikala Global Medika untuk menjamin keamanan, kesesuaian besaran gaji, dan ketepatan waktu, dengan perincian sebagai berikut:</p>
+        <table class="dt" cellpadding="2" cellspacing="0">
+            <tr><td width="60%">Gaji per bulan</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
+            <tr><td>Uang cuti / libur 2 hari dalam sebulan / hari</td><td>' . $this->rupiah($lead->uang_cuti_mitra) . '</td></tr>
+            <tr><td><strong>TOTAL GAJI per bulan</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
+        </table>
+        <p>Ditambah Insentif di 2 (dua) hari H (pada saat Hari Raya Idul Fitri, sesuai ketentuan yang berlaku).</p>
+
+        <h2>PASAL 8<br>PENYELESAIAN KASUS</h2>
+        <p>Apabila selama berlangsungnya hubungan kerja terjadi perselisihan antara PIHAK PERTAMA dengan PIHAK KEDUA, hendaknya upaya yang ditempuh oleh kedua belah pihak dengan cara musyawarah dan mufakat. Dalam hal musyawarah dan mufakat tidak tercapai, penyelesaian perselisihan dilakukan dengan cara mediasi oleh Ketua RT dan Ketua RW setempat terlebih dahulu.</p>
+
+        <h2>PASAL 9<br>PENUTUP</h2>
+        <p>Demikianlah Surat Perjanjian Kerja ini dibuat dan ditandatangani masing-masing pihak dengan benar, dalam keadaan sadar, sehat jasmani dan rohani tanpa ada unsur paksaan dari pihak manapun. Surat Perjanjian Kerja ini dibuat rangkap 3 (tiga) dan mempunyai kekuatan hukum yang sama.</p>
+        <br>
+        <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td width="50%" style="text-align:center;">Pihak Pertama</td>
+                <td width="50%" style="text-align:center;">Pihak Kedua</td>
+            </tr>
+            <tr><td><br><br><br></td><td></td></tr>
+            <tr>
+                <td style="text-align:center;">( ' . e($namaCust) . ' )</td>
+                <td style="text-align:center;">( ' . e($namaMitra) . ' )</td>
+            </tr>
+        </table>
+        <br>
+        <p style="text-align:center;"><strong>SAKSI</strong><br><br><br>( Muji Mulyaningsih )<br>Mewakili PT. Mikala Global Medika</p>';
+    }
+
+    /**
      * Tandai Leads sebagai Gantung (on-hold).
      */
     public function markLeadGantung(Request $request, $id)
