@@ -1668,8 +1668,12 @@ class CustomerCareController extends Controller
     public function storeLeadExchange(Request $request, $id)
     {
         $request->validate([
-            'mitra_baru_id' => 'required|exists:mitra,id',
-            'alasan'        => 'required|string',
+            'mitra_baru_id'        => 'required|exists:mitra,id',
+            'alasan'               => 'required|string',
+            'honor_mitra_baru'     => 'nullable|numeric',
+            'uang_cuti_mitra_baru' => 'nullable|numeric',
+            'biaya_transport'      => 'nullable|numeric',
+            'surat_tugas_baru'     => 'nullable|string|max:100',
         ]);
 
         try {
@@ -1677,17 +1681,40 @@ class CustomerCareController extends Controller
             $mitraLamaId = $lead->mitra_id;
             $kategori = $this->layananKategoriCode($lead->layanan?->nama);
 
+            // Snapshot "Sebelum/Sesudah" utk tabel di Adendum -- Exchange (biaya jasa, uang cuti,
+            // surat tugas). Jika biaya baru tidak diisi, dianggap tidak berubah dari sebelumnya.
+            $biayaJasaLama = $lead->honor_mitra;
+            $uangCutiLama  = $lead->uang_cuti_mitra;
+            $suratTugasLama = $lead->nomor_kontrak_mitra;
+            $biayaJasaBaru = $request->filled('honor_mitra_baru') ? $request->honor_mitra_baru : $lead->honor_mitra;
+            $uangCutiBaru  = $request->filled('uang_cuti_mitra_baru') ? $request->uang_cuti_mitra_baru : $lead->uang_cuti_mitra;
+
             $exchange = \App\Models\LeadExchange::create([
-                'nomor'         => \App\Models\LeadExchange::generateNomor($kategori),
-                'lead_id'       => $lead->id,
-                'mitra_lama_id' => $mitraLamaId,
-                'mitra_baru_id' => $request->mitra_baru_id,
-                'alasan'        => $request->alasan,
-                'exchanged_at'  => now(),
-                'created_by'    => $request->user()?->id,
+                'nomor'            => \App\Models\LeadExchange::generateNomor($kategori),
+                'nomor_adendum'    => \App\Models\LeadExchange::generateNomorAdendum(),
+                'lead_id'          => $lead->id,
+                'mitra_lama_id'    => $mitraLamaId,
+                'mitra_baru_id'    => $request->mitra_baru_id,
+                'alasan'           => $request->alasan,
+                'biaya_jasa_lama'  => $biayaJasaLama,
+                'biaya_jasa_baru'  => $biayaJasaBaru,
+                'uang_cuti_lama'   => $uangCutiLama,
+                'uang_cuti_baru'   => $uangCutiBaru,
+                'surat_tugas_lama' => $suratTugasLama,
+                'surat_tugas_baru' => $request->surat_tugas_baru,
+                'biaya_transport'  => $request->biaya_transport ?: 0,
+                'exchanged_at'     => now(),
+                'created_by'       => $request->user()?->id,
             ]);
 
-            $lead->update(['mitra_id' => $request->mitra_baru_id]);
+            // Update leads dgn mitra baru + biaya baru; kosongkan nomor_kontrak_mitra (Kontrak 2)
+            // supaya Surat Tugas/Kontrak 2 baru otomatis di-generate ulang utk mitra pengganti.
+            $lead->update([
+                'mitra_id'            => $request->mitra_baru_id,
+                'honor_mitra'         => $biayaJasaBaru,
+                'uang_cuti_mitra'     => $uangCutiBaru,
+                'nomor_kontrak_mitra' => null,
+            ]);
 
             return response()->json([
                 'success' => true,
@@ -1697,6 +1724,103 @@ class CustomerCareController extends Controller
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
         }
+    }
+
+    /**
+     * Generate & stream PDF Adendum - Exchange (pergantian mitra), sesuai dokumen
+     * "Adendum - Exchange.docx". Referensi ke Surat Perjanjian Penggunaan Jasa Mitra
+     * (Kontrak MGM-Klien) yang sudah ada sebelumnya.
+     */
+    public function downloadAdendumExchange($exchangeId)
+    {
+        $exchange = \App\Models\LeadExchange::with(['lead', 'mitraLama.user', 'mitraBaru.user'])->findOrFail($exchangeId);
+        if (!$exchange->nomor_adendum) {
+            $exchange->update(['nomor_adendum' => \App\Models\LeadExchange::generateNomorAdendum()]);
+        }
+
+        $html = $this->buildAdendumExchangeHtml($exchange);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Adendum ' . $exchange->nomor_adendum);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Adendum-' . str_replace('/', '-', $exchange->nomor_adendum) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Adendum - Exchange, teks mengikuti dokumen "Adendum - Exchange.docx". Mengacu ke nomor
+     * kontrak MGM-Klien yang sudah ada, dengan tabel Mitra yang Ditugaskan (Sebelum/Sesudah).
+     */
+    private function buildAdendumExchangeHtml($exchange): string
+    {
+        $lead = $exchange->lead;
+        $now = $exchange->exchanged_at ?: now();
+        $namaCust = $lead->nama_leads ?? '-';
+        $namaMitraLama = $exchange->mitraLama->nama_lengkap ?? '-';
+        $namaMitraBaru = $exchange->mitraBaru->nama_lengkap ?? '-';
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; text-align:justify; }
+            h1 { font-size:13pt; text-align:center; margin-bottom:0; }
+            table.dt td { padding:1px 4px; vertical-align:top; }
+            table.hist th, table.hist td { padding:5px 8px; border:1px solid #999; font-size:9.5pt; }
+        </style>
+        <h1>ADENDUM</h1>
+        <p style="text-align:center;">SURAT PERJANJIAN PENGGUNA JASA MITRA</p>
+        <p style="text-align:center;">No. ' . e($exchange->nomor_adendum) . '</p>
+        <p>Mengacu pada Surat Perjanjian Penggunaan Jasa Mitra – No. ' . e($lead->nomor_kontrak_klien ?: '-') . ', yang sebelumnya telah ditandatangani oleh PT. Mikala Global Medika dengan Pengguna Jasa, maka pada hari ini, tanggal ' . $now->translatedFormat('d F Y') . ', yang bertandatangan di bawah ini:</p>
+        <p>Muji Mulyaningsih selaku Direktur Utama PT. Mikala Global Medika, yang bergerak pada bidang usaha penyalur tenaga Home Care yang beralamat di Jl. Anyelir Blok B, No. 1-2, Jatibening, Pondok Gede, Kota Bekasi. Selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong>.</p>
+        <p>Sedangkan pengguna jasa (klien) dengan data sebagai berikut:</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama Penanggungjawab</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>No. NIK</td><td>:</td><td>' . e($lead->no_ktp_cust_pj ?: '-') . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+            <tr><td>Nama Pasien</td><td>:</td><td>' . e($lead->nama_pasien ?: '-') . '</td></tr>
+            <tr><td>Alamat Pasien</td><td>:</td><td>' . e($lead->alamat_klien) . '</td></tr>
+            <tr><td>Tanggal Lahir Pasien</td><td>:</td><td>' . e($lead->tanggal_lahir_klien ? \Carbon\Carbon::parse($lead->tanggal_lahir_klien)->translatedFormat('d F Y') : '-') . '</td></tr>
+            <tr><td>Hubungan dengan Pasien</td><td>:</td><td>' . e($lead->hubungan_dengan_pasien) . '</td></tr>
+            <tr><td>Kondisi Pasien</td><td>:</td><td>' . e($lead->deskripsi_diagnosa ?: $lead->diagnosis_awal) . '</td></tr>
+        </table>
+        <p>Disebut sebagai <strong>PIHAK KEDUA</strong> dalam SURAT PERJANJIAN.</p>
+        <p>Dengan ini mengadakan kesepakatan perubahan berupa:</p>
+        <table class="hist" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
+            <tr><th>Mitra yang Ditugaskan</th><th>Sebelum</th><th>Sesudah</th></tr>
+            <tr><td>Nama Mitra</td><td>' . e($namaMitraLama) . '</td><td>' . e($namaMitraBaru) . '</td></tr>
+            <tr><td>NIM</td><td>' . e($exchange->mitraLama->nik ?? '-') . '</td><td>' . e($exchange->mitraBaru->nik ?? '-') . '</td></tr>
+            <tr><td>Surat Tugas No</td><td>' . e($exchange->surat_tugas_lama ?: '-') . '</td><td>' . e($exchange->surat_tugas_baru ?: '-') . '</td></tr>
+            <tr><td>Biaya Jasa</td><td>' . $this->rupiah($exchange->biaya_jasa_lama) . '</td><td>' . $this->rupiah($exchange->biaya_jasa_baru) . '</td></tr>
+            <tr><td>Uang Cuti</td><td>' . $this->rupiah($exchange->uang_cuti_lama) . '</td><td>' . $this->rupiah($exchange->uang_cuti_baru) . '</td></tr>
+            <tr><td>Tanggal</td><td>-</td><td>' . e($now->translatedFormat('d F Y')) . '</td></tr>
+        </table>
+        ' . ($exchange->biaya_transport > 0 ? '<p style="margin-top:8px;">Biaya Transportasi Pengantaran Mitra Pengganti: <strong>' . $this->rupiah($exchange->biaya_transport) . '</strong></p>' : '') . '
+        <p style="margin-top:8px;"><strong>Alasan Perubahan:</strong> ' . e($exchange->alasan) . '</p>
+        <p>Demikian adendum ini dibuat dalam rangkap dua, disetujui dan ditandatangani oleh kedua belah pihak tanpa unsur paksaan. Segala hal-hal lainnya tetap mengacu pada surat perjanjian awal.</p>
+        <br>
+        <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td width="50%" style="text-align:center;">Tertanda – PIHAK PERTAMA<br>Direktur Utama<br>PT. MIKALA GLOBAL MEDIKA</td>
+                <td width="50%" style="text-align:center;">Tertanda – PIHAK KEDUA</td>
+            </tr>
+            <tr><td><br><br><br></td><td></td></tr>
+            <tr>
+                <td style="text-align:center;">( Muji Mulyaningsih )</td>
+                <td style="text-align:center;">( ' . e($namaCust) . ' )</td>
+            </tr>
+        </table>';
     }
 
     /**

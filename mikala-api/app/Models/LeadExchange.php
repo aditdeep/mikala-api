@@ -13,16 +13,29 @@ class LeadExchange extends Model
 
     protected $fillable = [
         'nomor',
+        'nomor_adendum',
         'lead_id',
         'mitra_lama_id',
         'mitra_baru_id',
         'alasan',
+        'biaya_jasa_lama',
+        'biaya_jasa_baru',
+        'uang_cuti_lama',
+        'uang_cuti_baru',
+        'surat_tugas_lama',
+        'surat_tugas_baru',
+        'biaya_transport',
         'exchanged_at',
         'created_by',
     ];
 
     protected $casts = [
-        'exchanged_at' => 'datetime',
+        'exchanged_at'    => 'datetime',
+        'biaya_jasa_lama' => 'decimal:2',
+        'biaya_jasa_baru' => 'decimal:2',
+        'uang_cuti_lama'  => 'decimal:2',
+        'uang_cuti_baru'  => 'decimal:2',
+        'biaya_transport' => 'decimal:2',
     ];
 
     public function lead()
@@ -53,5 +66,14 @@ class LeadExchange extends Model
         $prefix = 'V2.' . $kategori . '.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
         $count = self::where('nomor', 'like', 'V2.' . $kategori . '.%')->count() + 1;
         return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+    }
+
+    // Nomor Adendum Exchange, sesuai dok "Adendum - Exchange.docx". Format: {urut}/MGM/ST/{bulan romawi}/{tahun}.
+    public static function generateNomorAdendum(): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('nomor_adendum')->count() + 1;
+        return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/ST/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
     }
 }
