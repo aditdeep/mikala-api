@@ -22,6 +22,7 @@ class Lead extends Model
 
     protected $fillable = [
         'nomor',
+        'nomor_kontrak_klien',
         'nik',
         'cms_layanan_id',
         'tier_nama',
@@ -61,9 +62,11 @@ class Lead extends Model
         'biaya_admin',
         'honor_mitra',
         'uang_cuti_mitra',
+        'biaya_transport',
         'status',
         'alasan_batal',
         'alasan_status',
+        'catatan_revisi_kontrak',
         // Field tahap Deal
         'kesadaran',
         'komunikasi',
@@ -87,6 +90,7 @@ class Lead extends Model
         'biaya_admin' => 'decimal:2',
         'honor_mitra' => 'decimal:2',
         'uang_cuti_mitra' => 'decimal:2',
+        'biaya_transport' => 'decimal:2',
     ];
 
     public function layanan()
@@ -158,5 +162,15 @@ class Lead extends Model
         $prefix = 'V1.' . str_pad($now->day, 2, '0', STR_PAD_LEFT) . '.' . str_pad($now->month, 2, '0', STR_PAD_LEFT) . '.' . $now->format('y');
         $count = self::whereYear('created_at', $now->year)->whereMonth('created_at', $now->month)->whereDay('created_at', $now->day)->count() + 1;
         return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
+    }
+
+    // Nomor Kontrak MGM-Klien (Kontrak 1.1/1.2), dibuat sekali saat kontrak pertama kali
+    // di-generate/download. Format: {urut}/MGM/KLIEN/{bulan romawi}/{tahun}, sesuai dok kontrak.
+    public static function generateNomorKontrakKlien(): string
+    {
+        $now = now();
+        $romawi = ['','I','II','III','IV','V','VI','VII','VIII','IX','X','XI','XII'];
+        $count = self::whereNotNull('nomor_kontrak_klien')->count() + 1;
+        return str_pad($count, 3, '0', STR_PAD_LEFT) . '/MGM/KLIEN/' . $romawi[(int)$now->format('n')] . '/' . $now->format('Y');
     }
 }

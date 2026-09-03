@@ -905,6 +905,313 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Simpan field pelengkap kontrak (biaya transport, catatan revisi pasal) sebelum di-download,
+     * sesuai flow "Deal In" -> tim CC bisa input hasil revisi kesepakatan dgn cust/PJ sebelum unduh
+     * Kontrak MGM-Klien. Sekaligus generate nomor kontrak (sekali saja, dipertahankan setelahnya).
+     */
+    public function updateKontrakKlien(Request $request, $id)
+    {
+        $request->validate([
+            'biaya_transport'        => 'nullable|numeric',
+            'catatan_revisi_kontrak' => 'nullable|string',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+                return response()->json(['success' => false, 'message' => 'Kontrak hanya bisa dibuat untuk leads yang sudah Deal'], 422);
+            }
+
+            $lead->update([
+                'biaya_transport'        => $request->filled('biaya_transport') ? $request->biaya_transport : ($lead->biaya_transport ?? 0),
+                'catatan_revisi_kontrak' => $request->has('catatan_revisi_kontrak') ? $request->catatan_revisi_kontrak : $lead->catatan_revisi_kontrak,
+                'nomor_kontrak_klien'    => $lead->nomor_kontrak_klien ?: \App\Models\Lead::generateNomorKontrakKlien(),
+            ]);
+
+            return response()->json(['success' => true, 'data' => $lead->fresh()]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Generate & stream PDF Kontrak MGM-Klien (1.1 bulanan / 1.2 harian, auto pilih dari tier_nama)
+     * langsung dari data leads/deal -- sesuai "customer care flow sistem.pdf" step "Deal In".
+     */
+    public function downloadKontrakKlien($id)
+    {
+        $lead = \App\Models\Lead::with(['layanan', 'mitra'])->findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+            return response()->json(['success' => false, 'message' => 'Kontrak hanya bisa dibuat untuk leads yang sudah Deal'], 422);
+        }
+        if (!$lead->nomor_kontrak_klien) {
+            $lead->update(['nomor_kontrak_klien' => \App\Models\Lead::generateNomorKontrakKlien()]);
+        }
+
+        $isHarian = str_contains(strtolower($lead->tier_nama ?? ''), 'harian');
+        $html = $isHarian ? $this->buildKontrak12Html($lead) : $this->buildKontrak11Html($lead);
+
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_klien);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
+        $pdf->writeHTML($html, true, false, true, false, '');
+
+        $filename = 'Kontrak-' . str_replace('/', '-', $lead->nomor_kontrak_klien) . '.pdf';
+        return response($pdf->Output($filename, 'S'), 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    private function rupiah($n): string
+    {
+        return 'Rp ' . number_format((float)($n ?? 0), 0, ',', '.');
+    }
+
+    /**
+     * Kontrak 1.1 -- MGM-Klien (bulanan/regular). Teks pasal I-IX mengikuti dokumen
+     * "Kontrak 1.1 - MG-Klien (regular) fix acc yani.docx".
+     */
+    private function buildKontrak11Html($lead): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $namaMitra = $lead->mitra->nama_lengkap ?? '-';
+        $namaCust  = $lead->nama_leads ?? '-';
+        $total = (float)($lead->biaya_admin ?? 0) + (float)($lead->honor_mitra ?? 0) + (float)($lead->uang_cuti_mitra ?? 0) + (float)($lead->biaya_transport ?? 0);
+
+        $revisi = trim($lead->catatan_revisi_kontrak ?? '');
+        $revisiHtml = $revisi ? '<p><strong>Catatan / Revisi Kesepakatan Tambahan:</strong><br>' . nl2br(e($revisi)) . '</p>' : '';
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; text-align:justify; }
+            h1 { font-size:13pt; text-align:center; margin-bottom:0; }
+            h2 { font-size:11pt; text-align:center; margin-top:14px; }
+            table.dt td { padding:1px 4px; vertical-align:top; }
+        </style>
+        <h1>KONTRAK SURAT PERJANJIAN ANTARA</h1>
+        <h1>PT. MIKALA GLOBAL MEDIKA DENGAN PENGGUNA JASA</h1>
+        <p style="text-align:center;">No. ' . e($lead->nomor_kontrak_klien) . '</p>
+        <p>Pada hari ini tanggal ' . $now->day . ' bulan ' . $bulanIndo[(int)$now->format('n')] . ' Tahun ' . $now->year . ', yang bertanda tangan di bawah ini:</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama</td><td width="2%">:</td><td>Muji Mulyaningsih, ST</td></tr>
+            <tr><td>Jabatan</td><td>:</td><td>Direktur</td></tr>
+            <tr><td>NIK</td><td>:</td><td>001-MG-01</td></tr>
+            <tr><td>Nama Lembaga</td><td>:</td><td>PT. Mikala Global Medika</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>0821-1448-8878 / 0815-1338-2031 / 0812-9699-8827</td></tr>
+        </table>
+        <p>Dalam hal ini bertindak untuk dan atas nama PT. Mikala Global Medika yang selanjutnya disebut <strong>PIHAK PERTAMA</strong>.</p>
+        <p>Sedangkan pengguna jasa (klien) dengan data sebagai berikut:</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama Penanggung Jawab</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+            <tr><td>Kebutuhan</td><td>:</td><td>' . e($lead->layanan->nama ?? $lead->tier_nama ?? '-') . '</td></tr>
+            <tr><td>Nama Pasien</td><td>:</td><td>' . e($lead->nama_pasien) . '</td></tr>
+            <tr><td>Alamat Pasien</td><td>:</td><td>' . e($lead->alamat_klien) . '</td></tr>
+            <tr><td>Hubungan dengan Pasien</td><td>:</td><td>' . e($lead->hubungan_dengan_pasien) . '</td></tr>
+            <tr><td>Diagnosa Pasien</td><td>:</td><td>' . e($lead->deskripsi_diagnosa ?? $lead->diagnosis_awal) . '</td></tr>
+        </table>
+        <p>Disebut sebagai <strong>PIHAK KEDUA</strong> dalam surat perjanjian. PIHAK PERTAMA dan PIHAK KEDUA sepakat kemudian disebut sebagai para pihak.</p>
+        <p>Dengan ini PIHAK KEDUA menyatakan persetujuannya untuk menggunakan jasa pelayanan dari tenaga home care profesional PT. Mikala Global Medika, dalam hal ini ditugaskan <strong>' . e($namaMitra) . '</strong> berikut pengganti-penggantinya di masa yang akan datang berdasarkan Surat Tugas dari PT. Mikala Global Medika, dengan syarat dan ketentuan yang tercantum pada pasal-pasal surat perjanjian ini.</p>
+
+        <h2>PASAL I<br>DEFINISI DAN KETENTUAN UMUM</h2>
+        <ol>
+            <li>Tenaga home care profesional PT. Mikala Global Medika adalah individu yang telah mengikatkan diri melalui surat perjanjian kerja dan mendapatkan pelatihan sesuai bidang pekerjaan untuk memenuhi standar kompetensi, dan ditugaskan memberikan pelayanan kepada pengguna jasa yang membutuhkan bantuan untuk menunggu, menjaga, merawat pasien atau mengasuh anak.</li>
+            <li>PT Mikala Global Medika adalah perusahaan yang bergerak pada bidang usaha penyalur tenaga perawat home care yang beralamat di Jl. Anyelir No. 1-2, Jatibening, Pd. Gede, Kota Bekasi. PT. Mikala Global Medika yang merupakan wadah bagi perawat home care (PHC), care giver (CG), baby sitter (BS), governess, dan jasa home care lainnya, berfungsi dalam menjaga kualitas pekerjaan, meningkatkan keterampilan dengan memberikan training, pengarahan, koordinasi, dan pembagian tugas.</li>
+            <li>Biaya layanan jasa adalah biaya yang dibayarkan oleh PIHAK KEDUA kepada PIHAK PERTAMA atas pelayanan jasa untuk pembinaan, pergantian, dan penanggulangan permasalahan tenaga home care yang terjadi saat bekerja pada PIHAK KEDUA.</li>
+            <li>PIHAK PERTAMA berhak menerima biaya administrasi pertama sesuai dengan tarif yang berlaku setelah Perjanjian Kontrak ini ditandatangani.</li>
+            <li>PIHAK KEDUA mengetahui bahwa gaji tenaga home care profesional dititipkan kepada PIHAK PERTAMA. Dan akan di transfer kepada PIHAK PERTAMA bersama dengan biaya layanan jasa.</li>
+            <li>Jika PIHAK KEDUA tidak membayar gaji tenaga Home Care selama 1 (satu) bulan berturut-turut, maka PIHAK PERTAMA berhak menarik penugasan tenaga home care tanpa penggantian dan biaya jasa harus dibayar lunas.</li>
+            <li>PIHAK PERTAMA berhak menerima biaya antar awal atau biaya antar menukar tenaga home care untuk area Jabodetabek.</li>
+            <li>PIHAK KEDUA wajib melakukan deposit 1 (satu) bulan di awal sesuai dengan biaya jasa yang telah disepakati.</li>
+            <li>PIHAK PERTAMA akan melakukan negosiasi kepada PIHAK KEDUA atas biaya tenaga kerja jika mendampingi pengguna jasa ke luar negeri. Deposit di muka sebelum keberangkatan.</li>
+            <li>PIHAK PERTAMA tidak akan bertanggung-jawab atas segala hutang dari tenaga home care secara pribadi kepada PIHAK KEDUA.</li>
+            <li>Demi keamanan bersama, barang-barang berharga sebaiknya disimpan di tempat terkunci, demikian pula barang-barang bawaan tenaga home care yang bersangkutan sebelum meninggalkan tempat kerja wajib diperiksa untuk menghindari hal-hal yang tidak diinginkan. Kami tidak bertanggungjawab atas kehilangan materi apapun seperti barang berharga, uang dan sejenisnya.</li>
+            <li>Pihak pertama akan memberikan penggantian tenaga home care yang se level. Jika tidak ada maka akan diberikan tenaga home care yang ada dengan konsekuensi biaya jasa yang lebih mahal atau lebih murah (Perubahan Biaya Jasa).</li>
+            <li>Biaya administrasi tidak dapat dikembalikan (refund) jika terjadi pembatalan oleh PIHAK KEDUA karena dianggap keputusan sepihak.</li>
+            <li>PIHAK KEDUA telah membaca dan menyetujui ketentuan umum yang merupakan satu kesatuan yang melekat pada perjanjian ini.</li>
+            <li>Apabila terjadi tindakan asusila dan pelanggaran harkat / martabat terhadap tenaga home care maka perusahaan akan bertindak sebagai wakil tenaga home care untuk melakukan perbuatan hukum yang diperlukan.</li>
+            <li>Tenaga home care yang bertugas pada PIHAK KEDUA, sewaktu-waktu dapat berhenti bekerja dan PIHAK PERTAMA tidak menggantikan uang administrasi dan biaya layanan jasa apabila PIHAK KEDUA melakukan pelanggaran terhadap Pasal I ayat 15 di atas atau terhadap isi surat perjanjian ini secara keseluruhan.</li>
+            <li>Tenaga home care bertanggung jawab secara pribadi atas segala tindakannya baik di bidang perdata atau pidana antara lain tidak terbatas pada perbuatan yang melanggar kesusilaan, pelanggaran harkat / martabat baik terhadap pasien / anak ataupun PIHAK KEDUA serta pelanggaran atas ketentuan perundangan yang berlaku.</li>
+            <li>PIHAK KEDUA dapat sewaktu-waktu memberhentikan tenaga home care dalam terjadinya perbuatan / tindakan yang dimaksud dalam pasal I ayat 17 tersebut diatas.</li>
+            <li>Tenaga home care berhak mendapatkan libur 2x24 jam setiap 1 bulan bekerja, atau mendapat uang pengganti libur sesuai dengan kesepakatan atau sesuai dengan tarif yang berlaku, dan dibayarkan langsung oleh PIHAK KEDUA ke Tenaga home care.</li>
+            <li>Tenaga home care berhak mendapatkan cuti selama 14 (empat belas) hari atau mendapatkan setengah bulan gaji setelah 1 tahun bekerja di rumah PIHAK KEDUA.</li>
+            <li>Tenaga home care berhak mendapatkan kenaikan gaji berdasarkan hasil penilaian kinerja setelah 1 tahun bekerja di PIHAK KEDUA.</li>
+            <li>Tenaga home care berhak mendapatkan Tunjangan Hari Raya yang disesuaikan dengan lamanya bekerja di PIHAK KEDUA, dengan ketentuan PIHAK PERTAMA dalam kondisi bekerja pada PIHAK KEDUA.</li>
+            <li>Apabila ada pekerjaan di luar uraian tugas yang seharusnya, maka atas kesepakatan antara Tenaga home care dan PIHAK KEDUA, diberikan dana uang kompensasi. Kesepakatan dapat dalam bentuk uang tambahan sebagai kompensasi. Hal ini harus diketahui oleh PIHAK PERTAMA.</li>
+            <li>Apabila dalam masa kontrak kerja PIHAK KEDUA memberhentikan Tenaga home care secara sepihak tanpa alasan yang bisa dibenarkan secara hukum, maka: (a) PIHAK KEDUA wajib memberitahukan paling lambat 2 minggu sebelum tanggal pemberhentian; (b) PIHAK KEDUA wajib membayarkan sisa gaji Tenaga home care secara proporsional sesuai jumlah hari kerja.</li>
+            <li>Apabila PIHAK KEDUA memberhentikan Tenaga home care karena adanya pelanggaran kontrak kerja atau tindakan kriminal maka PIHAK KEDUA hanya membayarkan sisa gaji Tenaga home care.</li>
+        </ol>
+
+        <h2>PASAL II<br>TATA CARA PEMBAYARAN</h2>
+        <ol>
+            <li>PIHAK KEDUA setuju untuk melakukan pembayaran atas segala biaya-biaya yang timbul atas penggunaan jasa tenaga home care PT. Mikala Global Medika seperti yang tercantum pada Pasal I.</li>
+            <li>Segala biaya-biaya awal yang timbul atas Surat Perjanjian ini, dapat dilihat pada Pasal IX tentang Rincian Biaya Pengguna Jasa Tenaga Home Care.</li>
+            <li>Pembayaran Biaya Admin dan Biaya Jasa kepada PIHAK PERTAMA WAJIB ditransfer ke rekening bank: Bank Central Asia, Cabang Rawamangun, No. Rekening 6330713192, a.n. Muji Mulyaningsih.</li>
+            <li>PIHAK KEDUA dalam melakukan pembayaran WAJIB mencantumkan "Nama Anak / Pasien" atau "Nama Penanggung Jawab" atau menghubungi Bagian Keuangan PERUSAHAAN di nomor 0812-9699-8827.</li>
+            <li>Apabila PIHAK KEDUA tidak melakukan pembayaran sesuai dengan ketentuan Pasal II ayat 1, maka pembayaran tersebut dianggap TIDAK SAH sehingga PIHAK KEDUA tetap harus melakukan pembayaran sesuai dengan ketentuan.</li>
+            <li>PIHAK KEDUA memberitahukan kepada PIHAK PERTAMA, apabila tenaga home care yang ditugaskan berhenti bertugas dengan alasan apapun. Apabila PIHAK KEDUA TIDAK memberitahukan PIHAK PERTAMA mengenai hal tersebut, dan apabila PIHAK PERTAMA melakukan kelebihan pembayaran kepada tenaga home care yang bertugas pada PIHAK KEDUA, maka PIHAK KEDUA tetap akan dibebankan atas biaya-biaya tersebut.</li>
+        </ol>
+
+        <h2>PASAL III<br>HAK PIHAK PERTAMA</h2>
+        <ol>
+            <li>PIHAK PERTAMA berhak untuk melakukan kunjungan atau pemantauan tenaga kerja selama bekerja di tempat PIHAK KEDUA.</li>
+            <li>PIHAK PERTAMA berhak mendapatkan informasi pindah alamat, jika PIHAK KEDUA melakukan pindah alamat yang tidak sesuai lagi dengan alamat dalam perjanjian ini.</li>
+            <li>PIHAK PERTAMA berhak menolak keluhan atas kelalaian dalam tindakan keperawatan yang dilakukan oleh tenaga home care, karena hal itu menjadi tanggung jawab pribadi dari tenaga home care yang bersangkutan bukan dari PIHAK PERTAMA. PIHAK KEDUA dan tenaga home care sepakat untuk membebaskan PIHAK PERTAMA dari semua ancaman atau tuntutan hukum yang timbul.</li>
+            <li>PIHAK PERTAMA berhak menolak tanggung jawab atas segala tindakan pribadi tenaga home care, baik di bidang perdata dan/atau pidana, karena hal itu menjadi tanggung jawab pribadi tenaga home care.</li>
+            <li>PIHAK PERTAMA berhak meminta PIHAK KEDUA untuk memberikan cuti tambahan sementara, apabila tenaga home care mengalami kondisi kurang istirahat yang disebabkan oleh keadaan pasien / anak, dan PIHAK PERTAMA akan membantu mencarikan pengganti sementara (jika ada).</li>
+        </ol>
+
+        <h2>PASAL IV<br>KEWAJIBAN PIHAK PERTAMA</h2>
+        <ol>
+            <li>PIHAK PERTAMA berkewajiban menyediakan tenaga kerja home care yang sehat jasmani dan rohani, bertanggungjawab dan profesional kepada PIHAK KEDUA.</li>
+            <li>PIHAK PERTAMA berkewajiban untuk memberikan informasi yang sejelas-jelasnya kepada PIHAK KEDUA mengenai tenaga kerja yang diinginkan.</li>
+            <li>PIHAK PERTAMA berkewajiban mengganti tenaga kerja apabila tidak cocok atau kabur.</li>
+            <li>PIHAK PERTAMA berkewajiban melakukan pengawasan terhadap tugas dari tenaga home care sebagai bagian dari pelayanan.</li>
+            <li>PIHAK PERTAMA berkewajiban menyediakan tata tertib dan ketentuan yang harus ditaati oleh tenaga kerja sebagai berikut: (a) Tenaga home care tidak diperkenankan meninggalkan tugasnya tanpa seizin Pengguna Jasa; (b) Untuk bulan pertama penugasan tidak diperkenankan mengambil izin cuti kecuali seizin Pengguna Jasa; (c) Tidak diperbolehkan menerima tamu, memberikan nomor telepon serta alamat tanpa seizin Pengguna Jasa; (d) Diwajibkan untuk selalu berpakaian bersih, rapi dan sopan kecuali saat istirahat serta terus bersikap sopan; (e) Dilarang menyebarkan informasi apapun tentang Pengguna Jasa dan pasien, baik secara lisan maupun non lisan, dan wajib menjaga kerahasiaan segala informasi tentang pengguna jasa dan pasien.</li>
+        </ol>
+
+        <h2>PASAL V<br>HAK PIHAK KEDUA</h2>
+        <ol>
+            <li>PIHAK KEDUA berhak mendapatkan tenaga kerja home care yang sehat jasmani dan rohani, bertanggungjawab dan profesional.</li>
+            <li>PIHAK KEDUA berhak mendapatkan informasi yang sejelas-jelasnya dari PIHAK PERTAMA mengenai tenaga kerja yang diinginkan.</li>
+            <li>PIHAK KEDUA berhak mendapatkan pengganti tenaga kerja apabila tidak cocok atau kabur.</li>
+            <li>PIHAK KEDUA berhak mendapatkan pelayanan dan informasi sebaik mungkin dan sejelas-jelasnya dari PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berhak mendapatkan pengawasan dari PIHAK PERTAMA terhadap tugas dari tenaga home care sebagai bagian dari pelayanan.</li>
+        </ol>
+
+        <h2>PASAL VI<br>KEWAJIBAN PIHAK KEDUA</h2>
+        <ol>
+            <li>PIHAK KEDUA berkewajiban memberikan waktu kepada PIHAK PERTAMA untuk melakukan kunjungan atau pemantauan tenaga kerja selama bekerja di tempat PIHAK KEDUA.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan informasi pindah alamat, jika PIHAK KEDUA melakukan pindah alamat yang tidak sesuai lagi dengan alamat dalam perjanjian ini.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan pertolongan pertama ke klinik atau rumah sakit ketika tenaga kerja mengalami sakit.</li>
+            <li>PIHAK KEDUA berkewajiban memulangkan tenaga kerja apabila terdapat musibah yang sifatnya fatal seperti kecelakaan kerja atau meninggal dunia, dan segala bentuk pembiayaan menjadi tanggung jawab PIHAK KEDUA.</li>
+            <li>PIHAK KEDUA berkewajiban untuk tidak meminjamkan uang dan barang berharga kepada tenaga kerja; apabila hal tersebut terjadi bukan tanggung jawab PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban untuk tidak memaksa mengerjakan pekerjaan yang bukan tugas dan tanggungjawab tenaga kerja.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan hak tenaga kerja cuti selama 2 (dua) hari atau diganti dengan uang sebesar Rp500.000,- untuk Baby Sitter dan Care Giver, dan minimal Rp700.000,- untuk Perawat Home Care.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan izin kepada tenaga kerja yang bersifat penting/urgen seperti sakit keras dan meninggal dunia keluarganya, dan wajib memberitahukan kepada PIHAK PERTAMA.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan rasa keamanan dan keselamatan tenaga kerja selama bekerja.</li>
+            <li>PIHAK KEDUA memahami bahwa kelalaian dalam tindakan keperawatan yang dilakukan oleh tenaga home care menjadi tanggung jawab pribadi tenaga home care yang bersangkutan, bukan PIHAK PERTAMA. PIHAK KEDUA dan tenaga home care sepakat membebaskan PIHAK PERTAMA dari segala ancaman/tuntutan hukum yang timbul.</li>
+            <li>PIHAK KEDUA memahami bahwa segala tindakan pribadi tenaga home care, baik di bidang perdata dan/atau pidana, menjadi tanggung jawab pribadi tenaga home care.</li>
+            <li>PIHAK KEDUA berkewajiban memberikan tenaga home care cuti tambahan sementara apabila mengalami kondisi kurang istirahat akibat keadaan pasien/anak, dan PIHAK PERTAMA akan membantu mencarikan pengganti sementara.</li>
+            <li>PIHAK KEDUA wajib menitipkan biaya jasa atas Tunjangan Hari Raya (THR) dengan cara ditransfer ke rekening PIHAK PERTAMA, dengan ketentuan: bekerja 1 tahun = THR 1 bulan gaji; kurang dari 1 tahun = THR proporsional; pembayaran selambat-lambatnya 2 minggu sebelum hari raya keagamaan; PIHAK PERTAMA menyalurkan THR tersebut serentak pada hari raya Idul Fitri baik untuk pekerja muslim maupun non-muslim.</li>
+            <li>PIHAK KEDUA WAJIB memberitahukan kepada PIHAK PERTAMA apabila tenaga home care yang ditugaskan berhenti bertugas dengan alasan apapun. Apabila tidak, dan PIHAK PERTAMA melakukan kelebihan pembayaran kepada tenaga home care tersebut, maka PIHAK KEDUA tetap dibebankan atas biaya-biaya tersebut.</li>
+        </ol>
+
+        <h2>PASAL VII<br>PERSELISIHAN</h2>
+        <p>Apabila terjadi perselisihan antara PIHAK PERTAMA dan PIHAK KEDUA mengenai perjanjian ini, maka kedua belah pihak sepakat untuk menyelesaikan dengan cara musyawarah untuk mencapai mufakat.</p>
+
+        <h2>PASAL VIII<br>MASA KONTRAK</h2>
+        <ol>
+            <li>Masa kontrak akan berakhir apabila tugas dari tenaga home care telah selesai karena pasien meninggal/sembuh atau PIHAK KEDUA tidak melakukan pembayaran gaji tenaga home care lagi.</li>
+            <li>PIHAK KEDUA setuju untuk TIDAK MENGAMBIL ALIH TENAGA HOME CARE dan mempekerjakannya tanpa sepengetahuan PIHAK PERTAMA, termasuk mempekerjakan tenaga home care yang sudah berhenti dari PIHAK PERTAMA.</li>
+            <li>Apabila PIHAK KEDUA melakukan pelanggaran terhadap Pasal VIII ayat 2 di atas, maka PIHAK KEDUA setuju untuk membayar Rp50.000.000,- (lima puluh juta rupiah) sebagai ganti rugi materiil/immaterial kepada PIHAK PERTAMA.</li>
+        </ol>
+
+        <h2>PASAL IX<br>RINCIAN BIAYA PENGGUNAAN JASA</h2>
+        <p>Selama dalam masa kontrak kerja PIHAK PERTAMA berhak menerima biaya jasa setiap bulan yang dibayarkan, sesuai kesepakatan para pihak. Dengan perincian:</p>
+        <table class="dt" cellpadding="2" cellspacing="0">
+            <tr><td width="60%">Biaya Administrasi (sekali diawal)</td><td>' . $this->rupiah($lead->biaya_admin) . '</td></tr>
+            <tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
+            <tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td>' . $this->rupiah($lead->uang_cuti_mitra) . '</td></tr>
+            <tr><td>Biaya Transportasi Pengantaran (jika ada)</td><td>' . $this->rupiah($lead->biaya_transport) . '</td></tr>
+            <tr><td><strong>TOTAL BIAYA AWAL</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
+        </table>
+        ' . $revisiHtml . '
+        <p>Demikian Perjanjian Kontrak ini dibuat dalam keadaan sadar, sehat jasmani dan rohani serta tidak ada paksaan dari pihak manapun. Dan perjanjian ini dibuat dalam 2 (dua) rangkap dan ditandatangani oleh kedua belah pihak.</p>
+        <br>
+        <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td width="50%" style="text-align:center;">Pihak Pertama</td>
+                <td width="50%" style="text-align:center;">Pihak Kedua</td>
+            </tr>
+            <tr><td><br><br><br></td><td></td></tr>
+            <tr>
+                <td style="text-align:center;">( Muji Mulyaningsih )</td>
+                <td style="text-align:center;">( ' . e($namaCust) . ' )</td>
+            </tr>
+        </table>';
+    }
+
+    /**
+     * Kontrak 1.2 -- MGM-Klien (harian). Teks mengikuti dokumen
+     * "Kontrak 1.2 - MG-Klien (harian) fix acc yani.docx".
+     */
+    private function buildKontrak12Html($lead): string
+    {
+        $now = now();
+        $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $namaCust  = $lead->nama_leads ?? '-';
+        $total = (float)($lead->biaya_admin ?? 0) + (float)($lead->honor_mitra ?? 0) + (float)($lead->biaya_transport ?? 0);
+
+        $revisi = trim($lead->catatan_revisi_kontrak ?? '');
+        $revisiHtml = $revisi ? '<p><strong>Catatan / Revisi Kesepakatan Tambahan:</strong><br>' . nl2br(e($revisi)) . '</p>' : '';
+
+        return '
+        <style>
+            body,p,td,li { font-size:10pt; text-align:justify; }
+            h1 { font-size:13pt; text-align:center; margin-bottom:0; }
+            table.dt td { padding:1px 4px; vertical-align:top; }
+        </style>
+        <h1>KONTRAK PENGGUNAAN PERAWAT HOMECARE</h1>
+        <p style="text-align:center;">ANTARA PT. MIKALA GLOBAL MEDIKA DENGAN PENANGGUNG JAWAB PASIEN</p>
+        <p style="text-align:center;">No. ' . e($lead->nomor_kontrak_klien) . '</p>
+        <p>Pada hari ini tanggal ' . $now->day . ' bulan ' . $bulanIndo[(int)$now->format('n')] . ' Tahun ' . $now->year . ', yang bertanda tangan di bawah ini:</p>
+        <p>Muji Mulyaningsih, beralamat di Jl. Anyelir No. 1-2, Jatibening Permai, Jatibening, Pondok Gede, Jatiasih, Kota Bekasi, dalam hal ini bertindak untuk dan atas nama PT. Mikala Global Medika, dan untuk atas nama perawat-perawat yang bertugas di rumah pasien atau pengganti-penggantinya, yang selanjutnya disebut sebagai <strong>PIHAK PERTAMA</strong>.</p>
+        <table class="dt" cellpadding="0" cellspacing="0">
+            <tr><td width="35%">Nama Penanggung Jawab</td><td width="2%">:</td><td>' . e($namaCust) . '</td></tr>
+            <tr><td>No. KTP</td><td>:</td><td>' . e($lead->no_ktp_cust_pj ?: '-') . '</td></tr>
+            <tr><td>Alamat</td><td>:</td><td>' . e($lead->alamat_cust_pj) . ' ' . e($lead->no_rumah) . '</td></tr>
+            <tr><td>Telepon</td><td>:</td><td>' . e($lead->kontak) . '</td></tr>
+            <tr><td>Kebutuhan</td><td>:</td><td>' . e($lead->layanan->nama ?? $lead->tier_nama ?? '-') . '</td></tr>
+            <tr><td>Alamat Pasien</td><td>:</td><td>' . e($lead->alamat_klien) . '</td></tr>
+            <tr><td>Hubungan dengan Pasien</td><td>:</td><td>' . e($lead->hubungan_dengan_pasien) . '</td></tr>
+            <tr><td>Diagnosa Pasien / Anak</td><td>:</td><td>' . e($lead->deskripsi_diagnosa ?? $lead->diagnosis_awal) . '</td></tr>
+        </table>
+        <p>Jenis perawatan pasien highcare dengan tenaga perawat harian. Penanggung jawab dalam hal ini sebagai pengguna Paket Homecare Perawatan Pasien, selanjutnya dalam perjanjian ini disebut sebagai <strong>PIHAK KEDUA</strong>.</p>
+        <p>Dengan ini PIHAK KEDUA menyatakan setuju untuk menggunakan jasa Perawat Homecare dari PIHAK PERTAMA dengan ketentuan sebagai berikut:</p>
+        <ol>
+            <li>Membayar biaya Admin pengambilan perawat senilai ' . $this->rupiah($lead->biaya_admin) . ', berlaku selama pasien masih membutuhkan perawat, dengan jaminan garansi tukar perawat yang tidak terbatas.</li>
+            <li>Membayar Harga Perawat Homecare senilai ' . $this->rupiah($lead->honor_mitra) . ' /hari.</li>
+            <li>Pembayaran wajib ditransfer melalui rekening PT Mikala Global Medika a.n. Muji Mulyaningsih, No. Rekening BCA: 6330713192.</li>
+            <li>Pembayaran kedua dan selanjutnya dilakukan PIHAK KEDUA sehari sebelum tanggal jatuh tempo (pembayaran di depan sebelum perawatan homecare pasien berjalan).</li>
+            <li>PIHAK KEDUA berjanji tidak akan mengambil alih Tenaga Homecare dari PIHAK PERTAMA tanpa sepengetahuan PIHAK PERTAMA; bila terjadi maka akan dikenakan sanksi sebesar Rp50.000.000,-.</li>
+            <li>Segala tindakan yang melanggar hukum dari Tenaga Homecare menjadi tanggung jawab pribadi Tenaga Homecare. PIHAK KEDUA berkewajiban menjaga keamanan penyimpanan barang-barang berharga dengan baik.</li>
+        </ol>
+        <table class="dt" cellpadding="2" cellspacing="0">
+            <tr><td width="60%">Biaya Administrasi</td><td>' . $this->rupiah($lead->biaya_admin) . '</td></tr>
+            <tr><td>Harga Perawat Homecare / hari</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
+            <tr><td>Biaya Transportasi Pengantaran (jika ada)</td><td>' . $this->rupiah($lead->biaya_transport) . '</td></tr>
+            <tr><td><strong>TOTAL BIAYA AWAL</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
+        </table>
+        ' . $revisiHtml . '
+        <p>PIHAK KEDUA menyatakan setuju untuk menggunakan Perawat Homecare dari PIHAK PERTAMA dan memahami serta menyetujui syarat dan ketentuan layanan perawat homecare yang tercantum di atas. Demikian surat perjanjian ini dibuat atas dasar permohonan permintaan layanan jasa perawat homecare oleh PIHAK KEDUA kepada PIHAK PERTAMA dan dibuat dalam rangkap dua serta disetujui oleh para pihak tanpa unsur paksaan dari pihak manapun.</p>
+        <p>Bekasi, ' . $now->day . ' ' . $bulanIndo[(int)$now->format('n')] . ' ' . $now->year . '</p>
+        <br>
+        <table cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+                <td width="50%" style="text-align:center;">Pihak Pertama</td>
+                <td width="50%" style="text-align:center;">Pihak Kedua</td>
+            </tr>
+            <tr><td><br><br><br></td><td></td></tr>
+            <tr>
+                <td style="text-align:center;">Muji Mulyaningsih<br>PT Mikala Global Medika</td>
+                <td style="text-align:center;">' . e($namaCust) . '<br>Penanggungjawab Pasien</td>
+            </tr>
+        </table>';
+    }
+
+    /**
      * Tandai Leads sebagai Gantung (on-hold).
      */
     public function markLeadGantung(Request $request, $id)
