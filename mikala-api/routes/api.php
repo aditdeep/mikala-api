@@ -166,6 +166,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('leads/summary', [CustomerCareController::class, 'leadsSummary']);
             Route::get('leads', [CustomerCareController::class, 'indexLeads']);
             Route::post('leads', [CustomerCareController::class, 'storeLead']);
+            Route::patch('leads/{id}', [CustomerCareController::class, 'updateLead']);
             Route::patch('leads/{id}/deal', [CustomerCareController::class, 'markLeadDeal']);
             Route::patch('leads/{id}/batal', [CustomerCareController::class, 'markLeadBatal']);
             Route::patch('leads/{id}/gantung', [CustomerCareController::class, 'markLeadGantung']);

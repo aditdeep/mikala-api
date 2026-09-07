@@ -851,6 +851,93 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Edit detail Leads saat masih berstatus Proses/Gantung (sebelum Deal/Batal), dari popup
+     * Detail Leads. Field sama seperti storeLead, tapi semua opsional (partial update).
+     */
+    public function updateLead(Request $request, $id)
+    {
+        $lead = \App\Models\Lead::findOrFail($id);
+        if (!in_array($lead->status, [\App\Models\Lead::STATUS_PROSES, \App\Models\Lead::STATUS_GANTUNG])) {
+            return response()->json(['success' => false, 'message' => 'Detail leads hanya bisa diedit selama status Proses atau Gantung'], 422);
+        }
+
+        $request->validate([
+            'cms_layanan_id'  => 'nullable|exists:cms_layanan,id',
+            'tier_nama'       => 'nullable|string|max:100',
+            'klien_id'        => 'nullable|exists:klien,id',
+            'nama_leads'      => 'nullable|string|max:255',
+            'kontak'          => 'nullable|string|max:50',
+            'no_rumah'            => 'nullable|string|max:50',
+            'alamat_cust_pj'      => 'nullable|string',
+            'no_ktp_cust_pj'      => 'nullable|string|max:30',
+            'hubungan_dengan_pasien' => 'nullable|string|max:100',
+            'email_cust_pj'       => 'nullable|email|max:255',
+            'nama_pasien'         => 'nullable|string|max:255',
+            'alamat_klien'        => 'nullable|string',
+            'alamat_klien_2'      => 'nullable|string',
+            'tanggal_lahir_klien' => 'nullable|date',
+            'no_wa_klien'         => 'nullable|string|max:50',
+            'tinggi_badan'        => 'nullable|string|max:20',
+            'berat_badan'         => 'nullable|string|max:20',
+            'jenis_kelamin_klien' => 'nullable|in:L,P',
+            'diagnosis_awal'      => 'nullable|string',
+            'deskripsi_diagnosa'  => 'nullable|string',
+            'alat_pendukung'      => 'nullable|string',
+            'alat_medis'          => 'nullable|array',
+            'alat_medis.*'        => 'nullable|string|max:255',
+            'referensi_tipe'      => 'nullable|string|max:50',
+            'referensi_sub'       => 'nullable|string|max:50',
+            'referensi_klien_id'  => 'nullable|exists:klien,id',
+            'referensi_mitra_id'  => 'nullable|exists:mitra,id',
+            'nama_referensi'      => 'nullable|string|max:255',
+            'kontak_referensi'    => 'nullable|string|max:50',
+            'catatan'             => 'nullable|string',
+        ]);
+
+        try {
+            $lead->update([
+                'cms_layanan_id'  => $request->has('cms_layanan_id') ? $request->cms_layanan_id : $lead->cms_layanan_id,
+                'tier_nama'       => $request->has('tier_nama') ? $request->tier_nama : $lead->tier_nama,
+                'klien_id'        => $request->has('klien_id') ? $request->klien_id : $lead->klien_id,
+                'nama_leads'      => $request->filled('nama_leads') ? $request->nama_leads : $lead->nama_leads,
+                'kontak'          => $request->filled('kontak') ? $request->kontak : $lead->kontak,
+                'no_rumah'        => $request->has('no_rumah') ? $request->no_rumah : $lead->no_rumah,
+                'alamat_cust_pj'  => $request->has('alamat_cust_pj') ? $request->alamat_cust_pj : $lead->alamat_cust_pj,
+                'no_ktp_cust_pj'  => $request->has('no_ktp_cust_pj') ? $request->no_ktp_cust_pj : $lead->no_ktp_cust_pj,
+                'hubungan_dengan_pasien' => $request->has('hubungan_dengan_pasien') ? $request->hubungan_dengan_pasien : $lead->hubungan_dengan_pasien,
+                'email_cust_pj'   => $request->has('email_cust_pj') ? $request->email_cust_pj : $lead->email_cust_pj,
+                'nama_pasien'     => $request->has('nama_pasien') ? $request->nama_pasien : $lead->nama_pasien,
+                'alamat_klien'    => $request->has('alamat_klien') ? $request->alamat_klien : $lead->alamat_klien,
+                'alamat_klien_2'  => $request->has('alamat_klien_2') ? $request->alamat_klien_2 : $lead->alamat_klien_2,
+                'tanggal_lahir_klien' => $request->has('tanggal_lahir_klien') ? $request->tanggal_lahir_klien : $lead->tanggal_lahir_klien,
+                'no_wa_klien'     => $request->has('no_wa_klien') ? $request->no_wa_klien : $lead->no_wa_klien,
+                'tinggi_badan'    => $request->has('tinggi_badan') ? $request->tinggi_badan : $lead->tinggi_badan,
+                'berat_badan'     => $request->has('berat_badan') ? $request->berat_badan : $lead->berat_badan,
+                'jenis_kelamin_klien' => $request->has('jenis_kelamin_klien') ? $request->jenis_kelamin_klien : $lead->jenis_kelamin_klien,
+                'diagnosis_awal'  => $request->has('diagnosis_awal') ? $request->diagnosis_awal : $lead->diagnosis_awal,
+                'deskripsi_diagnosa' => $request->has('deskripsi_diagnosa') ? $request->deskripsi_diagnosa : $lead->deskripsi_diagnosa,
+                'alat_pendukung'  => $request->has('alat_pendukung') ? $request->alat_pendukung : $lead->alat_pendukung,
+                'alat_medis'      => $request->has('alat_medis') ? json_encode(array_values(array_filter($request->alat_medis))) : $lead->alat_medis,
+                'referensi_tipe'  => $request->has('referensi_tipe') ? $request->referensi_tipe : $lead->referensi_tipe,
+                'referensi_sub'   => $request->has('referensi_sub') ? $request->referensi_sub : $lead->referensi_sub,
+                'referensi_klien_id' => $request->has('referensi_klien_id') ? $request->referensi_klien_id : $lead->referensi_klien_id,
+                'referensi_mitra_id' => $request->has('referensi_mitra_id') ? $request->referensi_mitra_id : $lead->referensi_mitra_id,
+                'nama_referensi'  => $request->has('nama_referensi') ? $request->nama_referensi : $lead->nama_referensi,
+                'kontak_referensi' => $request->has('kontak_referensi') ? $request->kontak_referensi : $lead->kontak_referensi,
+                'catatan'         => $request->has('catatan') ? $request->catatan : $lead->catatan,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Detail Leads berhasil diperbarui',
+                'data'    => $lead->fresh(['layanan', 'klien.user', 'referensiKlien.user', 'referensiMitra.user']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Tandai Leads sebagai Deal: generate NIK, opsional assign mitra + field klinis/negosiasi jasa.
      */
     public function markLeadDeal(Request $request, $id)
