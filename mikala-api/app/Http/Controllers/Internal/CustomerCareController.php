@@ -961,6 +961,8 @@ class CustomerCareController extends Controller
             'jasa_diminta'     => 'nullable|string|max:255',
             'jasa_disarankan'  => 'nullable|string|max:255',
             'jasa_disetujui'   => 'nullable|string|max:255',
+            'cms_layanan_id'   => 'nullable|exists:cms_layanan,id',
+            'tier_nama'        => 'nullable|string|max:100',
             'pembantu'         => 'nullable|string|max:255',
             'cara_mencuci_baju' => 'nullable|string|max:255',
         ]);
@@ -973,6 +975,12 @@ class CustomerCareController extends Controller
                 'nomor_deal' => $lead->nomor_deal ?: \App\Models\Lead::generateNomorDeal(),
                 'mitra_id'  => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
                 'mitra_nim' => $request->filled('mitra_nim') ? $request->mitra_nim : $lead->mitra_nim,
+                // Jasa Disetujui (Jenis Layanan + Tier) -- disinkronkan ke cms_layanan_id/tier_nama
+                // supaya konsisten dgn field yg dipakai tabel ringkasan Layanan (hitungan Deal per
+                // layanan/tier). Sebelumnya field ini terpisah sehingga leads yg baru "match" saat
+                // Deal tidak ikut terhitung di tabel Layanan.
+                'cms_layanan_id' => $request->filled('cms_layanan_id') ? $request->cms_layanan_id : $lead->cms_layanan_id,
+                'tier_nama' => $request->has('tier_nama') ? ($request->tier_nama ?: null) : $lead->tier_nama,
                 'biaya_admin' => $request->filled('biaya_admin') ? $request->biaya_admin : $lead->biaya_admin,
                 'honor_mitra' => $request->filled('honor_mitra') ? $request->honor_mitra : $lead->honor_mitra,
                 'management_fee' => $request->filled('management_fee') ? $request->management_fee : $lead->management_fee,
