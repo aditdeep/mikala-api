@@ -14,7 +14,7 @@ return new class extends Migration {
             $table->id();
             $table->string('nomor')->nullable()->unique(); // kode NIK: V1.01.03.25-001
             $table->unsignedBigInteger('cms_layanan_id')->nullable();
-            $table->string('tier_nama')->nullable(); // Junior / Medium / Senior / Terapi A dst
+            $table->string('tier_nama')->nullable(); // Harian / Bulanan (atau Terapi A dst, sesuai tier_data layanan)
             $table->unsignedBigInteger('klien_id')->nullable(); // Cust/PJ (penanggung jawab) - tabel klien existing
             $table->string('nama_leads')->nullable(); // nama kontak leads (bila belum jadi klien terdaftar)
             $table->string('kontak')->nullable(); // no telp/WA

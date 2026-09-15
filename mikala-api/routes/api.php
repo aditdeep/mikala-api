@@ -170,6 +170,9 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::patch('leads/{id}/deal', [CustomerCareController::class, 'markLeadDeal']);
             Route::patch('leads/{id}/batal', [CustomerCareController::class, 'markLeadBatal']);
             Route::patch('leads/{id}/gantung', [CustomerCareController::class, 'markLeadGantung']);
+            Route::patch('leads/{id}/stop', [CustomerCareController::class, 'markLeadStop']);
+            Route::patch('leads/{id}/lanjutkan', [CustomerCareController::class, 'markLeadLanjutkan']);
+            Route::post('leads/{id}/duplicate', [CustomerCareController::class, 'duplicateLeadForNewOrder']);
             Route::patch('leads/{id}/kontrak', [CustomerCareController::class, 'updateKontrakKlien']);
             Route::get('leads/{id}/kontrak/download', [CustomerCareController::class, 'downloadKontrakKlien']);
             Route::get('leads/{id}/kontrak2/download', [CustomerCareController::class, 'downloadKontrakMitra']);
@@ -521,6 +524,7 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,marketing'])->prefi
     Route::delete('/artikel/{id}',  [InternalMgaController::class, 'artikelDestroy']);
     Route::get('/galeri',           [InternalMgaController::class, 'galeriIndex']);
     Route::post('/galeri',          [InternalMgaController::class, 'galeriStore']);
+    Route::put('/galeri/{id}',      [InternalMgaController::class, 'galeriUpdate']);
     Route::delete('/galeri/{id}',   [InternalMgaController::class, 'galeriDestroy']);
     Route::get('/program',          [InternalMgaController::class, 'programIndex']);
     Route::post('/program',         [InternalMgaController::class, 'programStore']);
@@ -528,6 +532,7 @@ Route::middleware(['auth:sanctum','internal','role:manajemen,marketing'])->prefi
     Route::delete('/program/{id}',  [InternalMgaController::class, 'programDestroy']);
     Route::get('/testimoni',        [InternalMgaController::class, 'testimoniIndex']);
     Route::post('/testimoni',       [InternalMgaController::class, 'testimoniStore']);
+    Route::put('/testimoni/{id}',   [InternalMgaController::class, 'testimoniUpdate']);
     Route::delete('/testimoni/{id}',[InternalMgaController::class, 'testimoniDestroy']);
 });
 

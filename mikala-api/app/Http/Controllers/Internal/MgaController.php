@@ -81,6 +81,13 @@ class MgaController extends Controller
         ]);
         return response()->json(['success'=>true,'data'=>DB::table('mga_galeri')->find($id)],201);
     }
+    public function galeriUpdate(Request $request, $id) {
+        DB::table('mga_galeri')->where('id',$id)->update(array_merge(
+            $request->only(['url','caption','kategori','urutan']),
+            ['updated_at'=>now()]
+        ));
+        return response()->json(['success'=>true,'data'=>DB::table('mga_galeri')->find($id)]);
+    }
     public function galeriDestroy($id) {
         DB::table('mga_galeri')->where('id',$id)->delete();
         return response()->json(['success'=>true]);
@@ -116,6 +123,13 @@ class MgaController extends Controller
             ['status'=>'aktif','created_at'=>now(),'updated_at'=>now()]
         ));
         return response()->json(['success'=>true,'data'=>DB::table('mga_testimoni')->find($id)],201);
+    }
+    public function testimoniUpdate(Request $request, $id) {
+        DB::table('mga_testimoni')->where('id',$id)->update(array_merge(
+            $request->only(['nama','asal','jabatan','teks','foto','rating','status']),
+            ['updated_at'=>now()]
+        ));
+        return response()->json(['success'=>true,'data'=>DB::table('mga_testimoni')->find($id)]);
     }
     public function testimoniDestroy($id) {
         DB::table('mga_testimoni')->where('id',$id)->delete();

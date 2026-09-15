@@ -752,7 +752,12 @@ class CustomerCareController extends Controller
                 ->orderBy('created_at', 'desc');
 
             if ($request->filled('status')) {
-                $query->where('status', $request->status);
+                $statuses = array_filter(explode(',', (string) $request->status), fn($s) => $s !== '');
+                if (count($statuses) > 1) {
+                    $query->whereIn('status', $statuses);
+                } else {
+                    $query->where('status', $request->status);
+                }
             }
 
             return response()->json(['success' => true, 'data' => $query->get()]);
@@ -964,6 +969,7 @@ class CustomerCareController extends Controller
             $lead->update([
                 'status'    => \App\Models\Lead::STATUS_DEAL,
                 'nik'       => $lead->nik ?: \App\Models\Lead::generateNik(),
+                'nomor_deal' => $lead->nomor_deal ?: \App\Models\Lead::generateNomorDeal(),
                 'mitra_id'  => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
                 'mitra_nim' => $request->filled('mitra_nim') ? $request->mitra_nim : $lead->mitra_nim,
                 'biaya_admin' => $request->filled('biaya_admin') ? $request->biaya_admin : $lead->biaya_admin,
@@ -1063,6 +1069,17 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Nominal Uang Pengganti Cuti efektif untuk Kontrak 1.1 (bulanan) & Invoice Biaya Admin.
+     * Default: Rp250.000/hari x 2 hari cuti/bulan = Rp500.000, dipakai kalau field
+     * uang_cuti_mitra pada lead belum/salah diisi (kosong atau 0).
+     */
+    private function uangCutiEfektif($lead): float
+    {
+        $val = (float)($lead->uang_cuti_mitra ?? 0);
+        return $val > 0 ? $val : 500000;
+    }
+
+    /**
      * Kontrak 1.1 -- MGM-Klien (bulanan/regular). Teks pasal I-IX mengikuti dokumen
      * "Kontrak 1.1 - MG-Klien (regular) fix acc yani.docx".
      */
@@ -1072,7 +1089,8 @@ class CustomerCareController extends Controller
         $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
         $namaMitra = $lead->mitra->nama_lengkap ?? '-';
         $namaCust  = $lead->nama_leads ?? '-';
-        $total = (float)($lead->biaya_admin ?? 0) + (float)($lead->honor_mitra ?? 0) + (float)($lead->uang_cuti_mitra ?? 0) + (float)($lead->biaya_transport ?? 0);
+        $uangCuti = $this->uangCutiEfektif($lead);
+        $total = (float)($lead->biaya_admin ?? 0) + (float)($lead->honor_mitra ?? 0) + $uangCuti + (float)($lead->biaya_transport ?? 0);
 
         $revisi = trim($lead->catatan_revisi_kontrak ?? '');
         $revisiHtml = $revisi ? '<p><strong>Catatan / Revisi Kesepakatan Tambahan:</strong><br>' . nl2br(e($revisi)) . '</p>' : '';
@@ -1210,7 +1228,7 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="2" cellspacing="0">
             <tr><td width="60%">Biaya Administrasi (sekali diawal)</td><td>' . $this->rupiah($lead->biaya_admin) . '</td></tr>
             <tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
-            <tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td>' . $this->rupiah($lead->uang_cuti_mitra) . '</td></tr>
+            <tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td>' . $this->rupiah($uangCuti) . '</td></tr>
             <tr><td>Biaya Transportasi Pengantaran (jika ada)</td><td>' . $this->rupiah($lead->biaya_transport) . '</td></tr>
             <tr><td><strong>TOTAL BIAYA AWAL</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
         </table>
@@ -1744,6 +1762,121 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * STOP: tandai leads yang sudah Deal sebagai selesai kontrak (sudah tidak memakai jasa
+     * lagi). Nomor & data leads TIDAK berubah -- hanya status jadi Stop, supaya bisa
+     * dilanjutkan kembali (Lanjutkan) kapan saja dengan data yang sama.
+     */
+    public function markLeadStop(Request $request, $id)
+    {
+        $lead = \App\Models\Lead::findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_DEAL) {
+            return response()->json(['success' => false, 'message' => 'Hanya leads berstatus Deal yang bisa di-STOP'], 422);
+        }
+
+        try {
+            $lead->update([
+                'status'  => \App\Models\Lead::STATUS_STOP,
+                'stop_at' => now(),
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads ditandai STOP (selesai kontrak)',
+                'data'    => $lead->fresh(['layanan', 'mitra.user']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Lanjutkan: leads yang sebelumnya di-STOP kembali dibuka sebagai order layanan baru,
+     * TAPI tetap memakai nomor order & seluruh data yang sama (kembali ke status Proses,
+     * lewat Form Proses / Edit Detail Leads). Nanti saat ditandai Deal lagi, statusnya
+     * kembali jadi Deal seperti order baru.
+     */
+    public function markLeadLanjutkan(Request $request, $id)
+    {
+        $lead = \App\Models\Lead::findOrFail($id);
+        if ($lead->status !== \App\Models\Lead::STATUS_STOP) {
+            return response()->json(['success' => false, 'message' => 'Hanya leads berstatus STOP yang bisa dilanjutkan'], 422);
+        }
+
+        try {
+            $lead->update([
+                'status'  => \App\Models\Lead::STATUS_PROSES,
+                'stop_at' => null,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Leads dilanjutkan, kembali berstatus Proses',
+                'data'    => $lead->fresh(['layanan', 'klien.user', 'mitra.user']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * TAMBAH (dari modal Log Exchange): duplikat leads jadi order BARU dengan Nomor Order
+     * baru, tapi data Cust/PJ & Pasien/Klien di-copy dari leads asal (pasien/klien sama),
+     * supaya biaya admin & invoice berikutnya dihitung berdasarkan nomor order yang baru.
+     * Status order baru langsung Proses (lewat Form Proses / Edit Detail Leads).
+     */
+    public function duplicateLeadForNewOrder(Request $request, $id)
+    {
+        $source = \App\Models\Lead::findOrFail($id);
+
+        try {
+            $new = \App\Models\Lead::create([
+                'nomor'                  => \App\Models\Lead::generateNomor(),
+                'lead_asal_id'           => $source->id,
+                'cms_layanan_id'         => $source->cms_layanan_id,
+                'tier_nama'              => $source->tier_nama,
+                'klien_id'               => $source->klien_id,
+                'nama_leads'             => $source->nama_leads,
+                'kontak'                 => $source->kontak,
+                'no_rumah'               => $source->no_rumah,
+                'alamat_cust_pj'         => $source->alamat_cust_pj,
+                'no_ktp_cust_pj'         => $source->no_ktp_cust_pj,
+                'hubungan_dengan_pasien' => $source->hubungan_dengan_pasien,
+                'email_cust_pj'          => $source->email_cust_pj,
+                'nama_pasien'            => $source->nama_pasien,
+                'alamat_klien'           => $source->alamat_klien,
+                'alamat_klien_2'         => $source->alamat_klien_2,
+                'tanggal_lahir_klien'    => $source->tanggal_lahir_klien,
+                'no_wa_klien'            => $source->no_wa_klien,
+                'tinggi_badan'           => $source->tinggi_badan,
+                'berat_badan'            => $source->berat_badan,
+                'jenis_kelamin_klien'    => $source->jenis_kelamin_klien,
+                'diagnosis_awal'         => $source->diagnosis_awal,
+                'deskripsi_diagnosa'     => $source->deskripsi_diagnosa,
+                'alat_pendukung'         => $source->alat_pendukung,
+                'alat_medis'             => $source->alat_medis,
+                'sumber'                 => $source->sumber,
+                'referensi_tipe'         => $source->referensi_tipe,
+                'referensi_sub'          => $source->referensi_sub,
+                'referensi_klien_id'     => $source->referensi_klien_id,
+                'referensi_mitra_id'     => $source->referensi_mitra_id,
+                'nama_referensi'         => $source->nama_referensi,
+                'kontak_referensi'       => $source->kontak_referensi,
+                'catatan'                => 'Order lanjutan dari ' . $source->nomor,
+                'status'                 => \App\Models\Lead::STATUS_PROSES,
+                'created_by'             => $request->user()?->id,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Order baru berhasil dibuat (No. ' . $new->nomor . '), data pasien/klien sama dengan ' . $source->nomor,
+                'data'    => $new->fresh(['layanan', 'klien.user']),
+            ], 201);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * List semua histori Exchange (tukar mitra) lintas leads.
      */
     public function indexLeadsExchange(Request $request)
@@ -2012,6 +2145,19 @@ class CustomerCareController extends Controller
         $bulanIndo = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
         $namaCust = $lead->nama_leads ?? '-';
 
+        $biayaAdmin = (float)($lead->biaya_admin ?? 0);
+        $honorMitra = (float)($lead->honor_mitra ?? 0);
+        $uangCuti   = $this->uangCutiEfektif($lead);
+        $biayaTransport = (float)($lead->biaya_transport ?? 0);
+        $totalTagihan = $biayaAdmin + $honorMitra + $uangCuti + $biayaTransport;
+
+        $itemRows = '<tr><td>Biaya Administrasi (sekali diawal)</td><td style="text-align:right;">' . $this->rupiah($biayaAdmin) . '</td></tr>'
+            . '<tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td style="text-align:right;">' . $this->rupiah($honorMitra) . '</td></tr>'
+            . '<tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td style="text-align:right;">' . $this->rupiah($uangCuti) . '</td></tr>';
+        if ($biayaTransport > 0) {
+            $itemRows .= '<tr><td>Biaya Transportasi Pengantaran</td><td style="text-align:right;">' . $this->rupiah($biayaTransport) . '</td></tr>';
+        }
+
         return '
         <style>
             body,p,td,li { font-size:10pt; }
@@ -2042,8 +2188,8 @@ class CustomerCareController extends Controller
         <br>
         <table class="items" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
             <tr><th>Keterangan</th><th style="text-align:right;">Jumlah</th></tr>
-            <tr><td>Biaya Administrasi (sekali diawal)</td><td style="text-align:right;">' . $this->rupiah($lead->biaya_admin) . '</td></tr>
-            <tr><td><strong>TOTAL TAGIHAN</strong></td><td style="text-align:right;"><strong>' . $this->rupiah($lead->biaya_admin) . '</strong></td></tr>
+            ' . $itemRows . '
+            <tr><td><strong>TOTAL TAGIHAN</strong></td><td style="text-align:right;"><strong>' . $this->rupiah($totalTagihan) . '</strong></td></tr>
         </table>
         <br>
         <p><strong>Pembayaran wajib ditransfer ke rekening:</strong></p>
