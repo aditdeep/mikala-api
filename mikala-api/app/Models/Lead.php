@@ -69,6 +69,7 @@ class Lead extends Model
         'mitra_nim',
         'biaya_admin',
         'honor_mitra',
+        'management_fee',
         'uang_cuti_mitra',
         'biaya_transport',
         'status',
@@ -100,6 +101,7 @@ class Lead extends Model
         'invoice_admin_ditagih_at' => 'datetime',
         'biaya_admin' => 'decimal:2',
         'honor_mitra' => 'decimal:2',
+        'management_fee' => 'decimal:2',
         'uang_cuti_mitra' => 'decimal:2',
         'biaya_transport' => 'decimal:2',
     ];
