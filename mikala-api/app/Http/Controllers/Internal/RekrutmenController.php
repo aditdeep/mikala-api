@@ -199,6 +199,62 @@ class RekrutmenController extends Controller
         return response()->json(['success'=>true,'message'=>'Mitra ditolak','data'=>$mitra]);
     }
 
+    /**
+     * Import bulk dari Excel yang sudah "dirapikan" admin di luar sistem (tombol Export/Import
+     * di tabel Data Mitra). Frontend yang parse file .xlsx (lib SheetJS) dan kirim array of
+     * plain object per baris, key-nya sudah field name asli (bukan header label excel). Match
+     * mitra by NIM (nomor_induk) -- WAJIB ada & harus persis sama dgn yang di sistem, karena ini
+     * "cocokkan lalu timpa" (beda dari command migrasi:mitra-update yg cuma isi field kosong):
+     * kalau admin ngedit sel di Excel, nilai itu yg dipakai, kolom kosong di Excel TIDAK menimpa
+     * (dianggap "gak diubah"), biar gak ada yang keapus gara-gara kehapus gak sengaja pas edit.
+     */
+    public function importXlsx(Request $request)
+    {
+        $rows = $request->input('rows', []);
+        if (!is_array($rows) || count($rows) === 0) {
+            return response()->json(['success'=>false,'message'=>'Data rows kosong/tidak valid'], 422);
+        }
+
+        $fieldsMitra = [
+            'nama_lengkap','nik','jenis_kelamin','tempat_lahir','tanggal_lahir','tipe_pekerjaan',
+            'kota','provinsi','pendidikan_terakhir','suku','tinggi_badan','berat_badan','agama',
+            'status_nikah','status','status_rekrutmen',
+        ];
+
+        $updated = 0; $notFound = []; $errors = [];
+        foreach ($rows as $i => $row) {
+            $nim = trim((string) ($row['nomor_induk'] ?? ''));
+            if ($nim === '') { continue; } // baris kosong/tanpa NIM, lewati diam2
+            $mitra = Mitra::where('nomor_induk', $nim)->first();
+            if (!$mitra) { $notFound[] = $nim; continue; }
+
+            try {
+                $update = [];
+                foreach ($fieldsMitra as $f) {
+                    if (array_key_exists($f, $row) && trim((string) $row[$f]) !== '') {
+                        $update[$f] = trim((string) $row[$f]);
+                    }
+                }
+                if ($update) $mitra->update($update);
+
+                $noHp = trim((string) ($row['no_hp'] ?? ''));
+                if ($noHp !== '' && $mitra->user) {
+                    $mitra->user->update(['phone' => $noHp]);
+                }
+                $updated++;
+            } catch (\Throwable $e) {
+                $errors[] = "NIM $nim: " . substr($e->getMessage(), 0, 150);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'updated' => $updated,
+            'not_found' => $notFound,
+            'errors' => $errors,
+        ]);
+    }
+
     public function buatJadwalInterview(Request $request, $mitraId)
     {
         $request->validate(['jadwal_at'=>'required|date','tipe'=>'required|in:offline,online']);
