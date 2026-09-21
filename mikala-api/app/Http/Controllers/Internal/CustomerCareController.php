@@ -721,7 +721,14 @@ class CustomerCareController extends Controller
                     $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, null);
                 } else {
                     foreach ($tiers as $tier) {
-                        $tierNama = $tier['nama'] ?? null;
+                        // Format tier_nama harus sama persis dengan yang disimpan di leads, lihat
+                        // frontend getTiersFor(): "{nama} - {frekuensi}" kalau ada frekuensi, atau
+                        // "{nama}" saja kalau tidak. Sebelumnya di sini cuma pakai $tier['nama']
+                        // polos, jadi baris tabel gak pernah match leads yg tier_nama-nya sudah
+                        // digabung dengan frekuensi Harian/Bulanan, makanya kolom Deal selalu 0.
+                        $tierNamaOnly = $tier['nama'] ?? null;
+                        $tierFrekuensi = $tier['frekuensi'] ?? null;
+                        $tierNama = $tierFrekuensi ? ($tierNamaOnly . ' - ' . $tierFrekuensi) : $tierNamaOnly;
                         $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, $tierNama);
                     }
                 }
