@@ -1493,6 +1493,7 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="0" cellspacing="0">
             <tr><td width="35%">Nama</td><td width="2%">:</td><td>' . e($namaMitra) . '</td></tr>
             <tr><td>NIK</td><td>:</td><td>' . e($mitra->nik ?: '-') . '</td></tr>
+            <tr><td>NIM (ID Mitra)</td><td>:</td><td>' . e($mitra->nomor_induk ?: ($lead->mitra_nim ?: '-')) . '</td></tr>
             <tr><td>Tempat Tanggal Lahir</td><td>:</td><td>' . e($ttl) . '</td></tr>
             <tr><td>Alamat Sesuai KTP</td><td>:</td><td>' . e($mitra->alamat ?: '-') . '</td></tr>
             <tr><td>No. Telp</td><td>:</td><td>' . e($mitra->user->phone ?? '-') . '</td></tr>
@@ -1646,7 +1647,7 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="0" cellspacing="0">
             <tr><td width="35%">Nama</td><td width="2%">:</td><td>' . e($namaMitra) . '</td></tr>
             <tr><td>NIK (ID Penduduk)</td><td>:</td><td>' . e($mitra->nik ?: '-') . '</td></tr>
-            <tr><td>NIM (ID Mitra)</td><td>:</td><td>' . e($lead->mitra_nim ?: '-') . '</td></tr>
+            <tr><td>NIM (ID Mitra)</td><td>:</td><td>' . e($mitra->nomor_induk ?: ($lead->mitra_nim ?: '-')) . '</td></tr>
             <tr><td>Tempat Tanggal Lahir</td><td>:</td><td>' . e(trim(($mitra->tempat_lahir ?: '-') . ', ' . ($mitra->tanggal_lahir ? \Carbon\Carbon::parse($mitra->tanggal_lahir)->translatedFormat('d F Y') : '-'))) . '</td></tr>
             <tr><td>Alamat Sesuai KTP</td><td>:</td><td>' . e($mitra->alamat ?: '-') . '</td></tr>
             <tr><td>No. Telp</td><td>:</td><td>' . e($mitra->user->phone ?? '-') . '</td></tr>
