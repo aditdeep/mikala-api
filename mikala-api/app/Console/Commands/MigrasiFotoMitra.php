@@ -61,7 +61,9 @@ class MigrasiFotoMitra extends Command
             if (!$row) continue;
 
             $foto = trim((string) ($row['foto'] ?? ''));
-            if ($foto === '' || $foto === '-') { $skippedNoFoto++; continue; }
+            // Beberapa baris di CSV kolom foto-nya literal teks "NULL" (bukan benar2 kosong),
+            // hasil export dari kolom DB yg null lalu ke-stringify -- perlakukan sama kayak kosong.
+            if ($foto === '' || $foto === '-' || strcasecmp($foto, 'NULL') === 0) { $skippedNoFoto++; continue; }
 
             $nimLama = trim((string) ($row['nomor_induk_mitra'] ?? ''));
             $nik = trim((string) ($row['nik'] ?? ''));
