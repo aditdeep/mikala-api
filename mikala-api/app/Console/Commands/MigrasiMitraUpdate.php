@@ -37,7 +37,7 @@ use Illuminate\Support\Facades\DB;
  */
 class MigrasiMitraUpdate extends Command
 {
-    protected $signature = 'migrasi:mitra-update {--dry-run} {--limit=0}';
+    protected $signature = 'migrasi:mitra-update {--dry-run} {--limit=0} {--fix-status}';
     protected $description = 'Update-only import data mitra dari export sistem lama (CSV) ke sistem baru, isi NIM format baru';
 
     // Pemetaan Type Mitra (sistem lama) -> Tipe Pekerjaan (sistem baru, lihat Mitra::TIPE_KODE_MAP)
@@ -49,6 +49,10 @@ class MigrasiMitraUpdate extends Command
 
     public function handle()
     {
+        if ($this->option('fix-status')) {
+            return $this->fixStatus();
+        }
+
         $path = storage_path('app/mitra_lama_update.csv');
         if (!file_exists($path)) {
             $this->error("CSV tidak ada: $path");
@@ -242,7 +246,7 @@ class MigrasiMitraUpdate extends Command
                         'pengalaman' => trim((string) $row['pengalaman']) ?: null,
                         'tipe_pekerjaan' => $tipePekerjaanLama,
                         'gaji_bulanan' => $this->numOrNull($row['gaji_pokok']),
-                        'status' => 'inactive',
+                        'status' => $this->mapStatus($row['status_lama']),
                         'is_verified' => DB::raw('false'), // hindari "integer vs boolean" type mismatch di Postgres
                         'status_rekrutmen' => 'pending',
                         'training_status' => 'pending',
@@ -267,6 +271,39 @@ class MigrasiMitraUpdate extends Command
 
         $this->info("Selesai. Matched/updated:$matched | Baru dibuat:$created | Skip (sudah pernah diimpor):$skip | Ambigu:".count($ambigu)." | Error:$err".($dry ? ' (DRY RUN, tidak ada yg disimpan)' : ''));
         return 0;
+    }
+
+    /**
+     * Backfill sekali-jalan: perbaiki status mitra yang kebuat lewat bug versi lama command ini
+     * (dulu semua mitra baru hasil migrasi di-hardcode 'inactive'/Nonaktif, harusnya ikut
+     * status_lama yg tersimpan di data_tambahan). Aman dijalankan berkali-kali (no-op kalau
+     * status sudah benar).
+     */
+    private function fixStatus()
+    {
+        $count = 0;
+        Mitra::whereNotNull('data_tambahan')->chunkById(100, function ($rows) use (&$count) {
+            foreach ($rows as $mitra) {
+                $dt = json_decode($mitra->data_tambahan ?: '{}', true) ?: [];
+                if (!isset($dt['status_lama']) || !isset($dt['nim_lama'])) continue; // bukan hasil migrasi ini
+                $statusBenar = $this->mapStatus($dt['status_lama']);
+                if ($mitra->status !== $statusBenar) {
+                    $this->line("Mitra #{$mitra->id} ({$mitra->nama_lengkap}): {$mitra->status} -> {$statusBenar} (status_lama: {$dt['status_lama']})");
+                    $mitra->update(['status' => $statusBenar]);
+                    $count++;
+                }
+            }
+        });
+        $this->info("Selesai fix-status. Diperbaiki: $count mitra.");
+        return 0;
+    }
+
+    private function mapStatus($s): string
+    {
+        $s = trim((string) $s);
+        if (stripos($s, 'On Job') !== false) return 'on_job';
+        if (stripos($s, 'Available') !== false) return 'available';
+        return 'inactive'; // Cuti / Not Available / kosong -> tetap dianggap nonaktif sementara
     }
 
     private function mapGender($g): ?string
