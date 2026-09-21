@@ -116,6 +116,14 @@ class MigrasiMitraUpdate extends Command
                 }
             }
 
+            // 3) fallback terakhir: NIK placeholder ("MIG-<nim_lama>") yang mungkin sudah kebuat
+            // dari run sebelumnya SEBELUM data_tambahan ke-fix -- biar re-run gak bikin duplikat,
+            // dan baris ini masuk jalur UPDATE (bukan CREATE lagi) supaya data_tambahan/status-nya
+            // ikut kebenerin sekalian.
+            if (!$mitra && $nik === '') {
+                $mitra = Mitra::where('nik', 'MIG-' . \Illuminate\Support\Str::slug($nimLama))->first();
+            }
+
             $tipePekerjaanLama = self::TYPE_MAP[trim((string) $row['type_mitra'])] ?? null;
 
             if ($mitra) {
