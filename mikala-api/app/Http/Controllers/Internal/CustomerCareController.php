@@ -943,6 +943,38 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Koreksi klasifikasi Jenis Layanan + Tier pada leads yang SUDAH Deal (atau status apapun),
+     * dari popup Detail Leads. Dipakai saat cms_layanan_id/tier_nama leads keliru/kosong sehingga
+     * tidak terhitung di tabel ringkasan tab Layanan (Leads/Deal/Loss/Exchange per layanan+tier).
+     * Tidak dibatasi status karena tujuannya memang membetulkan data lama.
+     */
+    public function updateLeadLayanan(Request $request, $id)
+    {
+        $request->validate([
+            'cms_layanan_id' => 'nullable|exists:cms_layanan,id',
+            'tier_nama'      => 'nullable|string|max:100',
+            'jasa_disetujui' => 'nullable|string|max:255',
+        ]);
+
+        try {
+            $lead = \App\Models\Lead::findOrFail($id);
+            $lead->update([
+                'cms_layanan_id' => $request->has('cms_layanan_id') ? $request->cms_layanan_id : $lead->cms_layanan_id,
+                'tier_nama'      => $request->has('tier_nama') ? ($request->tier_nama ?: null) : $lead->tier_nama,
+                'jasa_disetujui' => $request->has('jasa_disetujui') ? $request->jasa_disetujui : $lead->jasa_disetujui,
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Jenis Layanan/Tier leads berhasil diperbarui',
+                'data'    => $lead->fresh(['layanan', 'mitra.user']),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Tandai Leads sebagai Deal: generate NIK, opsional assign mitra + field klinis/negosiasi jasa.
      */
     public function markLeadDeal(Request $request, $id)
