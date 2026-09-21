@@ -10,8 +10,20 @@ class Mitra extends Model
     use HasFactory, SoftDeletes;
     protected $table = 'mitra';
 
+    // NIM (Nomor Induk Mitra): format {KodeTipePekerjaan}.{Bulan}.{Tahun2digit}-{urutan},
+    // misal CG.03.26-001. Kode diambil dari field tipe_pekerjaan (lihat TIPE_KODE_MAP).
+    const TIPE_KODE_MAP = [
+        'Perawat Homecare'             => 'PHC',
+        'Perawat Lansia / Caregiver'   => 'CG',
+        'Babysitter'                   => 'BS',
+        'Babysitter New Born Care'     => 'BNC',
+        'Perawat Jiwa'                 => 'PJ',
+        'Caregiver / Kaigo (Jepang)'   => 'PK',
+        'Ke Jepang Lainnya'            => 'KJL',
+    ];
+
     protected $fillable = [
-        'user_id','nik','nama_lengkap','tanggal_lahir','jenis_kelamin',
+        'user_id','nik','nomor_induk','nama_lengkap','tanggal_lahir','jenis_kelamin',
         'alamat','kota','provinsi','pendidikan_terakhir','sertifikasi','pengalaman',
         'foto_url','cv_file','bank_name','bank_account','bank_account_name',
         'ktp_file','sertifikat_file','status','is_verified',
@@ -58,5 +70,16 @@ class Mitra extends Model
             'rating'        => $this->feedback()->avg('rating_average') ?? 0,
             'total_reviews' => $this->feedback()->count(),
         ]);
+    }
+
+    // Generate NIM baru: {kode}.{bulan}.{tahun2digit}-{urutan berjalan bulan ini utk kode ini}.
+    // $tipePekerjaan boleh salah satu value TIPE_KODE_MAP, atau null/lainnya -> pakai kode "MTR".
+    public static function generateNim(?string $tipePekerjaan): string
+    {
+        $now = now();
+        $kode = self::TIPE_KODE_MAP[$tipePekerjaan] ?? 'MTR';
+        $prefix = $kode . '.' . $now->format('m') . '.' . $now->format('y');
+        $count = self::where('nomor_induk', 'like', $prefix . '-%')->count() + 1;
+        return $prefix . '-' . str_pad($count, 3, '0', STR_PAD_LEFT);
     }
 }

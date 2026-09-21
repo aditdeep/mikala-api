@@ -51,6 +51,9 @@ class RekrutmenController extends Controller
             ]);
             $mitra = Mitra::create([
                 'user_id'=>$user->id,'nik'=>$request->nik ?? 'NIK-'.time(),
+                // NIM (Nomor Induk Mitra): auto-generate format {KodeTipePekerjaan}.{bulan}.{tahun}-{urutan}
+                // (mis. CG.03.26-001) berdasarkan Tipe Pekerjaan yang diisi di form pendaftaran.
+                'nomor_induk'=>$request->filled('nomor_induk') ? $request->nomor_induk : Mitra::generateNim($request->tipe_pekerjaan),
                 'nama_lengkap'=>$request->name,'alamat'=>$request->alamat,
                 'kota'=>$request->kota ?? '-','provinsi'=>$request->provinsi ?? '-',
                 'tanggal_lahir'=>$request->tanggal_lahir,'jenis_kelamin'=>$request->jenis_kelamin,
@@ -117,6 +120,7 @@ class RekrutmenController extends Controller
                 // sudah dikirim frontend tapi sebelumnya TIDAK ada di whitelist ini sama sekali,
                 // jadi perubahan pada field2 itu diam2 tidak pernah tersimpan ke DB.
                 'nik'=>$request->nik,
+                'nomor_induk'=>$request->nomor_induk, // NIM, bisa dikoreksi manual dari form Edit Mitra
                 'nama_lengkap'=>$request->name, // sinkron dgn user.name, dipakai list/detail (item.nama_lengkap)
                 'kota'=>$request->kota,'provinsi'=>$request->provinsi,
                 'alamat'=>$request->alamat,'tanggal_lahir'=>$request->tanggal_lahir,
@@ -166,6 +170,9 @@ class RekrutmenController extends Controller
                 'status_rekrutmen'=>'verified','status'=>'training',
                 'price_rate'=>$request->price_rate,'catatan_rekrutmen'=>$request->catatan_rekrutmen,
                 'verified_at'=>now(),'verified_by'=>auth()->id(),'is_verified'=>DB::raw('true'),
+                // Fallback: kalau NIM belum kegenerate sejak pendaftaran (mis. tipe_pekerjaan
+                // baru diisi belakangan), generate sekarang saat mitra resmi diverifikasi/diterima.
+                'nomor_induk'=>$mitra->nomor_induk ?: Mitra::generateNim($mitra->tipe_pekerjaan),
             ]);
             if ($mitra->payment_type === 'kredit' && $request->total_biaya > 0) {
                 MitraKreditPelatihan::create([
