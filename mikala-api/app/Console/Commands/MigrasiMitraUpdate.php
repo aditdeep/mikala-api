@@ -207,18 +207,22 @@ class MigrasiMitraUpdate extends Command
                     ]);
 
                     $nimBaru = Mitra::generateNim($tipePekerjaanLama);
+                    // NIK kosong di data lama -> kolom nik NOT NULL di DB, jadi kasih placeholder
+                    // unik berbasis NIM lama, asli (kosong) dicatat di data_tambahan.nik_kosong_lama
+                    $nikFinal = $nik ?: ('MIG-' . \Illuminate\Support\Str::slug($nimLama));
                     $dataTambahan = [
                         'nim_lama' => $nimLama,
                         'usia_lama' => trim((string) $row['usia']) ?: null,
                         'tunjangan_lama' => trim((string) $row['tunjangan']) ?: null,
                         'status_lama' => trim((string) $row['status_lama']) ?: null,
                         'mabuk_kendaraan_lama' => trim((string) $row['mabuk_kendaraan']) ?: null,
+                        'nik_kosong_lama' => $nik === '' ? true : null,
                     ];
 
                     Mitra::create([
                         'user_id' => $userId,
                         'nomor_induk' => $nimBaru,
-                        'nik' => $nik ?: null,
+                        'nik' => $nikFinal,
                         'nama_lengkap' => $nama,
                         'tanggal_lahir' => $tglLahir ?: '1990-01-01',
                         'jenis_kelamin' => $this->mapGender($row['gender']) ?: 'L',
