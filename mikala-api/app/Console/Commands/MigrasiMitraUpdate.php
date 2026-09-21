@@ -239,7 +239,7 @@ class MigrasiMitraUpdate extends Command
                         'tipe_pekerjaan' => $tipePekerjaanLama,
                         'gaji_bulanan' => $this->numOrNull($row['gaji_pokok']),
                         'status' => 'inactive',
-                        'is_verified' => false,
+                        'is_verified' => DB::raw('false'), // hindari "integer vs boolean" type mismatch di Postgres
                         'status_rekrutmen' => 'pending',
                         'training_status' => 'pending',
                         'rating' => 0, 'total_reviews' => 0, 'total_jobs' => 0,
