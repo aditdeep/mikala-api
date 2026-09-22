@@ -162,6 +162,10 @@ class CmsController extends Controller
             'google_review_url',
             // SEO / Analytics -- AW-xxxxxxxxx dari Google Ads (conversion tracking), BUKAN GTM-xxxxxxx
             'google_ads_id',
+            // GTM-xxxxxxx dari Google Tag Manager (container terpisah, produk beda dari Google
+            // Ads di atas) -- ditambah krn sebelumnya cuma ada slot Google Ads, GTM beneran gak
+            // pernah kesimpen/kepakai sama sekali.
+            'gtm_id',
             // Halaman Perusahaan
             'prsh_hero_images','prsh_hero_title','prsh_hero_text',
             'prsh_direktur_nama','prsh_direktur_jabatan','prsh_direktur_foto',
