@@ -707,6 +707,17 @@ class CustomerCareController extends Controller
             $totalDeal  = \App\Models\Lead::deal()->count();
             $totalLoss  = \App\Models\Lead::batal()->count();
 
+            // Card Dashboard CC (Total Pasien / Pasien Aktif / Pasien Non Aktif):
+            // - Total Pasien   = semua lead KECUALI status Batal & Stop (Proses+Gantung+Deal)
+            // - Pasien Aktif   = status Deal (relasi klien-mitra masih berjalan)
+            // - Pasien Non Aktif = status Stop (relasi klien-mitra sudah dihentikan)
+            $totalPasien        = \App\Models\Lead::whereNotIn('status', [
+                \App\Models\Lead::STATUS_BATAL,
+                \App\Models\Lead::STATUS_STOP,
+            ])->count();
+            $totalPasienAktif    = $totalDeal;
+            $totalPasienNonAktif = \App\Models\Lead::stop()->count();
+
             $layananList = \App\Models\CmsLayanan::orderBy('urutan')->get();
 
             $rows = [];
@@ -740,6 +751,9 @@ class CustomerCareController extends Controller
                     'total_leads' => $totalLeads,
                     'total_deal'  => $totalDeal,
                     'total_loss'  => $totalLoss,
+                    'total_pasien'          => $totalPasien,
+                    'total_pasien_aktif'    => $totalPasienAktif,
+                    'total_pasien_non_aktif'=> $totalPasienNonAktif,
                     'by_layanan'  => $rows,
                 ]
             ]);

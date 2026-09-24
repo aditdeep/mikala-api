@@ -162,6 +162,13 @@ class Lead extends Model
         return $query->where('status', self::STATUS_GANTUNG);
     }
 
+    // Ditambahkan utk card Dashboard CC "Pasien Non Aktif" -- sebelumnya belum ada scope
+    // khusus utk status Stop (dipakai fitur Exchange Stop/Lanjutkan, bukan status Batal).
+    public function scopeStop($query)
+    {
+        return $query->where('status', self::STATUS_STOP);
+    }
+
     // No. Order, dibuat sekali saat intake, format: T-LN.MGM.01.00001
     public static function generateNomor(): string
     {
