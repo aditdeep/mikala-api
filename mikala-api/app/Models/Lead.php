@@ -52,6 +52,7 @@ class Lead extends Model
         'tinggi_badan',
         'berat_badan',
         'jenis_kelamin_klien',
+        'agama_klien',
         'diagnosis_awal',
         'deskripsi_diagnosa',
         'alat_pendukung',

@@ -74,6 +74,8 @@ class MitraRegisterController extends Controller
                 'tipe_pekerjaan'      => $request->tipe_pekerjaan,
                 'suku'                => $request->suku,
                 'pengalaman_pelatihan'=> $request->pengalaman_pelatihan,
+                // Kemampuan (list bebas, diisi mitra sendiri saat daftar) -- ditampilkan di CV
+                'kemampuan'           => $request->has('kemampuan') ? json_encode(array_values(array_filter((array) $request->kemampuan))) : null,
             ]);
 
             DB::commit();

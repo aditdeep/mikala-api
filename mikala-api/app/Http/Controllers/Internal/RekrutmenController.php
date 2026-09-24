@@ -88,6 +88,8 @@ class RekrutmenController extends Controller
                 'tipe_pekerjaan'=>$request->tipe_pekerjaan,
                 'suku'=>$request->suku,
                 'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
+                // Kemampuan (list bebas) -- dikirim frontend sbg array, disimpan JSON string
+                'kemampuan'=>$request->has('kemampuan') ? json_encode(array_values(array_filter((array) $request->kemampuan))) : null,
             ]);
             DB::commit();
             return response()->json(['success'=>true,'message'=>'Mitra berhasil didaftarkan','data'=>$mitra->load('user')],201);
@@ -138,6 +140,7 @@ class RekrutmenController extends Controller
                 'takut_hewan'=>$request->takut_hewan,'bisa_memasak'=>$request->bisa_memasak,
                 'tipe_pekerjaan'=>$request->tipe_pekerjaan,'suku'=>$request->suku,
                 'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
+                'kemampuan'=>$request->has('kemampuan') ? json_encode(array_values(array_filter((array) $request->kemampuan))) : null,
             ], fn($v) => !is_null($v));
             $mitra->update($updateData);
             DB::commit();

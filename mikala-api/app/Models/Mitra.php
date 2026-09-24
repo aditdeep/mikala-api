@@ -37,6 +37,8 @@ class Mitra extends Model
         // Data pribadi/fisik -- dulu di-encode di blob `pengalaman`, sekarang kolom asli
         'tempat_lahir','tinggi_badan','berat_badan','vaksin','agama','status_nikah',
         'takut_hewan','bisa_memasak','tipe_pekerjaan','suku','pengalaman_pelatihan',
+        // Kemampuan (list bebas, diisi mitra sendiri saat daftar) -- ditampilkan di CV
+        'kemampuan',
         // FIX: data_tambahan (dipakai command migrasi:mitra-update utk nim_lama/status_lama/dst)
         // ketinggalan gak masuk fillable, jadi Mitra::create()/update() diam2 BUANG field ini --
         // akibatnya status_lama gak pernah kesimpan, --fix-status gak nemu apa2, dan idempotency
