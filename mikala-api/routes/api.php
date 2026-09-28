@@ -186,6 +186,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('leads-exchange/{id}/invoice-transport/download', [CustomerCareController::class, 'downloadInvoiceTransport']);
             Route::post('leads/{id}/tagih-admin', [CustomerCareController::class, 'tagihBiayaAdmin']);
             Route::get('leads/{id}/invoice-admin/download', [CustomerCareController::class, 'downloadInvoiceAdmin']);
+            Route::post('leads/{id}/refund', [CustomerCareController::class, 'prosesRefund']);
         });
 
         // Finance
@@ -198,6 +199,11 @@ Route::middleware('auth:sanctum')->group(function () {
             // Cuti management
             Route::get('cuti',                  [FinanceController::class, 'indexCuti']);
             Route::patch('cuti/{id}/approve',   [FinanceController::class, 'approveCuti']);
+
+            // Kasbon (pinjaman mitra) -- sebelumnya cuma bisa diajukan dari app mitra, gak ada
+            // tempat admin approve, jadi potongan kasbon di payroll otomatis selalu 0.
+            Route::get('kasbon',                [FinanceController::class, 'indexKasbon']);
+            Route::patch('kasbon/{id}/approve',  [FinanceController::class, 'approveKasbon']);
             // Payroll workflow
             Route::patch('payroll/{id}/adjust', [FinanceController::class, 'adjustPayroll']);
             Route::patch('payroll/{id}/approve',[FinanceController::class, 'approvePayroll']);

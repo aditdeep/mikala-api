@@ -1010,6 +1010,7 @@ class CustomerCareController extends Controller
             'biaya_admin'      => 'nullable|numeric',
             'honor_mitra'      => 'nullable|numeric',
             'management_fee'   => 'nullable|numeric',
+            'rekom_fee'        => 'nullable|numeric',
             'uang_cuti_mitra'  => 'nullable|numeric',
             'kesadaran'        => 'nullable|string|max:255',
             'komunikasi'       => 'nullable|string|max:255',
@@ -1041,6 +1042,7 @@ class CustomerCareController extends Controller
                 'biaya_admin' => $request->filled('biaya_admin') ? $request->biaya_admin : $lead->biaya_admin,
                 'honor_mitra' => $request->filled('honor_mitra') ? $request->honor_mitra : $lead->honor_mitra,
                 'management_fee' => $request->filled('management_fee') ? $request->management_fee : $lead->management_fee,
+                'rekom_fee' => $request->filled('rekom_fee') ? $request->rekom_fee : $lead->rekom_fee,
                 'uang_cuti_mitra' => $request->filled('uang_cuti_mitra') ? $request->uang_cuti_mitra : $lead->uang_cuti_mitra,
                 'kesadaran' => $request->kesadaran ?? $lead->kesadaran,
                 'komunikasi' => $request->komunikasi ?? $lead->komunikasi,
@@ -1054,6 +1056,8 @@ class CustomerCareController extends Controller
                 'deal_at'  => $lead->deal_at ?: now(),
             ]);
 
+            $this->prosesRekomFeeLog($lead->fresh());
+
             return response()->json([
                 'success' => true,
                 'message' => 'Leads ditandai Deal',
@@ -1061,6 +1065,43 @@ class CustomerCareController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Auto-catat Rekom Fee ke fee_log begitu Lead di-Deal, kalau field rekom_fee diisi DAN
+     * ada referensi_mitra_id/referensi_klien_id (sesuai Excel Laporan Keuangan kolom "Rekom
+     * Fee" -- fee buat pihak yg mereferensikan klien/mitra). Guard rekom_fee_fee_log_id biar
+     * gak ke-log dobel tiap kali form Deal disimpan ulang (misal pas revisi data Deal).
+     */
+    private function prosesRekomFeeLog(\App\Models\Lead $lead): void
+    {
+        if ($lead->rekom_fee_fee_log_id) return; // sudah pernah dicatat
+        $jumlah = (float) ($lead->rekom_fee ?? 0);
+        if ($jumlah <= 0) return;
+
+        $penerimaTipe = null;
+        $penerimaId = null;
+        if ($lead->referensi_mitra_id) {
+            $penerimaTipe = 'mitra';
+            $penerimaId = $lead->referensi_mitra_id;
+        } elseif ($lead->referensi_klien_id) {
+            $penerimaTipe = 'klien';
+            $penerimaId = $lead->referensi_klien_id;
+        }
+        if (!$penerimaTipe) return; // gak ada yg direferensikan, gak ada penerima fee
+
+        try {
+            $feeLog = \App\Models\FeeLog::create([
+                'penerima_tipe' => $penerimaTipe,
+                'penerima_id'   => $penerimaId,
+                'jumlah'        => $jumlah,
+                'status'        => 'pending',
+                'keterangan'    => 'Rekom Fee Deal Lead #' . ($lead->nomor ?? $lead->id),
+            ]);
+            $lead->update(['rekom_fee_fee_log_id' => $feeLog->id]);
+        } catch (\Exception $e) {
+            // Jangan sampai gagal catat fee ngeblok proses Tandai Deal
         }
     }
 
@@ -1888,6 +1929,67 @@ class CustomerCareController extends Controller
     }
 
     /**
+     * Proses Refund -- sesuai Excel Laporan Keuangan kolom "Refaund", dipakai kalau ada sisa
+     * Uang Cuti/Biaya Admin yg perlu dikembalikan ke klien pas Lead di-Stop atau Batal. Auto
+     * catat ke Jurnal Keuangan (outcome) biar Report Finance akurat.
+     */
+    public function prosesRefund(Request $request, $id)
+    {
+        $request->validate([
+            'refund_amount'  => 'required|numeric|min:1',
+            'refund_catatan' => 'nullable|string|max:500',
+        ]);
+
+        $lead = \App\Models\Lead::with('klien.user')->findOrFail($id);
+        if (!in_array($lead->status, [\App\Models\Lead::STATUS_STOP, \App\Models\Lead::STATUS_BATAL])) {
+            return response()->json(['success' => false, 'message' => 'Refund cuma bisa diproses utk leads berstatus Stop atau Batal'], 422);
+        }
+
+        try {
+            $lead->update([
+                'refund_amount'  => $request->refund_amount,
+                'refund_at'      => now(),
+                'refund_catatan' => $request->refund_catatan,
+            ]);
+
+            try {
+                $kode = 'JRN-' . date('Ymd') . '-' . str_pad(\App\Models\JurnalKeuangan::count() + 1, 4, '0', STR_PAD_LEFT);
+                \App\Models\JurnalKeuangan::create([
+                    'kode_transaksi' => $kode,
+                    'tanggal'        => now(),
+                    'tipe'           => 'outcome',
+                    'kategori'       => 'refund',
+                    'jumlah'         => $request->refund_amount,
+                    'deskripsi'      => 'Refund Lead #' . ($lead->nomor ?? $lead->id) . ($request->refund_catatan ? ' -- ' . $request->refund_catatan : ''),
+                    'related_type'   => 'App\\Models\\Lead',
+                    'related_id'     => $lead->id,
+                    'created_by'     => $request->user()->id,
+                ]);
+            } catch (\Exception $je) {
+                // Jurnal gagal tidak batalkan proses refund
+            }
+
+            if ($lead->klien && $lead->klien->user_id) {
+                \App\Services\NotifikasiService::send(
+                    $lead->klien->user_id,
+                    'refund',
+                    'Refund Diproses 💵',
+                    'Refund sebesar ' . $this->rupiah($request->refund_amount) . ' sedang diproses oleh tim kami.',
+                    ['related_type' => 'cc_lead', 'related_id' => $lead->id]
+                );
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Refund berhasil dicatat',
+                'data'    => $lead->fresh(),
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * TAMBAH (dari modal Log Exchange): duplikat leads jadi order BARU dengan Nomor Order
      * baru, tapi data Cust/PJ & Pasien/Klien di-copy dari leads asal (pasien/klien sama),
      * supaya biaya admin & invoice berikutnya dihitung berdasarkan nomor order yang baru.
@@ -2153,6 +2255,33 @@ class CustomerCareController extends Controller
                 'invoice_admin_nomor'      => \App\Models\Lead::generateNomorInvoiceAdmin(),
                 'invoice_admin_ditagih_at' => now(),
             ]);
+        }
+
+        // Bikin record Tagihan yg beneran (sebelumnya cuma nomor invoice nempel di kolom Lead,
+        // gak pernah nongol di Menu Finance > Tagihan, gak ada status Lunas/Belum yg bisa
+        // ditrack). Cuma bisa dibuat kalau Lead sudah terhubung ke akun Klien terdaftar (Tagihan
+        // butuh klien_id) -- kalau belum, invoice PDF tetap jalan seperti biasa lewat kolom Lead.
+        if (!$lead->tagihan_admin_id && $lead->klien_id) {
+            try {
+                $tagihan = \App\Models\Tagihan::create([
+                    'invoice_number'      => $lead->invoice_admin_nomor,
+                    'klien_id'            => $lead->klien_id,
+                    'order_id'            => null,
+                    'tanggal_invoice'     => now()->toDateString(),
+                    'tanggal_jatuh_tempo' => now()->addDays(7)->toDateString(),
+                    'subtotal'            => $lead->biaya_admin,
+                    'pajak'               => 0,
+                    'diskon'              => 0,
+                    'total'               => $lead->biaya_admin,
+                    'jumlah_bayar'        => 0,
+                    'sisa'                => $lead->biaya_admin,
+                    'status'              => 'unpaid',
+                    'catatan'             => 'Biaya Admin Deal Lead #' . ($lead->nomor ?? $lead->id),
+                ]);
+                $lead->update(['tagihan_admin_id' => $tagihan->id]);
+            } catch (\Exception $e) {
+                // Jangan sampai gagal bikin Tagihan ngeblok proses tagih (PDF/notif tetap jalan)
+            }
         }
 
         // Notif realtime ke klien (jika leads ini terhubung ke akun klien terdaftar)

@@ -16,13 +16,22 @@ class Payroll extends Model
         'payroll_number',
         'mitra_id',
         'order_id',
+        'lead_id',
         'periode_mulai',
         'periode_selesai',
+        'periode_label',
         'jumlah_hari_kerja',
         'tarif_per_hari',
         'gaji_pokok',
+        'hari_cuti',
+        'rate_cuti',
+        'uang_cuti',
         'bonus',
         'potongan',
+        'potongan_kasbon',
+        'potongan_kredit',
+        'adjustment',
+        'catatan_adjustment',
         'transport',
         'total',
         'status',
@@ -41,8 +50,14 @@ class Payroll extends Model
         'periode_selesai' => 'date',
         'tarif_per_hari' => 'decimal:2',
         'gaji_pokok' => 'decimal:2',
+        'hari_cuti' => 'integer',
+        'rate_cuti' => 'decimal:2',
+        'uang_cuti' => 'decimal:2',
         'bonus' => 'decimal:2',
         'potongan' => 'decimal:2',
+        'potongan_kasbon' => 'decimal:2',
+        'potongan_kredit' => 'decimal:2',
+        'adjustment' => 'decimal:2',
         'transport' => 'decimal:2',
         'total' => 'decimal:2',
         'approved_at' => 'datetime',
@@ -58,6 +73,13 @@ class Payroll extends Model
     public function order()
     {
         return $this->belongsTo(Order::class);
+    }
+
+    // Sumber data payroll yg sebenarnya sejak sistem pindah ke CC Leads/Deal --
+    // order_id/relasi order() di atas dipertahankan cuma utk kompatibilitas data lama.
+    public function lead()
+    {
+        return $this->belongsTo(Lead::class, 'lead_id');
     }
 
     public function approver()

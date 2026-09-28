@@ -71,6 +71,12 @@ class Lead extends Model
         'biaya_admin',
         'honor_mitra',
         'management_fee',
+        'rekom_fee',
+        'rekom_fee_fee_log_id',
+        'tagihan_admin_id',
+        'refund_amount',
+        'refund_at',
+        'refund_catatan',
         'uang_cuti_mitra',
         'biaya_transport',
         'status',
@@ -103,6 +109,9 @@ class Lead extends Model
         'biaya_admin' => 'decimal:2',
         'honor_mitra' => 'decimal:2',
         'management_fee' => 'decimal:2',
+        'rekom_fee' => 'decimal:2',
+        'refund_amount' => 'decimal:2',
+        'refund_at' => 'datetime',
         'uang_cuti_mitra' => 'decimal:2',
         'biaya_transport' => 'decimal:2',
     ];
@@ -140,6 +149,18 @@ class Lead extends Model
     public function exchanges()
     {
         return $this->hasMany(LeadExchange::class, 'lead_id');
+    }
+
+    // Tagihan Biaya Admin yg beneran (bukan cuma nomor invoice nempel di kolom Lead) --
+    // supaya nongol & bisa di-track Lunas/Belum di Menu Finance.
+    public function tagihanAdmin()
+    {
+        return $this->belongsTo(Tagihan::class, 'tagihan_admin_id');
+    }
+
+    public function payrolls()
+    {
+        return $this->hasMany(Payroll::class, 'lead_id');
     }
 
     public function scopeDeal($query)

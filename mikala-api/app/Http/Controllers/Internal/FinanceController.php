@@ -204,7 +204,7 @@ class FinanceController extends Controller
     public function indexPayroll(Request $request)
     {
         try {
-            $query = Payroll::with(['mitra.user']);
+            $query = Payroll::with(['mitra.user', 'lead']);
 
             if ($request->has('status')) {
                 $query->where('status', $request->status);
@@ -235,54 +235,73 @@ class FinanceController extends Controller
     }
 
     /**
-     * Generate monthly payroll
+     * Generate payroll 2x/bulan (tgl 15 & 30), sumber data dari cc_leads (Deal/Stop) --
+     * BUKAN dari Order lagi. Order adalah tabel booking marketplace lama yg sudah gak kepake
+     * sejak sistem pindah ke CC Leads/Deal (Tandai Deal sudah isi honor_mitra, management_fee,
+     * uang_cuti_mitra per pasangan Klien-Mitra), jadi generatePayroll() versi lama itu gak
+     * pernah hasilin payroll apapun buat data yg beneran dipakai sehari-hari. Perhitungan
+     * prorata harian & cuti/kasbon/kredit di bawah mengikuti pola sheet "Perhitungan Gaji" +
+     * "Total Gaji & Pinjaman" di Laporan Keuangan Excel.
      */
     public function generatePayroll(Request $request)
     {
-        $request->validate(['periode' => 'required|date_format:Y-m']);
+        $request->validate([
+            'periode' => 'required|date_format:Y-m',
+            'bagian'  => 'nullable|in:15,30',
+        ]);
+        $bagian = $request->bagian ?: '30';
 
         try {
             [$tahun, $bulan] = explode('-', $request->periode);
-            $periodeStart = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
-            $periodeEnd   = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->endOfMonth();
-            $hariDiBulan  = $periodeStart->daysInMonth;
+            $bulanAwal   = \Carbon\Carbon::createFromDate($tahun, $bulan, 1)->startOfMonth();
+            $hariDiBulan = $bulanAwal->daysInMonth;
+
+            if ($bagian === '15') {
+                $periodeStart = $bulanAwal->copy();
+                $periodeEnd   = $bulanAwal->copy()->day(15);
+            } else {
+                $periodeStart = $bulanAwal->copy()->day(16);
+                $periodeEnd   = $bulanAwal->copy()->endOfMonth();
+            }
 
             // Settings dari payroll_settings
             $rateCutiDefault = floatval(\DB::table('payroll_settings')->where('key','rate_cuti_default')->value('value') ?? 500000);
             $maxCutiPerBulan = intval(\DB::table('payroll_settings')->where('key','max_cuti_per_bulan')->value('value') ?? 2);
 
-            // Order aktif di periode
-            $orders = \App\Models\Order::whereIn('status', ['in_progress','completed','active'])
-                ->where('tanggal_mulai', '<=', $periodeEnd)
-                ->where(function($q) use ($periodeStart) {
-                    $q->whereNull('tanggal_selesai')
-                      ->orWhere('tanggal_selesai', '>=', $periodeStart);
-                })
+            // Lead yg berstatus Deal (masih aktif) atau Stop (baru selesai, masih ada sisa gaji
+            // periode berjalan yg harus dibayar) dan overlap dgn periode yg mau digenerate.
+            $leads = \App\Models\Lead::whereIn('status', [\App\Models\Lead::STATUS_DEAL, \App\Models\Lead::STATUS_STOP])
                 ->whereNotNull('mitra_id')
+                ->whereNotNull('deal_at')
+                ->where('deal_at', '<=', $periodeEnd)
+                ->where(function($q) use ($periodeStart) {
+                    $q->whereNull('stop_at')
+                      ->orWhere('stop_at', '>=', $periodeStart);
+                })
                 ->with('mitra')
                 ->get();
 
             $generated = [];
-            foreach ($orders as $order) {
-                $mitra = $order->mitra;
+            foreach ($leads as $lead) {
+                $mitra = $lead->mitra;
                 if (!$mitra) continue;
 
-                // Hari kerja prorata
-                $mulai   = max(\Carbon\Carbon::parse($order->tanggal_mulai), $periodeStart);
-                $selesai = $order->tanggal_selesai
-                    ? min(\Carbon\Carbon::parse($order->tanggal_selesai), $periodeEnd)
+                // Hari kerja prorata di periode ini (tgl 1-15 atau 16-akhir bulan)
+                $mulai   = max(\Carbon\Carbon::parse($lead->deal_at), $periodeStart);
+                $selesai = $lead->stop_at
+                    ? min(\Carbon\Carbon::parse($lead->stop_at), $periodeEnd)
                     : $periodeEnd;
                 $jumlahHari = max(0, $mulai->diffInDays($selesai) + 1);
                 if ($jumlahHari == 0) continue;
 
-                // Rate bulanan: price_rate = harga/bulan → bagi jumlah hari di bulan tsb
-                $priceRateBulanan = floatval($mitra->price_rate ?? 0);
-                $tarifPerHari = $hariDiBulan > 0 ? ($priceRateBulanan / $hariDiBulan) : 0;
-                if ($tarifPerHari == 0) $tarifPerHari = 150000; // fallback
+                // Gaji/bulan Mitra utk Deal ini = Honor Mitra + Management Fee (sesuai Kontrak 1
+                // -- kolom "Gaji/bulan" di Excel sudah gabungan keduanya), dibagi hari di bulan
+                // ini utk dapet tarif per hari, lalu dikali hari kerja di periode 15/30 ini.
+                $gajiBulanan  = floatval($lead->honor_mitra ?? 0) + floatval($lead->management_fee ?? 0);
+                $tarifPerHari = $hariDiBulan > 0 ? ($gajiBulanan / $hariDiBulan) : 0;
+                $gajiPokok    = $tarifPerHari * $jumlahHari;
 
-                $gajiPokok = $tarifPerHari * $jumlahHari;
-
-                // Hitung cuti approved di periode
+                // Cuti approved yg overlap periode ini
                 $hariCuti = \App\Models\Cuti::where('mitra_id', $mitra->id)
                     ->where('status', 'approved')
                     ->whereBetween('tanggal_mulai', [$periodeStart, $periodeEnd])
@@ -290,7 +309,7 @@ class FinanceController extends Controller
                 $hariCuti = min($hariCuti, $maxCutiPerBulan);
                 $uangCuti = $hariCuti * $rateCutiDefault;
 
-                // Potongan kasbon — yang approved & belum dipotong
+                // Potongan kasbon -- yang approved & belum dipotong/dibayar
                 $kasbonAktif = \DB::table('mitra_kasbon')
                     ->where('mitra_id', $mitra->id)
                     ->where('status', 'approved')
@@ -310,17 +329,18 @@ class FinanceController extends Controller
                     $potonganKredit = min($cicilan, $sisa);
                 }
 
-                $gajiKotor = $gajiPokok + $uangCuti;
+                $gajiKotor     = $gajiPokok + $uangCuti;
                 $totalPotongan = $potonganKasbon + $potonganKredit;
-                $total = $gajiKotor - $totalPotongan;
+                $total         = $gajiKotor - $totalPotongan;
 
-                $payrollNumber = 'PAY-'.date('Ym').'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
+                $payrollNumber = 'PAY-'.date('Ym').$bagian.'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
 
                 $payroll = \App\Models\Payroll::updateOrCreate(
-                    ['order_id' => $order->id, 'mitra_id' => $mitra->id, 'periode_mulai' => $periodeStart],
+                    ['lead_id' => $lead->id, 'mitra_id' => $mitra->id, 'periode_mulai' => $periodeStart],
                     [
                         'payroll_number'    => $payrollNumber,
                         'periode_selesai'   => $periodeEnd,
+                        'periode_label'     => $bagian,
                         'jumlah_hari_kerja' => $jumlahHari,
                         'tarif_per_hari'    => $tarifPerHari,
                         'gaji_pokok'        => $gajiPokok,
@@ -334,7 +354,7 @@ class FinanceController extends Controller
                         'potongan'          => $totalPotongan,
                         'total'             => $total,
                         'status'            => 'draft',
-                        'catatan'           => 'Periode '.$request->periode.' - Order #'.($order->order_number ?? $order->id),
+                        'catatan'           => 'Periode '.$request->periode.' (tgl '.$bagian.') - Lead #'.($lead->nomor ?? $lead->id),
                     ]
                 );
                 $generated[] = $payroll;
@@ -345,7 +365,7 @@ class FinanceController extends Controller
                         $mitra->user_id,
                         'payroll',
                         'Slip Gaji Tersedia 💰',
-                        "Slip gaji periode " . $request->periode . " sudah dibuat. Total: Rp " . number_format($total, 0, ',', '.') . ". Status: menunggu approval.",
+                        "Slip gaji periode " . $request->periode . " (tgl {$bagian}) sudah dibuat. Total: Rp " . number_format($total, 0, ',', '.') . ". Status: menunggu approval.",
                         ['related_type' => 'payroll', 'related_id' => $payroll->id]
                     );
                 }
@@ -524,6 +544,66 @@ class FinanceController extends Controller
         }
 
         return response()->json(['success'=>true,'data'=>$cuti->fresh()]);
+    }
+
+    /**
+     * Kasbon (pinjaman mitra) -- Finance side. Mitra sudah bisa ajukan dari app (routes/api.php
+     * /mitra/kasbon), tapi sebelumnya tidak ada tempat admin approve/reject sama sekali,
+     * sehingga potongan kasbon di payroll otomatis selalu 0 (query di generatePayroll() cuma
+     * ambil yg status='approved', tapi gak ada yg pernah bisa jadi 'approved').
+     */
+    public function indexKasbon(Request $request)
+    {
+        $query = \DB::table('mitra_kasbon')
+            ->join('mitra', 'mitra.id', '=', 'mitra_kasbon.mitra_id')
+            ->select('mitra_kasbon.*', 'mitra.nama_lengkap as mitra_nama', 'mitra.foto_url as mitra_foto');
+
+        if ($request->has('status')) {
+            $query->where('mitra_kasbon.status', $request->status);
+        }
+
+        $kasbon = $query->orderByDesc('mitra_kasbon.created_at')->paginate(20);
+        return response()->json(['success' => true, 'data' => $kasbon]);
+    }
+
+    public function approveKasbon(Request $request, $id)
+    {
+        $request->validate([
+            'status'        => 'required|in:approved,rejected',
+            'catatan_admin' => 'nullable|string|max:500',
+        ]);
+
+        $row = \DB::table('mitra_kasbon')->where('id', $id)->first();
+        if (!$row) {
+            return response()->json(['success' => false, 'message' => 'Pengajuan kasbon tidak ditemukan'], 404);
+        }
+        if ($row->status !== 'pending') {
+            return response()->json(['success' => false, 'message' => 'Hanya pengajuan pending yang bisa diproses'], 422);
+        }
+
+        \DB::table('mitra_kasbon')->where('id', $id)->update([
+            'status'        => $request->status,
+            'approved_by'   => auth()->id(),
+            'approved_at'   => now(),
+            'catatan_admin' => $request->catatan_admin,
+            'updated_at'    => now(),
+        ]);
+
+        $mitra = \App\Models\Mitra::find($row->mitra_id);
+        if ($mitra && $mitra->user_id) {
+            $isApproved = $request->status === 'approved';
+            \App\Services\NotifikasiService::send(
+                $mitra->user_id,
+                'kasbon',
+                $isApproved ? 'Kasbon Disetujui ✅' : 'Kasbon Ditolak ❌',
+                $isApproved
+                    ? 'Pengajuan kasbon Rp ' . number_format($row->jumlah, 0, ',', '.') . ' disetujui. Akan dipotong otomatis dari gaji periode berikutnya.'
+                    : 'Pengajuan kasbon Anda ditolak.' . ($request->catatan_admin ? ' Catatan: ' . $request->catatan_admin : ''),
+                ['related_type' => 'kasbon', 'related_id' => $row->id]
+            );
+        }
+
+        return response()->json(['success' => true, 'data' => \DB::table('mitra_kasbon')->where('id', $id)->first()]);
     }
 
     /**
