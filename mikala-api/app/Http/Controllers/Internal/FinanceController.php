@@ -44,7 +44,9 @@ class FinanceController extends Controller
                     ->where('due_date', '<', now());
             }
 
-            $tagihan = $query->orderBy('created_at', 'desc')->paginate(15);
+            // per_page dibuatkan overridable (dipakai fitur Export Excel di Finance biar bisa
+            // narik semua data, bukan cuma 15 baris pertama).
+            $tagihan = $query->orderBy('created_at', 'desc')->paginate((int) $request->input('per_page', 15));
 
             return response()->json([
                 'success' => true,
@@ -214,7 +216,7 @@ class FinanceController extends Controller
                 $query->where('periode_mulai', 'like', $request->periode.'%');
             }
 
-            $payroll = $query->orderBy('periode_mulai', 'desc')->paginate(15);
+            $payroll = $query->orderBy('periode_mulai', 'desc')->paginate((int) $request->input('per_page', 15));
 
             return response()->json([
                 'success' => true,
@@ -562,7 +564,7 @@ class FinanceController extends Controller
             $query->where('mitra_kasbon.status', $request->status);
         }
 
-        $kasbon = $query->orderByDesc('mitra_kasbon.created_at')->paginate(20);
+        $kasbon = $query->orderByDesc('mitra_kasbon.created_at')->paginate((int) $request->input('per_page', 20));
         return response()->json(['success' => true, 'data' => $kasbon]);
     }
 
@@ -715,7 +717,7 @@ class FinanceController extends Controller
                 $query->whereBetween('tanggal', [$request->start_date, $request->end_date]);
             }
 
-            $jurnal = $query->orderBy('tanggal', 'desc')->paginate(15);
+            $jurnal = $query->orderBy('tanggal', 'desc')->paginate((int) $request->input('per_page', 15));
 
             return response()->json([
                 'success' => true,
