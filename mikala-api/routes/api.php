@@ -105,6 +105,13 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['success' => true, 'data' => $mitra]);
         });
 
+        // Reset password akun Mitra/Klien oleh admin (tindak lanjut "Lupa Password" via WA).
+        // Pembatasan role mana boleh reset akun apa ada di AkunController::ACCESS.
+        Route::middleware('role:manajemen,rekrutmen,training_center,customer_care')->prefix('akun')->group(function () {
+            Route::get('search', [\App\Http\Controllers\Internal\AkunController::class, 'search']);
+            Route::post('{userId}/reset-password', [\App\Http\Controllers\Internal\AkunController::class, 'resetPassword']);
+        });
+
         // Rekrutmen
         Route::middleware('role:manajemen,rekrutmen')->prefix('rekrutmen')->group(function () {
             Route::apiResource('mitra', RekrutmenController::class);

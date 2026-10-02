@@ -18,13 +18,13 @@ class ResetPasswordController extends Controller
     {
         $request->validate(['email' => 'required|email']);
 
-        $user = User::where('email', strtolower($request->email))->first();
+        $user = User::whereRaw('LOWER(email) = ?', [strtolower($request->email)])->first();
 
         $waNumber = env('WA_CS_NUMBER', '6281296998827');
 
         if (!$user) {
             // Email tidak ditemukan — tetap return WA sebagai fallback
-            $waMessage = urlencode("Halo Mikala, saya ingin reset password akun saya dengan email: {$request->email}");
+            $waMessage = urlencode("Halo Admin Mikala, saya lupa password akun saya. Email yang saya masukkan: {$request->email} (tidak ditemukan di sistem). Mohon dibantu cek akun saya.");
             return response()->json([
                 'success'    => true,
                 'message'    => 'Jika email terdaftar, instruksi reset akan dikirim.',
@@ -82,8 +82,10 @@ class ResetPasswordController extends Controller
         }
 
         // WA link (untuk fallback / alternatif)
-        $waNumber = env('WA_CS_NUMBER', '6281296998827');
-        $waMessage = urlencode("Halo Mikala, saya {$user->name} ({$user->email}) ingin reset password akun saya.");
+        // Pesan WA ke admin dilengkapi role + no HP supaya admin langsung tahu akun mana yang
+        // harus direset di menu Reset Password (Rekrutmen utk mitra, Customer Care utk klien).
+        $roleLabel = $user->role === 'klien' ? 'Klien' : ($user->role === 'mitra' ? 'Mitra' : ucfirst((string) $user->role));
+        $waMessage = urlencode("Halo Admin Mikala, saya {$user->name} ({$roleLabel}) lupa password.\nEmail: {$user->email}\nNo HP: " . ($user->phone ?: '-') . "\nMohon dibantu reset password akun saya.");
         $waUrl = "https://wa.me/{$waNumber}?text={$waMessage}";
 
         return response()->json([
@@ -108,7 +110,7 @@ class ResetPasswordController extends Controller
         ]);
 
         $record = DB::table('password_reset_tokens')
-            ->where('email', strtolower($request->email))
+            ->whereRaw('LOWER(email) = ?', [strtolower($request->email)])
             ->first();
 
         if (!$record) {
@@ -116,8 +118,8 @@ class ResetPasswordController extends Controller
         }
 
         // Cek expired (60 menit)
-        if (now()->diffInMinutes($record->created_at) > 60) {
-            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        if ($this->isExpired($record)) {
+            DB::table('password_reset_tokens')->where('email', $record->email)->delete();
             return response()->json(['valid' => false, 'message' => 'Token sudah kadaluarsa'], 400);
         }
 
@@ -141,19 +143,19 @@ class ResetPasswordController extends Controller
         ]);
 
         $record = DB::table('password_reset_tokens')
-            ->where('email', strtolower($request->email))
+            ->whereRaw('LOWER(email) = ?', [strtolower($request->email)])
             ->first();
 
         if (!$record || !Hash::check($request->token, $record->token)) {
             return response()->json(['success' => false, 'message' => 'Token tidak valid atau sudah digunakan'], 400);
         }
 
-        if (now()->diffInMinutes($record->created_at) > 60) {
-            DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        if ($this->isExpired($record)) {
+            DB::table('password_reset_tokens')->where('email', $record->email)->delete();
             return response()->json(['success' => false, 'message' => 'Token sudah kadaluarsa, silakan request ulang'], 400);
         }
 
-        $user = User::where('email', strtolower($request->email))->first();
+        $user = User::whereRaw('LOWER(email) = ?', [strtolower($request->email)])->first();
         if (!$user) {
             return response()->json(['success' => false, 'message' => 'User tidak ditemukan'], 404);
         }
@@ -162,7 +164,7 @@ class ResetPasswordController extends Controller
         $user->update(['password' => Hash::make($request->password)]);
 
         // Hapus token
-        DB::table('password_reset_tokens')->where('email', $request->email)->delete();
+        DB::table('password_reset_tokens')->where('email', $record->email)->delete();
 
         // Revoke semua token aktif (logout dari semua device)
         $user->tokens()->delete();
@@ -171,5 +173,15 @@ class ResetPasswordController extends Controller
             'success' => true,
             'message' => 'Password berhasil diubah! Silakan login dengan password baru.',
         ]);
+    }
+
+    /**
+     * Token berlaku 60 menit. Sebelumnya pakai now()->diffInMinutes($created_at) > 60, tapi di
+     * Carbon 3 (Laravel 11) hasilnya bertanda (negatif utk waktu lampau) sehingga token gak
+     * pernah dianggap kadaluarsa.
+     */
+    private function isExpired($record): bool
+    {
+        return \Carbon\Carbon::parse($record->created_at)->addMinutes(60)->isPast();
     }
 }
