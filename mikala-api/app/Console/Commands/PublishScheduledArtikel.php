@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Support\ArtikelScheduler;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 class PublishScheduledArtikel extends Command
 {
@@ -12,21 +12,8 @@ class PublishScheduledArtikel extends Command
 
     public function handle()
     {
-        $now = now();
-
-        // MGM: cms_artikel
-        $cms = DB::table('cms_artikel')
-            ->where('status', 'scheduled')
-            ->where('published_at', '<=', $now)
-            ->update(['status' => 'published', 'updated_at' => $now]);
-
-        // MGA: mga_artikel
-        $mga = DB::table('mga_artikel')
-            ->where('status', 'scheduled')
-            ->where('published_at', '<=', $now)
-            ->update(['status' => 'published', 'updated_at' => $now]);
-
-        $this->info("Published: MGM={$cms}, MGA={$mga} artikel @ {$now}");
+        $count = ArtikelScheduler::publishDue();
+        $this->info("Published: MGM={$count['mgm']}, MGA={$count['mga']} artikel @ " . now());
         return 0;
     }
 }

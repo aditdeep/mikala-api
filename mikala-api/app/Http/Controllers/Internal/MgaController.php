@@ -22,6 +22,7 @@ class MgaController extends Controller
 
     // ── Artikel ───────────────────────────────────────────────────────────────
     public function artikelIndex(Request $request) {
+        \App\Support\ArtikelScheduler::publishDue();
         $data = DB::table('mga_artikel')
             ->when($request->search, fn($q) => $q->where('judul','like',"%{$request->search}%"))
             ->when($request->user(), function($q) use ($request) {
@@ -56,7 +57,7 @@ class MgaController extends Controller
         return response()->json(['success'=>true,'data'=>DB::table('mga_artikel')->find($id)]);
     }
     private function mgaPublishedAt(Request $request) {
-        return $request->published_at ? \Carbon\Carbon::parse($request->published_at) : now();
+        return \App\Support\ArtikelScheduler::parseInput($request->published_at);
     }
     private function mgaStatus(Request $request) {
         $status = $request->status ?? 'draft';

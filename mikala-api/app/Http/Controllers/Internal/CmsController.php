@@ -13,6 +13,7 @@ class CmsController extends Controller
         if ($q === '') return response()->json(['success'=>true,'data'=>[]]);
         $like = '%'.$q.'%';
 
+        \App\Support\ArtikelScheduler::publishDue();
         $artikel = \App\Models\CmsArtikel::where('status','published')->where('published_at','<=', now())
             ->where(function($w) use ($like) { $w->where('judul','ILIKE',$like)->orWhere('excerpt','ILIKE',$like); })
             ->orderBy('published_at','desc')->limit(10)->get()
@@ -34,6 +35,7 @@ class CmsController extends Controller
 
     // Artikel
     public function indexArtikel(Request $request) {
+        \App\Support\ArtikelScheduler::publishDue();
         $q = \App\Models\CmsArtikel::orderBy('published_at','desc')->orderBy('created_at','desc');
         if ($request->user()) {
             // admin: tampil semua, bisa filter status
@@ -54,7 +56,7 @@ class CmsController extends Controller
     public function storeArtikel(Request $request) {
         $request->validate(['judul'=>'required','konten'=>'required','slug'=>'required']);
         $data = $request->all();
-        $publishedAt = $request->published_at ? \Carbon\Carbon::parse($request->published_at) : now();
+        $publishedAt = \App\Support\ArtikelScheduler::parseInput($request->published_at);
         $data['published_at'] = $publishedAt;
         if (($data['status'] ?? 'published') === 'published' && $publishedAt->isFuture()) {
             $data['status'] = 'scheduled';
@@ -66,7 +68,7 @@ class CmsController extends Controller
         $artikel = \App\Models\CmsArtikel::findOrFail($id);
         $data = $request->all();
         if ($request->filled('published_at')) {
-            $publishedAt = \Carbon\Carbon::parse($request->published_at);
+            $publishedAt = \App\Support\ArtikelScheduler::parseInput($request->published_at);
             $data['published_at'] = $publishedAt;
             if (($data['status'] ?? $artikel->status) === 'published' && $publishedAt->isFuture()) {
                 $data['status'] = 'scheduled';
@@ -80,6 +82,7 @@ class CmsController extends Controller
         return response()->json(['success'=>true]);
     }
     public function showArtikel($slug) {
+        \App\Support\ArtikelScheduler::publishDue();
         $a = \App\Models\CmsArtikel::where('slug',$slug)->where('status','published')->where('published_at','<=', now())->firstOrFail();
         // Clean literal \n from content
         $a->konten = str_replace(['\\n', '\\r', '\n\n\n'], ['', '', '\n'], $a->konten ?? '');
