@@ -84,6 +84,8 @@ class AuthController extends Controller
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
+        // Lepas token push HP supaya notif akun ini gak nyasar ke HP yg sudah logout / dipakai akun lain
+        $request->user()->forceFill(['fcm_token' => null])->save();
 
         return response()->json([
             'message' => 'Logged out successfully',

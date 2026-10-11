@@ -282,27 +282,8 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     Route::middleware('role:mitra')->prefix('mitra')->group(function () {
         Route::post('upload', [UploadController::class, 'upload']);
-        Route::get('dashboard', function(\Illuminate\Http\Request $request) {
-            try {
-                $user = $request->user();
-                $mitra = $user->mitra;
-                if (!$mitra) return response()->json(['success' => false, 'message' => 'Mitra not found'], 404);
-
-                $activeJobs    = \App\Models\Order::where('mitra_id', $mitra->id)->whereIn('status', ['confirmed','in_progress'])->count();
-                $completedJobs = \App\Models\Order::where('mitra_id', $mitra->id)->where('status', 'completed')->count();
-                $totalEarnings = \App\Models\Payroll::where('mitra_id', $mitra->id)->where('status', 'paid')->sum('total');
-                $recentJobs    = \App\Models\Order::where('mitra_id', $mitra->id)->with(['klien.user','pasien'])->orderBy('created_at','desc')->limit(3)->get();
-
-                return response()->json(['success' => true, 'data' => [
-                    'active_jobs'    => $activeJobs,
-                    'completed_jobs' => $completedJobs,
-                    'total_earnings' => $totalEarnings,
-                    'recent_jobs'    => $recentJobs,
-                ]]);
-            } catch (\Exception $e) {
-                return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
-            }
-        });
+        // Ringkasan Beranda mitra -- dulu baca model Order (sudah mati), sekarang dari Deal CC
+        Route::get('dashboard', [MitraJobController::class, 'summary']);
         Route::get('profile', [MitraProfileController::class, 'show']);
         Route::patch('profile', [MitraProfileController::class, 'update']);
         Route::get('jobs', [MitraJobController::class, 'index']);

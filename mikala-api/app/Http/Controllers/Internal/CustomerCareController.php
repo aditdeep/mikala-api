@@ -1027,6 +1027,7 @@ class CustomerCareController extends Controller
 
         try {
             $lead = \App\Models\Lead::findOrFail($id);
+            $mitraSebelumnya = $lead->status === \App\Models\Lead::STATUS_DEAL ? $lead->mitra_id : null;
             $lead->update([
                 'status'    => \App\Models\Lead::STATUS_DEAL,
                 'nik'       => $lead->nik ?: \App\Models\Lead::generateNik(),
@@ -1057,6 +1058,7 @@ class CustomerCareController extends Controller
             ]);
 
             $this->prosesRekomFeeLog($lead->fresh());
+            $this->notifPenempatanMitra($lead->fresh(['layanan', 'mitra']), $mitraSebelumnya);
 
             return response()->json([
                 'success' => true,
@@ -1065,6 +1067,30 @@ class CustomerCareController extends Controller
             ]);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Notif (in-app + push HP) ke mitra saat dia ditempatkan ke pasien lewat Tandai Deal.
+     * Hanya sekali per penempatan: tidak dikirim ulang kalau form Deal disimpan ulang dgn mitra
+     * yg sama (mis. revisi data Deal).
+     */
+    private function notifPenempatanMitra(\App\Models\Lead $lead, $mitraSebelumnya): void
+    {
+        if (!$lead->mitra_id || (int) $lead->mitra_id === (int) $mitraSebelumnya) return;
+        $userId = $lead->mitra?->user_id;
+        if (!$userId) return;
+        try {
+            $layanan = trim(($lead->layanan->nama ?? 'Layanan') . ($lead->tier_nama ? ' ' . $lead->tier_nama : ''));
+            \App\Services\NotifikasiService::send(
+                $userId,
+                'order',
+                'Penempatan Baru',
+                "Anda ditempatkan untuk pasien {$lead->nama_pasien} ({$layanan}). Cek detailnya di menu Tugas.",
+                ['related_type' => 'cc_lead', 'related_id' => $lead->id]
+            );
+        } catch (\Throwable $e) {
+            \Log::warning('Notif penempatan mitra gagal: ' . $e->getMessage());
         }
     }
 

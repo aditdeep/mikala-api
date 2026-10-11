@@ -27,6 +27,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'fcm_token', // token push HP (Expo) -- gak perlu ikut ke response API
     ];
 
     protected function casts(): array

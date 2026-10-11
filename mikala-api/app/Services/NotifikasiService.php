@@ -28,6 +28,12 @@ class NotifikasiService
             'is_read'      => false,
         ]);
 
+        // Push ke HP (app Expo mitra/klien). Sebelumnya notifikasi cuma tersimpan di tabel &
+        // dikirim realtime ke web; sendPush() ada tapi gak pernah dipanggil, jadi HP gak bunyi.
+        if (\App\Http\Controllers\NotifikasiController::sendPush($userId, $judul, $pesan, ['type' => $tipe] + $data)) {
+            $notif->forceFill(['is_sent_push' => 1, 'sent_at' => now()])->save();
+        }
+
         // Broadcast event ke Pusher (jika driver bukan null)
         if (config('broadcasting.default') !== 'null') {
             try {

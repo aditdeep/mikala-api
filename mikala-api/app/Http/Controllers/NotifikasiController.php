@@ -147,43 +147,53 @@ class NotifikasiController extends Controller
     {
         $request->validate(['expo_token' => 'required|string']);
         $user = auth()->user();
+        // 1 HP = 1 akun: lepas token ini dari akun lain yg pernah login di HP yg sama
+        \App\Models\User::where('fcm_token', $request->expo_token)->where('id', '!=', $user->id)->update(['fcm_token' => null]);
         $user->update(['fcm_token' => $request->expo_token]);
         return response()->json(['success' => true, 'message' => 'Push token saved']);
     }
 
     /**
-     * Kirim push notification ke user tertentu (internal use)
+     * Kirim push notification Expo ke HP user (tanpa menyimpan ke tabel notifikasi --
+     * penyimpanan lewat NotifikasiService::send(), yang juga memanggil fungsi ini).
+     * Sebelumnya fungsi ini juga insert Notifikasi pakai kolom 'body'/'data' yang tidak ada,
+     * sehingga insert selalu gagal dan fungsi selalu return false.
      */
-    public static function sendPush($userId, string $title, string $body, array $data = [])
+    public static function sendPush($userId, string $title, string $body, array $data = []): bool
     {
         try {
             $user = \App\Models\User::find($userId);
             if (!$user || !$user->fcm_token) return false;
             if (!str_starts_with($user->fcm_token, 'ExponentPushToken')) return false;
 
-            $response = \Illuminate\Support\Facades\Http::post('https://exp.host/--/api/v2/push/send', [
-                'to'    => $user->fcm_token,
-                'title' => $title,
-                'body'  => $body,
-                'data'  => $data,
-                'sound' => 'default',
-                'badge' => 1,
+            $type = $data['type'] ?? 'info';
+            $channel = match (true) {
+                in_array($type, ['order', 'job', 'order_assigned', 'penempatan'], true) => 'jobs',
+                in_array($type, ['payroll', 'gaji', 'kasbon', 'billing'], true)        => 'gaji',
+                default                                                                 => 'default',
+            };
+
+            $response = \Illuminate\Support\Facades\Http::timeout(5)->post('https://exp.host/--/api/v2/push/send', [
+                'to'        => $user->fcm_token,
+                'title'     => $title,
+                'body'      => $body,
+                'data'      => $data,
+                'sound'     => 'default',
+                'channelId' => $channel,
+                'priority'  => 'high',
             ]);
 
-            // Simpan ke tabel notifikasi juga
-            \App\Models\Notifikasi::create([
-                'user_id'    => $userId,
-                'title'      => $title,
-                'body'       => $body,
-                'type'       => $data['type'] ?? 'general',
-                'data'       => json_encode($data),
-                'is_read'    => false,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-
+            $ticket = $response->json('data');
+            if (($ticket['status'] ?? null) === 'error') {
+                \Log::warning('Expo push ticket error', ['user_id' => $userId, 'ticket' => $ticket]);
+                // Token sudah tidak valid (app di-uninstall / login di HP lain) -> bersihkan
+                if (($ticket['details']['error'] ?? null) === 'DeviceNotRegistered') {
+                    $user->forceFill(['fcm_token' => null])->save();
+                }
+                return false;
+            }
             return $response->successful();
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Log::error('Push notification error: ' . $e->getMessage());
             return false;
         }
@@ -202,8 +212,8 @@ class NotifikasiController extends Controller
 
         $sent = 0;
         foreach ($mitras as $user) {
-            $success = self::sendPush($user->id, $request->title, $request->body, ['type' => $request->type ?? 'broadcast']);
-            if ($success) $sent++;
+            $notif = \App\Services\NotifikasiService::send($user->id, $request->type ?? 'info', $request->title, $request->body);
+            if ($notif->is_sent_push) $sent++;
         }
         return response()->json(['success' => true, 'sent_to' => $sent]);
     }
