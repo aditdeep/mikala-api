@@ -24,6 +24,8 @@ use Illuminate\Support\Facades\DB;
  * Stop dgn stop_at = sehari sebelum baris penggantinya mulai.
  *
  * Dilewati (dilaporkan): PJ+pasien yang sudah ada di cc_leads sistem baru (diinput CC setelah go-live).
+ * Per MITRA juga cuma Deal terbaru yg aktif (opsi A): Deal lama mitra yg sama di-Stop sehari
+ * sebelum Deal berikutnya mulai.
  * Ditandai utk dicek CC (tetap diimpor): mitra tidak ketemu, tanggal kosong, gaji tidak wajar (>= 20jt),
  * mitra aktif di > 1 pasien.
  * Idempotent: baris yg sudah diimpor (penanda "[PJ-LAMA #no]" di catatan) dilewati.
@@ -80,6 +82,7 @@ class MigrasiPjLama extends Command
             $r['_aktif'] = strtolower(trim($r['status'])) === 'aktif';
             $r['_stop'] = $r['_aktif'] ? null : $r['_deal'];
             $r['_catatan'] = [];
+            [$r['_mitra'], $r['_ket']] = $cariMitra($r['nama_mitra']);
         }
         unset($r);
         $pasangan = [];
@@ -101,6 +104,25 @@ class MigrasiPjLama extends Command
             }
         }
 
+        // Aturan anti gaji dobel #2 (keputusan: opsi A): per MITRA cuma Deal terbaru yg aktif. Mitra
+        // gaji bulanan (live-in) tidak pegang >1 pasien bersamaan; Deal lama yg masih "aktif" di
+        // sistem lama = lupa dinonaktifkan. Tgl mulai sama -> dibiarkan & ditandai.
+        $perMitraAktif = [];
+        foreach ($rows as $i => $r) if ($r['_aktif'] && $r['_deal'] && $r['_mitra']) $perMitraAktif[$r['_mitra']->id][] = $i;
+        foreach ($perMitraAktif as $idx) {
+            if (count($idx) < 2) continue;
+            usort($idx, fn ($a, $b) => strcmp($rows[$a]['_deal'], $rows[$b]['_deal']));
+            $terbaru = $rows[end($idx)];
+            foreach (array_slice($idx, 0, -1) as $i) {
+                if ($rows[$i]['_deal'] === $terbaru['_deal']) continue;
+                $berikut = null;
+                foreach ($idx as $j) if ($rows[$j]['_deal'] > $rows[$i]['_deal']) { $berikut = $rows[$j]; break; }
+                $rows[$i]['_aktif'] = false;
+                $rows[$i]['_stop'] = max($rows[$i]['_deal'], Carbon::parse($berikut['_deal'])->subDay()->toDateString());
+                $rows[$i]['_catatan'][] = "dinonaktifkan: mitra {$terbaru['nama_mitra']} sudah pindah ke pasien {$berikut['nama_pasien']} sejak {$berikut['_deal']}";
+            }
+        }
+
         // Existing di sistem baru
         $existing = DB::table('cc_leads')->whereNull('deleted_at')->select('id', 'nama_leads', 'nama_pasien', 'catatan')->get();
         $sudahAda = []; $sudahImpor = [];
@@ -114,7 +136,7 @@ class MigrasiPjLama extends Command
             $key = self::norm($r['nama_pj']) . '|' . self::norm($r['nama_pasien']);
             if (isset($sudahImpor[$r['no']])) { $lewat[] = "#{$r['no']} sudah pernah diimpor (lead #{$sudahImpor[$r['no']]})"; continue; }
             if (isset($sudahAda[$key])) { $lewat[] = "#{$r['no']} {$r['nama_pj']} / {$r['nama_pasien']}: sudah ada di sistem baru (lead #{$sudahAda[$key]})"; continue; }
-            [$mitra, $ket] = $cariMitra($r['nama_mitra']);
+            $mitra = $r['_mitra']; $ket = $r['_ket'];
             $f = $r['_catatan'];
             if (!$mitra) $f[] = "MITRA: {$ket} ('{$r['nama_mitra']}') -> diimpor tanpa mitra, pilih mitra di CC";
             elseif ($ket) $f[] = "mitra {$ket}";
