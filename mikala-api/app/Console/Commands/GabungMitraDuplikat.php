@@ -111,9 +111,16 @@ class GabungMitraDuplikat extends Command
             $this->line(sprintf('<fg=yellow>%s</> — pertahankan #%d (%s), gabungkan: %s',
                 $keep->nama_lengkap, $keep->id, $keep->nomor_induk ?: '-', implode(', ', array_map(fn ($d) => "#{$d->id} ({$d->nomor_induk})", $dups))));
 
-            [$ubahMitra, $ubahUser] = $this->rencanaField($keep, $dups);
+            $ubahMitra = $this->rencanaField($keep, $dups);
+            [$loginUserId, $infoLogin] = $this->pilihAkunLogin($keep, $dups);
+            if ($loginUserId && $loginUserId !== $keep->user_id) $ubahMitra['user_id'] = $loginUserId;
+            $userGrup = collect(array_merge([$keep], $dups))->pluck('user_id')->filter()->unique()->values()->all();
+            $userHapus = array_values(array_diff($userGrup, [$loginUserId]));
+            $ubahUser = $this->rencanaHp($loginUserId, $userGrup);
+
+            $this->line("   akun login dipertahankan: user #{$loginUserId} {$infoLogin}");
             foreach (array_diff_key($ubahMitra, ['data_tambahan' => 1]) as $k => $v) $this->line("   mitra.{$k}: " . json_encode($keep->getRawOriginal($k)) . ' -> ' . json_encode($v));
-            foreach ($ubahUser as $k => $v) $this->line("   user.{$k}: " . json_encode($keep->user?->$k) . ' -> ' . json_encode($v));
+            foreach ($ubahUser as $k => $v) $this->line("   user.{$k}: -> " . json_encode($v));
             foreach ($dups as $d) {
                 $pindah = [];
                 foreach ($kolomRelasi as [$t, $c]) {
@@ -122,8 +129,9 @@ class GabungMitraDuplikat extends Command
                 }
                 $nFee = Schema::hasTable('fee_log') ? DB::table('fee_log')->where('penerima_tipe', 'mitra')->where('penerima_id', $d->id)->count() : 0;
                 if ($nFee) $pindah[] = "fee_log:{$nFee}";
-                $this->line("   pindah data #{$d->id}: " . ($pindah ? implode(' ', $pindah) : '-') . " | hapus (soft) mitra #{$d->id} & user #{$d->user_id}");
+                $this->line("   pindah data #{$d->id}: " . ($pindah ? implode(' ', $pindah) : '-') . " | hapus (soft) mitra #{$d->id}");
             }
+            if ($userHapus) $this->line('   hapus (soft) akun user #' . implode(', #', $userHapus));
 
             if (!$jalankan) continue;
 
@@ -132,7 +140,7 @@ class GabungMitraDuplikat extends Command
                 'dups' => array_map(fn ($d) => ['mitra' => $d->getAttributes(), 'user' => $d->user?->getAttributes()], $dups),
             ];
             try {
-                DB::transaction(function () use ($keep, $dups, $ubahMitra, $ubahUser, $kolomRelasi) {
+                DB::transaction(function () use ($keep, $dups, $ubahMitra, $ubahUser, $kolomRelasi, $loginUserId, $userHapus) {
                     foreach ($dups as $d) {
                         // bebaskan kolom unik (nik / nomor_induk) dulu sebelum dipindah ke keep
                         DB::table('mitra')->where('id', $d->id)->update([
@@ -146,8 +154,14 @@ class GabungMitraDuplikat extends Command
                             DB::table('fee_log')->where('penerima_tipe', 'mitra')->where('penerima_id', $d->id)->update(['penerima_id' => $keep->id]);
                         }
                     }
+                    // akun yg tidak dipakai: cabut token, bebaskan no HP (unik) lalu soft-delete
+                    foreach ($userHapus as $uid) {
+                        DB::table('personal_access_tokens')->where('tokenable_type', User::class)->where('tokenable_id', $uid)->delete();
+                        $hp = DB::table('users')->where('id', $uid)->value('phone');
+                        DB::table('users')->where('id', $uid)->update(['phone' => 'DUP' . $uid . '-' . $hp, 'deleted_at' => now(), 'fcm_token' => null]);
+                    }
                     DB::table('mitra')->where('id', $keep->id)->update($ubahMitra + ['updated_at' => now()]);
-                    if ($ubahUser && $keep->user_id) DB::table('users')->where('id', $keep->user_id)->update($ubahUser + ['updated_at' => now()]);
+                    if ($ubahUser && $loginUserId) DB::table('users')->where('id', $loginUserId)->update($ubahUser + ['updated_at' => now()]);
 
                     // NIM di Deal ikut NIM final
                     $nimFinal = $ubahMitra['nomor_induk'] ?? $keep->nomor_induk;
@@ -157,10 +171,6 @@ class GabungMitraDuplikat extends Command
 
                     foreach ($dups as $d) {
                         DB::table('mitra')->where('id', $d->id)->update(['deleted_at' => now()]);
-                        if ($d->user_id && $d->user_id !== $keep->user_id) {
-                            DB::table('personal_access_tokens')->where('tokenable_type', User::class)->where('tokenable_id', $d->user_id)->delete();
-                            DB::table('users')->where('id', $d->user_id)->update(['deleted_at' => now(), 'fcm_token' => null]);
-                        }
                     }
                 });
                 $ok++;
@@ -182,7 +192,45 @@ class GabungMitraDuplikat extends Command
         return 0;
     }
 
-    /** @return array{0: array, 1: array} perubahan kolom mitra & user utk salinan yg dipertahankan */
+    /**
+     * Akun login yg dipertahankan = akun yg terakhir benar-benar dipakai login (token Sanctum),
+     * supaya mitra yg sudah login pakai akun salinan kedua tidak kehilangan akses. Kalau belum
+     * ada yg pernah login, pakai akun salinan yg dipertahankan.
+     */
+    private function pilihAkunLogin(Mitra $keep, array $dups): array
+    {
+        $best = null; $bestAt = null;
+        foreach (array_merge([$keep], $dups) as $m) {
+            if (!$m->user_id) continue;
+            $at = DB::table('personal_access_tokens')->where('tokenable_type', User::class)->where('tokenable_id', $m->user_id)
+                ->selectRaw('MAX(COALESCE(last_used_at, created_at)) as t')->value('t');
+            if ($at && (!$bestAt || $at > $bestAt)) { $best = $m->user_id; $bestAt = $at; }
+        }
+        if ($best) {
+            $email = User::withTrashed()->where('id', $best)->value('email');
+            return [$best, "({$email}, terakhir login {$bestAt})"];
+        }
+        $email = $keep->user?->email;
+        return [$keep->user_id, "({$email}, belum pernah login)"];
+    }
+
+    /** No HP asli utk akun login kalau masih NOHP-... / berakhiran -2 (akal-akalan migrasi). */
+    private function rencanaHp(?int $loginUserId, array $userGrup): array
+    {
+        if (!$loginUserId) return [];
+        $hpLogin = (string) User::withTrashed()->where('id', $loginUserId)->value('phone');
+        $palsu = $hpLogin === '' || str_starts_with($hpLogin, 'NOHP') || preg_match('/-\d+$/', $hpLogin);
+        if (!$palsu) return [];
+        foreach (User::withTrashed()->whereIn('id', $userGrup)->pluck('phone') as $hp) {
+            $hp = preg_replace('/-\d+$/', '', (string) $hp);
+            if ($hp === '' || str_starts_with($hp, 'NOHP') || $hp === $hpLogin) continue;
+            $dipakai = User::withTrashed()->where('phone', $hp)->whereNotIn('id', $userGrup)->exists();
+            if (!$dipakai) return ['phone' => $hp];
+        }
+        return [];
+    }
+
+    /** @return array perubahan kolom mitra utk salinan yg dipertahankan */
     private function rencanaField(Mitra $keep, array $dups): array
     {
         $m = [];
@@ -229,16 +277,7 @@ class GabungMitraDuplikat extends Command
         $dt['digabung_dari'] = array_values(array_unique(array_merge($dt['digabung_dari'] ?? [], array_map(fn ($d) => $d->id, $dups))));
         $m['data_tambahan'] = json_encode($dt, JSON_UNESCAPED_UNICODE);
 
-        // akun: no HP asli dari salinan dobel (akhiran "-2" dibuang) kalau punya keep masih NOHP-
-        $u = [];
-        $hpKeep = (string) $keep->user?->phone;
-        if (str_starts_with($hpKeep, 'NOHP') || $hpKeep === '') {
-            foreach ($dups as $d) {
-                $hp = preg_replace('/-\d+$/', '', (string) $d->user?->phone);
-                if ($hp && !str_starts_with($hp, 'NOHP') && !User::withTrashed()->where('phone', $hp)->exists()) { $u['phone'] = $hp; break; }
-            }
-        }
-        return [$m, $u];
+        return $m;
     }
 
     /** Semua kolom *mitra_id di DB (mitra_id, referensi_mitra_id, referrer_mitra_id, ...). */
