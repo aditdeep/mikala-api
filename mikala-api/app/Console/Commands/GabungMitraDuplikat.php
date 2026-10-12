@@ -210,6 +210,14 @@ class GabungMitraDuplikat extends Command
             $email = User::withTrashed()->where('id', $best)->value('email');
             return [$best, "({$email}, terakhir login {$bestAt})"];
         }
+        // Belum ada yg pernah login: utamakan akun dgn email asli (mis. mitra daftar ulang sendiri)
+        // daripada email buatan migrasi (...@mitra.mikalaglobalmedika.com).
+        foreach (array_merge([$keep], $dups) as $m) {
+            $email = (string) $m->user?->email;
+            if ($m->user_id && $email && !str_ends_with($email, '@mitra.mikalaglobalmedika.com') && !str_ends_with($email, '@example.com')) {
+                return [$m->user_id, "({$email}, email asli, belum pernah login)"];
+            }
+        }
         $email = $keep->user?->email;
         return [$keep->user_id, "({$email}, belum pernah login)"];
     }
