@@ -113,9 +113,9 @@ class RapikanMitra extends Command
             'tempat_lahir'         => $tempat,
             'tanggal_lahir'        => $tgl ?? $m->getRawOriginal('tanggal_lahir'),
             'jenis_kelamin'        => $jk,
-            'alamat'               => null,
-            'kota'                 => $tempat ?? $m->suku,
-            'pendidikan_terakhir'  => $m->pengalaman_pelatihan ?: null,
+            'alamat'               => '-', // kolom NOT NULL; alamat asli tidak ada di data
+            'kota'                 => $tempat ?? ($m->suku ?: '-'), // NOT NULL
+            'pendidikan_terakhir'  => $m->pengalaman_pelatihan ?: '-', // NOT NULL
             'pengalaman_pelatihan' => $m->pengalaman ?: null,
             'pengalaman'           => null,
             'bisa_memasak'         => in_array($m->pendidikan_terakhir, ['Bisa', 'Tidak Bisa'], true) ? $m->pendidikan_terakhir : null,
