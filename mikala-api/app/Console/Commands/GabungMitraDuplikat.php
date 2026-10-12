@@ -219,10 +219,10 @@ class GabungMitraDuplikat extends Command
     {
         if (!$loginUserId) return [];
         $hpLogin = (string) User::withTrashed()->where('id', $loginUserId)->value('phone');
-        $palsu = $hpLogin === '' || str_starts_with($hpLogin, 'NOHP') || preg_match('/-\d+$/', $hpLogin);
+        $palsu = $hpLogin === '' || str_starts_with($hpLogin, 'NOHP') || preg_match('/-\d{1,2}$/', $hpLogin);
         if (!$palsu) return [];
         foreach (User::withTrashed()->whereIn('id', $userGrup)->pluck('phone') as $hp) {
-            $hp = preg_replace('/-\d+$/', '', (string) $hp);
+            $hp = preg_replace('/-\d{1,2}$/', '', (string) $hp);
             if ($hp === '' || str_starts_with($hp, 'NOHP') || $hp === $hpLogin) continue;
             $dipakai = User::withTrashed()->where('phone', $hp)->whereNotIn('id', $userGrup)->exists();
             if (!$dipakai) return ['phone' => $hp];
@@ -248,7 +248,7 @@ class GabungMitraDuplikat extends Command
             if (self::rankNik($d->nik) > self::rankNik($nikKeep)) $m['nik'] = $d->nik;
 
             foreach ($keep->getFillable() as $k) {
-                if (in_array($k, ['user_id', 'nik', 'nomor_induk', 'tanggal_lahir', 'status', 'status_rekrutmen', 'data_tambahan', 'training_status'], true)) continue;
+                if (in_array($k, ['user_id', 'nik', 'nomor_induk', 'tanggal_lahir', 'status', 'status_rekrutmen', 'status_lulus', 'data_tambahan', 'training_status'], true)) continue;
                 if ($kosong($m[$k] ?? $raw($keep, $k)) && !$kosong($raw($d, $k))) $m[$k] = $raw($d, $k);
             }
         }
@@ -258,13 +258,9 @@ class GabungMitraDuplikat extends Command
         if ($keep->status_rekrutmen !== 'verified' && collect($dups)->contains(fn ($d) => $d->status_rekrutmen === 'verified')) {
             $m['status_rekrutmen'] = 'verified';
         }
-        // status kerja: dari salinan yg terakhir diubah; on_job kalau ada Deal aktif
-        $terbaru = collect($semua)->sortByDesc(fn ($x) => (string) $raw($x, 'updated_at'))->first();
-        if ($terbaru->id !== $keep->id) {
-            foreach (['status', 'status_lulus', 'training_status'] as $k) {
-                if (Schema::hasColumn('mitra', $k) && $raw($terbaru, $k) !== null && $raw($terbaru, $k) !== $raw($keep, $k)) $m[$k] = $raw($terbaru, $k);
-            }
-        }
+        // status kerja TIDAK diambil dari salinan dobel: dicek ke data PJ sistem lama, status di salinan
+        // yg terakhir diubah sering salah (mis. mitra aktif jaga pasien malah jadi training/available).
+        // Status yg benar diisi migrasi PJ (Deal aktif -> on_job). Di sini cuma: ada Deal aktif -> on_job.
         $adaDeal = DB::table('cc_leads')->whereIn('mitra_id', collect($semua)->pluck('id'))->where('status', \App\Models\Lead::STATUS_DEAL)->exists();
         if ($adaDeal && ($m['status'] ?? $keep->status) !== 'on_job') $m['status'] = 'on_job';
 
