@@ -283,10 +283,16 @@ class FinanceController extends Controller
                 ->with('mitra')
                 ->get();
 
-            $generated = [];
+            // Generate ulang periode yg sama aman: payroll yg sudah approved/paid TIDAK disentuh,
+            // draft dihitung ulang (bonus/adjustment manual Finance dipertahankan), dan draft milik
+            // Deal yg sudah tidak memenuhi syarat (mis. Deal di-Stop/dikoreksi CC) dihapus.
+            $generated = []; $dilewati = 0; $diperbarui = 0;
             foreach ($leads as $lead) {
                 $mitra = $lead->mitra;
                 if (!$mitra) continue;
+                $lama = \App\Models\Payroll::where('lead_id', $lead->id)->where('mitra_id', $mitra->id)
+                    ->whereDate('periode_mulai', $periodeStart->toDateString())->first();
+                if ($lama && $lama->status !== 'draft') { $dilewati++; $generated[] = $lama; continue; }
 
                 // Hari kerja prorata di periode ini (tgl 1-15 atau 16-akhir bulan)
                 $mulai   = max(\Carbon\Carbon::parse($lead->deal_at), $periodeStart);
@@ -331,11 +337,14 @@ class FinanceController extends Controller
                     $potonganKredit = min($cicilan, $sisa);
                 }
 
-                $gajiKotor     = $gajiPokok + $uangCuti;
+                $bonus         = $lama ? floatval($lama->bonus) : 0;
+                $adjustment    = $lama ? floatval($lama->adjustment) : 0;
+                $gajiKotor     = $gajiPokok + $uangCuti + $bonus;
                 $totalPotongan = $potonganKasbon + $potonganKredit;
-                $total         = $gajiKotor - $totalPotongan;
+                $total         = $gajiKotor - $totalPotongan + $adjustment;
 
-                $payrollNumber = 'PAY-'.date('Ym').$bagian.'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
+                $payrollNumber = $lama->payroll_number
+                    ?? 'PAY-'.date('Ym').$bagian.'-'.str_pad(\App\Models\Payroll::count()+1, 4, '0', STR_PAD_LEFT);
 
                 $payroll = \App\Models\Payroll::updateOrCreate(
                     ['lead_id' => $lead->id, 'mitra_id' => $mitra->id, 'periode_mulai' => $periodeStart],
@@ -349,10 +358,10 @@ class FinanceController extends Controller
                         'hari_cuti'         => $hariCuti,
                         'rate_cuti'         => $rateCutiDefault,
                         'uang_cuti'         => $uangCuti,
-                        'bonus'             => 0,
+                        'bonus'             => $bonus,
                         'potongan_kasbon'   => $potonganKasbon,
                         'potongan_kredit'   => $potonganKredit,
-                        'adjustment'        => 0,
+                        'adjustment'        => $adjustment,
                         'potongan'          => $totalPotongan,
                         'total'             => $total,
                         'status'            => 'draft',
@@ -360,9 +369,10 @@ class FinanceController extends Controller
                     ]
                 );
                 $generated[] = $payroll;
+                if ($lama) $diperbarui++;
 
-                // Notif realtime ke mitra: payroll baru di-generate
-                if ($mitra->user_id) {
+                // Notif realtime ke mitra: payroll baru di-generate (sekali saja, bukan tiap generate ulang)
+                if (!$lama && $mitra->user_id) {
                     \App\Services\NotifikasiService::send(
                         $mitra->user_id,
                         'payroll',
@@ -373,10 +383,23 @@ class FinanceController extends Controller
                 }
             }
 
+            // Draft periode ini yg Deal-nya sudah tidak memenuhi syarat -> hapus
+            $dihapus = \App\Models\Payroll::whereDate('periode_mulai', $periodeStart->toDateString())
+                ->where('status', 'draft')->whereNotNull('lead_id')
+                ->whereNotIn('id', collect($generated)->pluck('id'))
+                ->delete();
+
+            $baru = count($generated) - $diperbarui - $dilewati;
+            $pesan = "{$baru} payroll baru"
+                . ($diperbarui ? ", {$diperbarui} draft dihitung ulang" : '')
+                . ($dilewati ? ", {$dilewati} sudah approved/dibayar (tidak diubah)" : '')
+                . ($dihapus ? ", {$dihapus} draft lama dihapus (Deal sudah tidak aktif di periode ini)" : '');
+
             return response()->json([
                 'success' => true,
-                'message' => count($generated).' payroll generated',
-                'data' => ['total_generated' => count($generated), 'payrolls' => $generated],
+                'message' => $pesan,
+                'data' => ['total_generated' => count($generated), 'baru' => $baru, 'diperbarui' => $diperbarui,
+                           'dilewati' => $dilewati, 'dihapus' => $dihapus, 'payrolls' => $generated],
             ], 201);
         } catch (\Exception $e) {
             return response()->json(['success'=>false,'message'=>'Failed: '.$e->getMessage()], 500);
