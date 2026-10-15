@@ -8,7 +8,8 @@ namespace App\Support;
  * margin). Area teks otomatis diberi jarak dari kop supaya isi tidak menabrak ornamen.
  * Gambar kop: resources/kop/kop-header.jpg (2000x384) & kop-footer.jpg (2000x541).
  *
- * Dipakai Kontrak 2 (Perjanjian Penempatan MGM-Mitra) & Kontrak 3 (Perjanjian Kerja Mitra-Klien).
+ * Dipakai Kontrak 1.1/1.2 (MGM-Klien) & Kontrak 2 (Perjanjian Penempatan MGM-Mitra).
+ * Kontrak 3 (Perjanjian Kerja Mitra-Klien) sengaja tanpa kop.
  */
 class KopSuratPdf extends \TCPDF
 {

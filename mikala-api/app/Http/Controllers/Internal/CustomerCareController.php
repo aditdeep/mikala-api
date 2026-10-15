@@ -1178,16 +1178,8 @@ class CustomerCareController extends Controller
         $isHarian = str_contains(strtolower($lead->tier_nama ?? ''), 'harian');
         $html = $isHarian ? $this->buildKontrak12Html($lead) : $this->buildKontrak11Html($lead);
 
-        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
-        $pdf->SetCreator('Mikala Global Medika');
-        $pdf->SetAuthor('PT. Mikala Global Medika');
-        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_klien);
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->SetMargins(20, 15, 20);
-        $pdf->SetAutoPageBreak(true, 15);
-        $pdf->AddPage();
-        $pdf->SetFont('helvetica', '', 10);
+        // Kontrak 1 (1.1 & 1.2) pakai kop surat resmi (header atas & footer bawah, tiap halaman)
+        $pdf = \App\Support\KopSuratPdf::buat('Kontrak ' . $lead->nomor_kontrak_klien);
         $pdf->writeHTML($html, true, false, true, false, '');
 
         $filename = 'Kontrak-' . str_replace('/', '-', $lead->nomor_kontrak_klien) . '.pdf';
@@ -1483,7 +1475,7 @@ class CustomerCareController extends Controller
 
         $html = $this->buildKontrak2Html($lead);
 
-        // Kontrak 2 & 3 pakai kop surat resmi (header atas & footer bawah full lebar, tiap halaman)
+        // Kontrak 2 pakai kop surat resmi (header atas & footer bawah full lebar, tiap halaman)
         $pdf = \App\Support\KopSuratPdf::buat('Kontrak ' . $lead->nomor_kontrak_mitra);
         $pdf->writeHTML($html, true, false, true, false, '');
 
@@ -1514,8 +1506,17 @@ class CustomerCareController extends Controller
 
         $html = $this->buildKontrak3Html($lead);
 
-        // Kontrak 2 & 3 pakai kop surat resmi (header atas & footer bawah full lebar, tiap halaman)
-        $pdf = \App\Support\KopSuratPdf::buat('Kontrak ' . $lead->nomor_kontrak_klien_mitra);
+        // Kontrak 3 (perjanjian kerja Mitra-Klien) sengaja TANPA kop surat MGM
+        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Mikala Global Medika');
+        $pdf->SetAuthor('PT. Mikala Global Medika');
+        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_klien_mitra);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(20, 15, 20);
+        $pdf->SetAutoPageBreak(true, 15);
+        $pdf->AddPage();
+        $pdf->SetFont('helvetica', '', 10);
         $pdf->writeHTML($html, true, false, true, false, '');
 
         $filename = 'Kontrak3-' . str_replace('/', '-', $lead->nomor_kontrak_klien_mitra) . '.pdf';
