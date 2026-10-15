@@ -1483,16 +1483,8 @@ class CustomerCareController extends Controller
 
         $html = $this->buildKontrak2Html($lead);
 
-        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
-        $pdf->SetCreator('Mikala Global Medika');
-        $pdf->SetAuthor('PT. Mikala Global Medika');
-        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_mitra);
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->SetMargins(20, 15, 20);
-        $pdf->SetAutoPageBreak(true, 15);
-        $pdf->AddPage();
-        $pdf->SetFont('helvetica', '', 10);
+        // Kontrak 2 & 3 pakai kop surat resmi (header atas & footer bawah full lebar, tiap halaman)
+        $pdf = \App\Support\KopSuratPdf::buat('Kontrak ' . $lead->nomor_kontrak_mitra);
         $pdf->writeHTML($html, true, false, true, false, '');
 
         $filename = 'Kontrak2-' . str_replace('/', '-', $lead->nomor_kontrak_mitra) . '.pdf';
@@ -1522,16 +1514,8 @@ class CustomerCareController extends Controller
 
         $html = $this->buildKontrak3Html($lead);
 
-        $pdf = new \TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
-        $pdf->SetCreator('Mikala Global Medika');
-        $pdf->SetAuthor('PT. Mikala Global Medika');
-        $pdf->SetTitle('Kontrak ' . $lead->nomor_kontrak_klien_mitra);
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->SetMargins(20, 15, 20);
-        $pdf->SetAutoPageBreak(true, 15);
-        $pdf->AddPage();
-        $pdf->SetFont('helvetica', '', 10);
+        // Kontrak 2 & 3 pakai kop surat resmi (header atas & footer bawah full lebar, tiap halaman)
+        $pdf = \App\Support\KopSuratPdf::buat('Kontrak ' . $lead->nomor_kontrak_klien_mitra);
         $pdf->writeHTML($html, true, false, true, false, '');
 
         $filename = 'Kontrak3-' . str_replace('/', '-', $lead->nomor_kontrak_klien_mitra) . '.pdf';
@@ -1574,7 +1558,7 @@ class CustomerCareController extends Controller
         <p>Yang bertanda tangan di bawah ini:</p>
         <table class="dt" cellpadding="0" cellspacing="0">
             <tr><td width="35%">Nama</td><td width="2%">:</td><td>Muji Mulyaningsih, ST</td></tr>
-            <tr><td>NIK</td><td>:</td><td>MG.24.01-001</td></tr>
+            <tr><td>NIK</td><td>:</td><td>3175076602780007</td></tr>
             <tr><td>Jabatan</td><td>:</td><td>Direktur</td></tr>
             <tr><td>Nama Lembaga</td><td>:</td><td>PT. Mikala Global Medika</td></tr>
             <tr><td>Alamat Kantor</td><td>:</td><td>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi</td></tr>

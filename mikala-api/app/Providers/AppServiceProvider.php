@@ -20,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Nama bulan/hari di dokumen (kontrak, adendum) pakai Bahasa Indonesia. translatedFormat()
+        // sebelumnya ikut APP_LOCALE=en -> "01 January 1998" di Kontrak 2/3 & Adendum.
+        \Carbon\Carbon::setLocale('id');
+
         // Register policies
         Gate::policy(\App\Models\Mitra::class, \App\Policies\MitraPolicy::class);
         Gate::policy(\App\Models\Klien::class, \App\Policies\KlienPolicy::class);
