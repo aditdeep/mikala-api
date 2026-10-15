@@ -109,6 +109,64 @@ class RekrutmenController extends Controller
         }
     }
 
+    /**
+     * Riwayat pasien/klien yg pernah ditangani mitra (dari Deal CC). Memperhitungkan pergantian
+     * mitra (Exchange): lead.mitra_id cuma menyimpan mitra TERAKHIR, jadi masa tugas tiap mitra
+     * di satu pasien direkonstruksi dari urutan exchange (mitra_lama -> mitra_baru, exchanged_at).
+     */
+    public function riwayat($id)
+    {
+        $mitra = Mitra::findOrFail($id);
+
+        $leadIds = \App\Models\Lead::where('mitra_id', $mitra->id)->pluck('id')
+            ->merge(\App\Models\LeadExchange::where('mitra_lama_id', $mitra->id)->orWhere('mitra_baru_id', $mitra->id)->pluck('lead_id'))
+            ->unique()->values();
+
+        $leads = \App\Models\Lead::with('layanan:id,nama')->whereIn('id', $leadIds)
+            ->whereIn('status', [\App\Models\Lead::STATUS_DEAL, \App\Models\Lead::STATUS_STOP])->get();
+        $exchanges = \App\Models\LeadExchange::whereIn('lead_id', $leadIds)->orderBy('exchanged_at')->get()->groupBy('lead_id');
+
+        $hasil = [];
+        foreach ($leads as $lead) {
+            // Susun segmen masa tugas per mitra utk lead ini
+            $ex = $exchanges->get($lead->id, collect());
+            $segmen = [];
+            $mitraAwal = $ex->first()->mitra_lama_id ?? $lead->mitra_id;
+            $mulai = $lead->deal_at;
+            $mitraNow = $mitraAwal;
+            foreach ($ex as $e) {
+                $segmen[] = ['mitra_id' => $mitraNow, 'mulai' => $mulai, 'selesai' => $e->exchanged_at, 'akhir' => 'Diganti (exchange)', 'alasan' => $e->alasan];
+                $mitraNow = $e->mitra_baru_id;
+                $mulai = $e->exchanged_at;
+            }
+            $aktif = $lead->status === \App\Models\Lead::STATUS_DEAL;
+            $segmen[] = ['mitra_id' => $mitraNow, 'mulai' => $mulai, 'selesai' => $lead->stop_at, 'akhir' => $aktif ? 'Berjalan' : 'Selesai (Stop)', 'alasan' => null];
+
+            foreach ($segmen as $sg) {
+                if ((int) $sg['mitra_id'] !== (int) $mitra->id) continue;
+                $berjalan = $sg['akhir'] === 'Berjalan';
+                $hasil[] = [
+                    'lead_id'      => $lead->id,
+                    'nomor'        => $lead->nomor_deal ?: $lead->nomor,
+                    'pasien'       => $lead->nama_pasien,
+                    'pj'           => $lead->nama_leads,
+                    'kontak_pj'    => $lead->kontak,
+                    'alamat'       => $lead->alamat_klien,
+                    'layanan'      => trim(($lead->layanan->nama ?? '-') . ($lead->tier_nama ? ' · ' . $lead->tier_nama : '')),
+                    'mulai'        => $sg['mulai'] ? \Carbon\Carbon::parse($sg['mulai'])->toDateString() : null,
+                    'selesai'      => $berjalan ? null : ($sg['selesai'] ? \Carbon\Carbon::parse($sg['selesai'])->toDateString() : null),
+                    'status'       => $sg['akhir'],
+                    'alasan'       => $sg['alasan'],
+                    'gaji_bulanan' => (float) ($lead->honor_mitra ?? 0) + (float) ($lead->management_fee ?? 0),
+                ];
+            }
+        }
+        usort($hasil, fn ($a, $b) => strcmp((string) $b['mulai'], (string) $a['mulai']));
+
+        return response()->json(['success' => true, 'data' => $hasil, 'total' => count($hasil),
+            'aktif' => count(array_filter($hasil, fn ($h) => $h['status'] === 'Berjalan'))]);
+    }
+
     public function update(Request $request, $id)
     {
         DB::beginTransaction();

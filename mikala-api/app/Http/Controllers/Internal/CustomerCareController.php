@@ -1225,7 +1225,9 @@ class CustomerCareController extends Controller
         $namaCust  = $lead->nama_leads ?? '-';
         $uangCuti = $this->uangCutiEfektif($lead);
         $gajiManagementFee = (float)($lead->honor_mitra ?? 0) + (float)($lead->management_fee ?? 0);
-        $total = (float)($lead->biaya_admin ?? 0) + $gajiManagementFee + $uangCuti + (float)($lead->biaya_transport ?? 0);
+        // Total Biaya Awal = Biaya Admin + Gaji/Management Fee saja; Uang Pengganti Cuti & Biaya
+        // Transport ditampilkan di bawah total, tidak dijumlah (biasanya dibayar langsung ke mitra).
+        $total = (float)($lead->biaya_admin ?? 0) + $gajiManagementFee;
 
         $revisi = trim($lead->catatan_revisi_kontrak ?? '');
         $revisiHtml = $revisi ? '<p><strong>Catatan / Revisi Kesepakatan Tambahan:</strong><br>' . nl2br(e($revisi)) . '</p>' : '';
@@ -1363,9 +1365,9 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="2" cellspacing="0">
             <tr><td width="60%">Biaya Administrasi (sekali diawal)</td><td>' . $this->rupiah($lead->biaya_admin) . '</td></tr>
             <tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td>' . $this->rupiah($gajiManagementFee) . '</td></tr>
+            <tr><td><strong>TOTAL BIAYA AWAL</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
             <tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td>' . $this->rupiah($uangCuti) . '</td></tr>
             <tr><td>Biaya Transportasi Pengantaran (jika ada)</td><td>' . $this->rupiah($lead->biaya_transport) . '</td></tr>
-            <tr><td><strong>TOTAL BIAYA AWAL</strong></td><td><strong>' . $this->rupiah($total) . '</strong></td></tr>
         </table>
         ' . $revisiHtml . '
         <p>Demikian Perjanjian Kontrak ini dibuat dalam keadaan sadar, sehat jasmani dan rohani serta tidak ada paksaan dari pihak manapun. Dan perjanjian ini dibuat dalam 2 (dua) rangkap dan ditandatangani oleh kedua belah pihak.</p>
@@ -1551,7 +1553,11 @@ class CustomerCareController extends Controller
         $mitra = $lead->mitra;
         $namaMitra = $mitra->nama_lengkap ?? '-';
         $ttl = trim(($mitra->tempat_lahir ?: '-') . ', ' . ($mitra->tanggal_lahir ? \Carbon\Carbon::parse($mitra->tanggal_lahir)->translatedFormat('d F Y') : '-'));
-        $usiaPasien = $lead->tanggal_lahir_klien ? \Carbon\Carbon::parse($lead->tanggal_lahir_klien)->age . ' tahun' : '-';
+        // Tampilkan tanggal lahir (bukan usia -- usia berubah tiap tahun & bisa rancu di dokumen kontrak)
+        $bulanTl = ['','Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+        $tglLahirPasien = $lead->tanggal_lahir_klien
+            ? (function ($d) use ($bulanTl) { $c = \Carbon\Carbon::parse($d); return $c->day . ' ' . $bulanTl[(int) $c->format('n')] . ' ' . $c->year; })($lead->tanggal_lahir_klien)
+            : '-';
         $gajiLabel = $lead->jasa_disetujui ?: ($lead->tier_nama ?: '-');
         $isHarian = str_contains(strtolower($lead->tier_nama ?? ''), 'harian');
 
@@ -1669,7 +1675,7 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="2" cellspacing="0">
             <tr><td width="55%">Nama pemberi kerja / penanggung jawab pasien</td><td>' . e($lead->nama_leads) . '</td></tr>
             <tr><td>Nama pasien / anak / klien</td><td>' . e($lead->nama_pasien ?: '-') . '</td></tr>
-            <tr><td>Usia pasien / anak / klien</td><td>' . e($usiaPasien) . '</td></tr>
+            <tr><td>Tanggal lahir pasien / anak / klien</td><td>' . e($tglLahirPasien) . '</td></tr>
             <tr><td>Diagnosa pasien / anak / klien</td><td>' . e($lead->deskripsi_diagnosa ?: $lead->diagnosis_awal) . '</td></tr>
             <tr><td>Alat bantu pasien / anak / klien</td><td>' . e($lead->alat_pendukung ?: '-') . '</td></tr>
             <tr><td>Gaji per ' . ($isHarian ? 'hari' : 'bulan') . '</td><td>' . $this->rupiah($lead->honor_mitra) . '</td></tr>
@@ -2238,7 +2244,7 @@ class CustomerCareController extends Controller
         <table class="hist" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
             <tr><th>Mitra yang Ditugaskan</th><th>Sebelum</th><th>Sesudah</th></tr>
             <tr><td>Nama Mitra</td><td>' . e($namaMitraLama) . '</td><td>' . e($namaMitraBaru) . '</td></tr>
-            <tr><td>NIM</td><td>' . e($exchange->mitraLama->nik ?? '-') . '</td><td>' . e($exchange->mitraBaru->nik ?? '-') . '</td></tr>
+            <tr><td>NIM</td><td>' . e($exchange->mitraLama->nomor_induk ?? '-') . '</td><td>' . e($exchange->mitraBaru->nomor_induk ?? '-') . '</td></tr>
             <tr><td>Surat Tugas No</td><td>' . e($exchange->surat_tugas_lama ?: '-') . '</td><td>' . e($exchange->surat_tugas_baru ?: '-') . '</td></tr>
             <tr><td>Biaya Jasa</td><td>' . $this->rupiah($exchange->biaya_jasa_lama) . '</td><td>' . $this->rupiah($exchange->biaya_jasa_baru) . '</td></tr>
             <tr><td>Uang Cuti</td><td>' . $this->rupiah($exchange->uang_cuti_lama) . '</td><td>' . $this->rupiah($exchange->uang_cuti_baru) . '</td></tr>
@@ -2372,16 +2378,12 @@ class CustomerCareController extends Controller
 
         $biayaAdmin = (float)($lead->biaya_admin ?? 0);
         $gajiManagementFee = (float)($lead->honor_mitra ?? 0) + (float)($lead->management_fee ?? 0);
-        $uangCuti   = $this->uangCutiEfektif($lead);
-        $biayaTransport = (float)($lead->biaya_transport ?? 0);
-        $totalTagihan = $biayaAdmin + $gajiManagementFee + $uangCuti + $biayaTransport;
+        // Invoice Deal cuma Biaya Admin + Gaji/Management Fee. Uang Pengganti Cuti & Biaya Transport
+        // tidak ditagih di invoice ini (biasanya dibayar langsung ke mitra).
+        $totalTagihan = $biayaAdmin + $gajiManagementFee;
 
         $itemRows = '<tr><td>Biaya Administrasi (sekali diawal)</td><td style="text-align:right;">' . $this->rupiah($biayaAdmin) . '</td></tr>'
-            . '<tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td style="text-align:right;">' . $this->rupiah($gajiManagementFee) . '</td></tr>'
-            . '<tr><td>Uang Pengganti Cuti (2 hari dalam 1 bulan) / bulan</td><td style="text-align:right;">' . $this->rupiah($uangCuti) . '</td></tr>';
-        if ($biayaTransport > 0) {
-            $itemRows .= '<tr><td>Biaya Transportasi Pengantaran</td><td style="text-align:right;">' . $this->rupiah($biayaTransport) . '</td></tr>';
-        }
+            . '<tr><td>Gaji (' . e($lead->jasa_disetujui ?: '-') . ') + Management Fee / bulan</td><td style="text-align:right;">' . $this->rupiah($gajiManagementFee) . '</td></tr>';
 
         return '
         <style>
