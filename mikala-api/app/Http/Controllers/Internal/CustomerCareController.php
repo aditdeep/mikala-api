@@ -731,6 +731,7 @@ class CustomerCareController extends Controller
                 if (empty($tiers)) {
                     $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, null);
                 } else {
+                    $tierDikenal = [];
                     foreach ($tiers as $tier) {
                         // Format tier_nama harus sama persis dengan yang disimpan di leads, lihat
                         // frontend getTiersFor(): "{nama} - {frekuensi}" kalau ada frekuensi, atau
@@ -740,10 +741,28 @@ class CustomerCareController extends Controller
                         $tierNamaOnly = $tier['nama'] ?? null;
                         $tierFrekuensi = $tier['frekuensi'] ?? null;
                         $tierNama = $tierFrekuensi ? ($tierNamaOnly . ' - ' . $tierFrekuensi) : $tierNamaOnly;
+                        $tierDikenal[] = $tierNama;
                         $rows[] = $this->buildLeadsRow($layanan->id, $layanan->nama, $tierNama);
                     }
+                    // Lead layanan ini yg tier-nya kosong / tidak ada di daftar tier (mis. hasil migrasi
+                    // sistem lama) -- sebelumnya tidak masuk baris mana pun, jadi tidak terhitung.
+                    $sisa = $this->buildLeadsRowQuery(
+                        \App\Models\Lead::where('cms_layanan_id', $layanan->id)
+                            ->where(fn ($q) => $q->whereNull('tier_nama')->orWhereNotIn('tier_nama', $tierDikenal)),
+                        $layanan->id, $layanan->nama, 'Tier belum ditentukan'
+                    );
+                    if ($sisa['leads'] > 0) $rows[] = $sisa + ['mode' => 'tanpa_tier', 'tier_dikenal' => $tierDikenal];
                 }
             }
+
+            // Lead tanpa layanan sama sekali (mis. 241 Deal migrasi PJ sistem lama) -- baris sendiri
+            // supaya total tabel = total kartu dashboard; CC bisa lengkapi lewat Jasa Disetujui.
+            $layananIds = $layananList->pluck('id')->all();
+            $tanpaLayanan = $this->buildLeadsRowQuery(
+                \App\Models\Lead::where(fn ($q) => $q->whereNull('cms_layanan_id')->orWhereNotIn('cms_layanan_id', $layananIds ?: [0])),
+                null, 'Belum ada layanan', null
+            );
+            if ($tanpaLayanan['leads'] > 0) $rows[] = $tanpaLayanan + ['mode' => 'tanpa_layanan'];
 
             return response()->json([
                 'success' => true,
@@ -1238,7 +1257,7 @@ class CustomerCareController extends Controller
         <table class="dt" cellpadding="0" cellspacing="0">
             <tr><td width="35%">Nama</td><td width="2%">:</td><td>Muji Mulyaningsih, ST</td></tr>
             <tr><td>Jabatan</td><td>:</td><td>Direktur</td></tr>
-            <tr><td>NIK</td><td>:</td><td>001-MG-01</td></tr>
+            <tr><td>NIK</td><td>:</td><td>3175076602780007</td></tr>
             <tr><td>Nama Lembaga</td><td>:</td><td>PT. Mikala Global Medika</td></tr>
             <tr><td>Alamat</td><td>:</td><td>Jl. Anyelir No. 1-2, Jatibening, Pondok Gede, Kota Bekasi</td></tr>
             <tr><td>Telepon</td><td>:</td><td>0821-1448-8878 / 0815-1338-2031 / 0812-9699-8827</td></tr>
@@ -2567,6 +2586,11 @@ class CustomerCareController extends Controller
         } else {
             $base = $base->whereNull('tier_nama');
         }
+        return $this->buildLeadsRowQuery($base, $layananId, $layananNama, $tierNama) + ['mode' => 'tier'];
+    }
+
+    private function buildLeadsRowQuery($base, $layananId, $layananNama, $tierNama)
+    {
 
         $leads = (clone $base)->count();
         $deal  = (clone $base)->deal()->count();
