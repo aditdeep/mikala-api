@@ -556,6 +556,16 @@ Route::middleware(['auth:sanctum','role:mitra'])->post('/mitra/kasbon', function
         'created_at'=> now(),
         'updated_at'=> now(),
     ]);
+    // Notif ke staff yg berwenang approve kasbon (sebelumnya tidak ada notif sama sekali)
+    try {
+        \App\Services\NotifikasiService::sendToRoles(
+            ['manajemen', 'finance'],
+            'kasbon',
+            'Pengajuan Kasbon Baru 💸',
+            ($mitra->nama_lengkap ?? 'Mitra') . ' mengajukan kasbon Rp ' . number_format((float) $request->jumlah, 0, ',', '.') . ' (' . $request->keperluan . '). Perlu persetujuan.',
+            ['related_type' => 'kasbon', 'related_id' => $id]
+        );
+    } catch (\Throwable $e) { \Log::warning('Notif kasbon gagal: ' . $e->getMessage()); }
     return response()->json(['success'=>true,'data'=>\DB::table('mitra_kasbon')->find($id)],201);
 });
 

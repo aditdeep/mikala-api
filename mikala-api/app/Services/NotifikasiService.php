@@ -47,6 +47,15 @@ class NotifikasiService
     }
 
     /**
+     * Kirim notifikasi ke semua staff aktif dgn role tertentu (mis. yg berwenang approve).
+     */
+    public static function sendToRoles(array $roles, string $tipe, string $judul, string $pesan, array $data = []): int
+    {
+        $ids = \App\Models\User::whereIn('role', $roles)->where('status', 'active')->pluck('id')->all();
+        return $ids ? self::sendBulk($ids, $tipe, $judul, $pesan, $data) : 0;
+    }
+
+    /**
      * Kirim notifikasi ke banyak user sekaligus
      */
     public static function sendBulk(array $userIds, string $tipe, string $judul, string $pesan, array $data = []): int
