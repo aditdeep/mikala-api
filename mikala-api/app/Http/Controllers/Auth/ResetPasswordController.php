@@ -16,11 +16,26 @@ class ResetPasswordController extends Controller
      */
     public function forgotPassword(Request $request)
     {
-        $request->validate(['email' => 'required|email']);
+        $request->validate(['email' => 'required|string|max:255']);
+        $waNumber = env('WA_CS_NUMBER', '6281296998827');
+
+        // Klien yg login pakai No HP (tanpa email): gak ada email buat kirim link -> arahkan ke
+        // admin via WA, admin reset PIN di menu Reset Password. Nama akun sengaja tidak
+        // ditampilkan biar orang lain gak bisa ngecek nomor siapa yg terdaftar.
+        if (!str_contains($request->email, '@')) {
+            $hp = \App\Support\NomorHp::normal($request->email);
+            if (!$hp) return response()->json(['message' => 'Masukkan email atau No HP yang valid'], 422);
+            $waMessage = urlencode("Halo Admin Mikala, saya lupa PIN/password akun aplikasi Mikala saya.\nNo HP terdaftar: {$hp}\nMohon dibantu reset.");
+            return response()->json([
+                'success'    => true,
+                'message'    => 'Hubungi admin via WhatsApp untuk reset PIN.',
+                'email_sent' => false,
+                'wa_url'     => "https://wa.me/{$waNumber}?text={$waMessage}",
+                'wa_number'  => $waNumber,
+            ]);
+        }
 
         $user = User::whereRaw('LOWER(email) = ?', [strtolower($request->email)])->first();
-
-        $waNumber = env('WA_CS_NUMBER', '6281296998827');
 
         if (!$user) {
             // Email tidak ditemukan — tetap return WA sebagai fallback

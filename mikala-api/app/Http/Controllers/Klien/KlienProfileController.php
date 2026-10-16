@@ -60,16 +60,23 @@ class KlienProfileController extends Controller
             'bank_account'      => 'nullable|string|max:50',
             'bank_account_name' => 'nullable|string|max:255',
             'current_password'  => 'required_with:new_password',
-            'new_password'      => 'nullable|min:8|confirmed',
+            'new_password'      => 'nullable|min:6|confirmed', // PIN 6 angka juga boleh
         ]);
 
         try {
             $user = $request->user();
             $klien = $user->klien;
 
-            if ($request->hasAny(['name', 'phone'])) {
-                $user->update($request->only(['name', 'phone']));
+            if ($request->has('phone')) {
+                // No HP dipakai buat login -> harus valid & belum dipakai akun lain
+                $hp = \App\Support\NomorHp::normal($request->phone);
+                if (!$hp) return response()->json(['success' => false, 'message' => 'No HP tidak valid'], 422);
+                if (\App\Support\NomorHp::cariUser($hp)->where('id', '!=', $user->id)->isNotEmpty()) {
+                    return response()->json(['success' => false, 'message' => 'No HP sudah dipakai akun lain'], 422);
+                }
+                $user->update(['phone' => $hp]);
             }
+            if ($request->has('name')) $user->update(['name' => $request->name]);
 
             if ($request->filled('new_password')) {
                 if (!Hash::check($request->current_password, $user->password)) {

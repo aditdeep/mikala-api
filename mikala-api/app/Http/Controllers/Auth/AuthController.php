@@ -7,6 +7,8 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
+use App\Support\NomorHp;
 use Illuminate\Validation\ValidationException;
 
 class AuthController extends Controller
@@ -16,18 +18,44 @@ class AuthController extends Controller
      */
     public function login(Request $request)
     {
+        // Field `login` bisa email ATAU No HP/WA (klien lansia banyak yg gak punya email).
+        // `email` tetap diterima biar app versi lama (yg kirim field email) gak rusak.
         $request->validate([
-            'email' => 'required|email',
+            'login' => 'required_without:email|nullable|string|max:255',
+            'email' => 'required_without:login|nullable|string|max:255',
             'password' => 'required',
         ]);
+        $login = trim((string) ($request->input('login') ?: $request->input('email')));
 
-        $user = User::whereRaw('LOWER(email) = ?', [strtolower($request->email)])->first();
-
-        if (!$user || !Hash::check($request->password, $user->password)) {
+        // Password klien = PIN 6 angka -> batasi percobaan gagal per akun+IP biar gak bisa ditebak
+        $kunci = 'login:' . sha1(strtolower($login) . '|' . $request->ip());
+        if (RateLimiter::tooManyAttempts($kunci, 10)) {
+            $menit = (int) ceil(RateLimiter::availableIn($kunci) / 60);
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'email' => ["Terlalu banyak percobaan login. Coba lagi dalam {$menit} menit."],
             ]);
         }
+
+        if (str_contains($login, '@')) {
+            $user = User::whereRaw('LOWER(email) = ?', [strtolower($login)])->first();
+        } else {
+            $kandidat = NomorHp::cariUser($login);
+            // nomor yg sama dipakai >1 akun (data lama) -> jangan nebak, minta pakai email
+            if ($kandidat->count() > 1) {
+                throw ValidationException::withMessages([
+                    'email' => ['Nomor HP ini terdaftar di lebih dari satu akun. Silakan login dengan email atau hubungi admin Mikala.'],
+                ]);
+            }
+            $user = $kandidat->first();
+        }
+
+        if (!$user || !Hash::check($request->password, $user->password)) {
+            RateLimiter::hit($kunci, 15 * 60);
+            throw ValidationException::withMessages([
+                'email' => ['Email/No HP atau password salah.'],
+            ]);
+        }
+        RateLimiter::clear($kunci);
 
         // Check user status
         if ($user->status !== 'active') {

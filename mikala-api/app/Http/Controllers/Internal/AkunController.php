@@ -75,7 +75,7 @@ class AkunController extends Controller
      */
     public function resetPassword(Request $request, $userId)
     {
-        $request->validate(['password' => 'nullable|string|min:8']);
+        $request->validate(['password' => 'nullable|string|min:6']);
 
         $user = User::findOrFail($userId);
         if (!in_array($user->role, $this->allowedRoles($request), true)) {
@@ -84,13 +84,15 @@ class AkunController extends Controller
 
         $newPassword = $request->filled('password')
             ? $request->password
+            // klien (banyak yg lansia) login pakai No HP + PIN 6 angka
+            : ($user->role === 'klien' ? str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT)
             // tanpa karakter yg gampang ketuker (0/O, 1/l/I) biar aman dibaca dari chat WA
-            : 'Mkl' . collect(str_split('abcdefghjkmnpqrstuvwxyz23456789'))->random(6)->implode('');
+            : 'Mkl' . collect(str_split('abcdefghjkmnpqrstuvwxyz23456789'))->random(6)->implode(''));
 
         $user->update(['password' => Hash::make($newPassword)]);
 
         // Link reset dari email (kalau ada) jadi gak berlaku lagi, dan semua sesi login lama di-logout
-        DB::table('password_reset_tokens')->whereRaw('LOWER(email) = ?', [strtolower($user->email)])->delete();
+        if ($user->email) DB::table('password_reset_tokens')->whereRaw('LOWER(email) = ?', [strtolower($user->email)])->delete();
         $user->tokens()->delete();
 
         $loginUrl = $user->role === 'klien' ? config('services.frontend.klien') : config('services.frontend.mitra');
@@ -100,7 +102,7 @@ class AkunController extends Controller
             if (Str::startsWith($phone, '0')) $phone = '62' . substr($phone, 1);
             elseif (Str::startsWith($phone, '8')) $phone = '62' . $phone;
             $msg = "Halo {$user->name}, password akun Mikala Anda sudah direset oleh admin.\n\n"
-                 . "Email: {$user->email}\nPassword baru: {$newPassword}\n\n"
+                 . ($user->email ? "Email: {$user->email}\n" : '') . ($user->role === 'klien' ? "No HP: {$user->phone}\nPIN baru: " : 'Password baru: ') . "{$newPassword}\n\n"
                  . "Silakan login di {$loginUrl}/auth/login. Mohon jangan bagikan password ini ke siapa pun.";
             $waUrl = "https://wa.me/{$phone}?text=" . rawurlencode($msg);
         }
@@ -119,6 +121,7 @@ class AkunController extends Controller
             'message'      => 'Password berhasil direset',
             'new_password' => $newPassword,
             'email'        => $user->email,
+            'phone'        => $user->phone,
             'wa_url'       => $waUrl,
             'warning'      => $warning,
         ]);
