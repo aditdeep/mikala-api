@@ -31,6 +31,9 @@ class KlienDealController extends Controller
         Lead::STATUS_BATAL   => ['cancelled', 'Dibatalkan'],
     ];
 
+    // staff yg menerima notif dari apps klien (akun manajemen/admin juga, bukan cuma CC)
+    private const PENERIMA_CC = ['customer_care', 'manajemen'];
+
     private function klien(Request $request)
     {
         $klien = $request->user()->klien;
@@ -201,10 +204,16 @@ class KlienDealController extends Controller
         ]);
 
         try {
-            NotifikasiService::sendToRoles(['customer_care'], 'order', 'Permintaan Layanan dari Apps Klien 📥',
+            NotifikasiService::sendToRoles(self::PENERIMA_CC, 'order', 'Permintaan Layanan dari Apps Klien 📥',
                 "{$user->name} ({$user->phone}) minta layanan " . ($jasa ?: '-') . " untuk pasien {$lead->nama_pasien}. Cek tab Leads.",
                 ['related_type' => 'lead', 'related_id' => $lead->id]);
         } catch (\Throwable $e) { \Log::warning('notif leads apps klien gagal: ' . $e->getMessage()); }
+        try {
+            // konfirmasi ke klien sendiri (muncul di lonceng / daftar notifikasi apps klien)
+            NotifikasiService::send($user->id, 'layanan', 'Permintaan Layanan Diterima 📨',
+                'Permintaan layanan ' . ($jasa ?: 'perawatan') . " untuk {$lead->nama_pasien} sudah kami terima. Tim Customer Care Mikala akan segera menghubungi Anda.",
+                ['related_type' => 'cc_lead', 'related_id' => $lead->id]);
+        } catch (\Throwable $e) { \Log::warning('notif konfirmasi klien gagal: ' . $e->getMessage()); }
 
         return response()->json(['success' => true, 'message' => 'Permintaan layanan terkirim. Tim Customer Care akan segera menghubungi Anda.',
             'data' => $this->format($lead->fresh(['layanan', 'mitra.user']))], 201);
@@ -249,7 +258,7 @@ class KlienDealController extends Controller
         $lead->mitra?->updateRating();
 
         try {
-            NotifikasiService::sendToRoles(['customer_care'], 'feedback', 'Rating Baru dari Klien ⭐',
+            NotifikasiService::sendToRoles(self::PENERIMA_CC, 'feedback', 'Rating Baru dari Klien ⭐',
                 "{$klien->nama_lengkap} memberi rating {$fb->rating_average} untuk mitra " . ($lead->mitra->nama_lengkap ?? '-') . " (pasien {$lead->nama_pasien}).",
                 ['related_type' => 'lead', 'related_id' => $lead->id]);
         } catch (\Throwable $e) { \Log::warning('notif feedback gagal: ' . $e->getMessage()); }

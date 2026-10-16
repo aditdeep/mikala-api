@@ -1916,12 +1916,17 @@ class CustomerCareController extends Controller
 
         try {
             $lead = \App\Models\Lead::findOrFail($id);
+            $statusLama = (int) $lead->status;
             $lead->update([
                 'status'       => \App\Models\Lead::STATUS_BATAL,
                 'alasan_batal' => $request->alasan_batal,
                 'alasan_status' => $request->has('alasan_status') ? json_encode(array_values(array_filter($request->alasan_status))) : $lead->alasan_status,
                 'batal_at'     => now(),
             ]);
+
+            // alasan batal sengaja tidak dikirim ke klien (catatan internal CC)
+            $this->notifKlien($lead->fresh(['layanan']), $statusLama === \App\Models\Lead::STATUS_DEAL ? 'Layanan Dibatalkan' : 'Permintaan Layanan Dibatalkan',
+                ($statusLama === \App\Models\Lead::STATUS_DEAL ? 'Layanan ' : 'Permintaan layanan ') . $this->namaLayananKlien($lead) . " untuk {$lead->nama_pasien} dibatalkan. Untuk informasi lebih lanjut, silakan hubungi Customer Care Mikala.");
 
             return response()->json([
                 'success' => true,
@@ -1980,6 +1985,7 @@ class CustomerCareController extends Controller
                 'status'  => \App\Models\Lead::STATUS_PROSES,
                 'stop_at' => null,
             ]);
+            $this->notifKlien($lead->fresh(['layanan']), 'Layanan Akan Dilanjutkan', 'Permintaan melanjutkan layanan ' . $this->namaLayananKlien($lead) . " untuk {$lead->nama_pasien} sedang diproses. Tim Customer Care Mikala akan menghubungi Anda.");
 
             return response()->json([
                 'success' => true,
