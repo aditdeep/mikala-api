@@ -13,14 +13,19 @@ class KlienProfileController extends Controller
     {
         try {
             $user = $request->user();
-            $klien = $user->klien()->with(['orders'])->first();
+            $klien = $user->klien()->first();
             if (!$klien) {
                 return response()->json(['success' => false, 'message' => 'Profile not found'], 404);
             }
 
             // Hitung stats real-time
-            $totalPasien  = $klien->pasien()->count();
-            $totalOrders  = $klien->orders()->count();
+            // layanan = Deal CC; pasien = pasien terdaftar + pasien dari Deal (lihat KlienDealController)
+            $totalPasien  = \App\Models\Lead::where('klien_id', $klien->id)->whereNotNull('nama_pasien')
+                ->pluck('nama_pasien')->map(fn ($n) => mb_strtolower(trim($n)))
+                ->merge($klien->pasien()->pluck('nama_lengkap')->map(fn ($n) => mb_strtolower(trim($n))))
+                ->filter()->unique()->count();
+            $totalOrders  = \App\Models\Lead::where('klien_id', $klien->id)
+                ->whereIn('status', [\App\Models\Lead::STATUS_DEAL, \App\Models\Lead::STATUS_STOP])->count();
             $totalTagihan = $klien->tagihan()->sum('total');
 
             // Sisipkan stats ke object klien (dibaca frontend) + tetap di stats

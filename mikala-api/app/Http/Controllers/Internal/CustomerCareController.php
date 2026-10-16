@@ -1047,6 +1047,7 @@ class CustomerCareController extends Controller
         try {
             $lead = \App\Models\Lead::findOrFail($id);
             $mitraSebelumnya = $lead->status === \App\Models\Lead::STATUS_DEAL ? $lead->mitra_id : null;
+            $sudahDeal = $lead->status === \App\Models\Lead::STATUS_DEAL;
             $lead->update([
                 'status'    => \App\Models\Lead::STATUS_DEAL,
                 'nik'       => $lead->nik ?: \App\Models\Lead::generateNik(),
@@ -1078,6 +1079,14 @@ class CustomerCareController extends Controller
 
             $this->prosesRekomFeeLog($lead->fresh());
             $this->notifPenempatanMitra($lead->fresh(['layanan', 'mitra']), $mitraSebelumnya);
+            if (!$sudahDeal) {
+                $l = $lead->fresh(['layanan', 'mitra']);
+                $this->notifKlien($l, 'Layanan Dimulai ✅', 'Layanan ' . $this->namaLayananKlien($l) . " untuk {$l->nama_pasien} sudah aktif"
+                    . ($l->mitra ? " dengan mitra {$l->mitra->nama_lengkap}" : '') . '. Lihat detailnya di menu Layanan.');
+            } elseif ($mitraSebelumnya && $lead->fresh()->mitra_id && (int) $lead->fresh()->mitra_id !== (int) $mitraSebelumnya) {
+                $l = $lead->fresh(['layanan', 'mitra']);
+                $this->notifKlien($l, 'Mitra Bertugas Diperbarui', "Mitra untuk {$l->nama_pasien} sekarang {$l->mitra->nama_lengkap}.");
+            }
 
             return response()->json([
                 'success' => true,
@@ -1094,6 +1103,23 @@ class CustomerCareController extends Controller
      * Hanya sekali per penempatan: tidak dikirim ulang kalau form Deal disimpan ulang dgn mitra
      * yg sama (mis. revisi data Deal).
      */
+    /** Notif (in-app + push HP) ke akun klien pemilik Deal, kalau Deal sudah tertaut akun klien. */
+    private function notifKlien(\App\Models\Lead $lead, string $judul, string $pesan): void
+    {
+        $userId = $lead->klien?->user_id;
+        if (!$userId) return;
+        try {
+            \App\Services\NotifikasiService::send($userId, 'layanan', $judul, $pesan, ['related_type' => 'cc_lead', 'related_id' => $lead->id]);
+        } catch (\Throwable $e) {
+            \Log::warning('Notif klien gagal: ' . $e->getMessage());
+        }
+    }
+
+    private function namaLayananKlien(\App\Models\Lead $lead): string
+    {
+        return trim(($lead->layanan->nama ?? 'perawatan') . ($lead->tier_nama ? ' ' . $lead->tier_nama : ''));
+    }
+
     private function notifPenempatanMitra(\App\Models\Lead $lead, $mitraSebelumnya): void
     {
         if (!$lead->mitra_id || (int) $lead->mitra_id === (int) $mitraSebelumnya) return;
@@ -1924,6 +1950,7 @@ class CustomerCareController extends Controller
                 'status'  => \App\Models\Lead::STATUS_STOP,
                 'stop_at' => now(),
             ]);
+            $this->notifKlien($lead->fresh(['layanan']), 'Layanan Selesai', 'Layanan ' . $this->namaLayananKlien($lead) . " untuk {$lead->nama_pasien} telah selesai. Terima kasih telah mempercayakan perawatan kepada Mikala. Beri rating mitra di menu Layanan.");
 
             return response()->json([
                 'success' => true,
@@ -2163,6 +2190,7 @@ class CustomerCareController extends Controller
             if ($lead->mitra && $lead->mitra->id !== $mitraBaru->id && $lead->mitra->status === 'on_job') {
                 $lead->mitra->update(['status' => 'available']);
             }
+            $this->notifKlien($lead, 'Pergantian Mitra 🔄', "Mitra untuk {$lead->nama_pasien} diganti menjadi {$mitraBaru->nama_lengkap}. Lihat detailnya di menu Layanan.");
 
             return response()->json([
                 'success' => true,
