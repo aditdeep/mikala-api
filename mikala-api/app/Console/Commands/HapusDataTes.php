@@ -17,12 +17,15 @@ use Illuminate\Support\Facades\DB;
  *   php artisan data:hapus-tes --lead=12 --lead=13   DRY RUN: lihat apa saja yg akan terhapus
  *   php artisan data:hapus-tes --lead=12 --jalankan  eksekusi (backup JSON dulu ke storage/app)
  *
- * Pengaman: Lead yg sudah punya payroll / exchange / tagihan / kontrak dilewati (itu data
- * operasional, bukan sekadar tes) -- rapikan manual kalau memang mau dihapus.
+ * Pengaman:
+ * - hanya Lead dgn sumber "Apps Klien" yg boleh dihapus (data tes dari apps); Lead lain
+ *   (migrasi / input CC = data asli) ditolak kecuali pakai --paksa;
+ * - Lead yg sudah punya payroll / exchange / tagihan / kontrak selalu dilewati.
+ * Salah hapus? Pulihkan dgn: php artisan data:pulihkan-tes <file backup>
  */
 class HapusDataTes extends Command
 {
-    protected $signature = 'data:hapus-tes {--lead=* : ID Lead yg mau dihapus} {--jalankan}';
+    protected $signature = 'data:hapus-tes {--lead=* : ID Lead yg mau dihapus} {--jalankan} {--paksa : izinkan hapus Lead yg BUKAN dari Apps Klien}';
     protected $description = 'Hapus Leads tes + notifikasi & rating terkait (default dry-run)';
 
     public function handle()
@@ -46,6 +49,7 @@ class HapusDataTes extends Command
             if (!$l) { $this->warn("#{$id}: tidak ditemukan"); continue; }
 
             $alasan = [];
+            if ($l->sumber !== 'Apps Klien' && !$this->option('paksa')) $alasan[] = 'bukan data dari Apps Klien (sumber: ' . ($l->sumber ?: '-') . ') -- kemungkinan data ASLI';
             if ($l->payrolls()->exists()) $alasan[] = 'sudah ada payroll';
             if ($l->exchanges()->exists()) $alasan[] = 'sudah ada exchange';
             if ($l->tagihan_admin_id) $alasan[] = 'sudah ada tagihan';
