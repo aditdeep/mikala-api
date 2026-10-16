@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\DB;
  * supaya tidak nyampah di production.
  *
  *   php artisan data:hapus-tes                       daftar Leads dari Apps Klien (cari ID-nya)
+ *   php artisan data:hapus-tes --hp=0812xxxx         daftar SEMUA Lead milik akun klien itu
  *   php artisan data:hapus-tes --lead=12 --lead=13   DRY RUN: lihat apa saja yg akan terhapus
  *   php artisan data:hapus-tes --lead=12 --jalankan  eksekusi (backup JSON dulu ke storage/app)
  *
@@ -25,12 +26,23 @@ use Illuminate\Support\Facades\DB;
  */
 class HapusDataTes extends Command
 {
-    protected $signature = 'data:hapus-tes {--lead=* : ID Lead yg mau dihapus} {--jalankan} {--paksa : izinkan hapus Lead yg BUKAN dari Apps Klien}';
+    protected $signature = 'data:hapus-tes {--lead=* : ID Lead yg mau dihapus} {--jalankan} {--paksa : izinkan hapus Lead yg BUKAN dari Apps Klien} {--hp= : tampilkan semua Lead milik akun klien dgn No HP ini}';
     protected $description = 'Hapus Leads tes + notifikasi & rating terkait (default dry-run)';
 
     public function handle()
     {
         $ids = array_filter(array_map('intval', (array) $this->option('lead')));
+
+        if (!$ids && $this->option('hp')) {
+            $user = \App\Support\NomorHp::cariUser($this->option('hp'))->firstWhere('role', 'klien');
+            if (!$user || !$user->klien) { $this->warn('Akun klien dgn No HP itu tidak ditemukan'); return 0; }
+            $this->info("Semua Lead milik {$user->name} ({$user->phone}) -- yg BISA dihapus hanya sumber \"Apps Klien\":");
+            $rows = Lead::where('klien_id', $user->klien->id)->orderBy('id')->get()
+                ->map(fn ($l) => [$l->id, $l->nomor_deal ?: $l->nomor, $l->nama_pasien, $this->status($l), $l->sumber ?: '-',
+                    $l->created_at?->format('d/m/Y H:i'), $l->sumber === 'Apps Klien' ? 'data tes?' : 'ASLI - jangan dihapus']);
+            $this->table(['ID', 'Nomor', 'Pasien', 'Status', 'Sumber', 'Dibuat', 'Keterangan'], $rows->all());
+            return 0;
+        }
 
         if (!$ids) {
             $this->info('Leads dari Apps Klien (30 terbaru) -- pilih ID yg data tes, lalu jalankan dgn --lead=ID:');
@@ -53,6 +65,7 @@ class HapusDataTes extends Command
             if ($l->payrolls()->exists()) $alasan[] = 'sudah ada payroll';
             if ($l->exchanges()->exists()) $alasan[] = 'sudah ada exchange';
             if ($l->tagihan_admin_id) $alasan[] = 'sudah ada tagihan';
+            if ($l->rekom_fee_fee_log_id) $alasan[] = 'sudah tercatat Rekom Fee';
             if ($l->nomor_kontrak_klien || $l->nomor_kontrak_mitra) $alasan[] = 'sudah ada nomor kontrak';
             if ($alasan) { $this->warn("#{$id} {$l->nomor} ({$l->nama_pasien}) DILEWATI: " . implode(', ', $alasan)); continue; }
 
