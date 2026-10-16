@@ -300,26 +300,22 @@ Route::middleware('auth:sanctum')->group(function () {
     // ========================================================================
     Route::get('payment-settings', [SettingController::class, 'publicPayment']);
     Route::middleware('role:klien')->prefix('klien')->group(function () {
+        // Isi apps Klien dibaca dari Deal CC (cc_leads) -- lihat KlienDealController.
+        // (Order lama / KlienOrderController tidak dipakai lagi.)
+        $deal = \App\Http\Controllers\Klien\KlienDealController::class;
         Route::get('profile', [KlienProfileController::class, 'show']);
-        Route::get('dashboard', [\App\Http\Controllers\Klien\KlienOrderController::class, 'dashboard']);
-
-        // Layanan/Order management
-        Route::get('layanan',                [\App\Http\Controllers\Klien\KlienOrderController::class, 'index']);
-        Route::get('layanan/{id}',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'show']);
-        Route::patch('layanan/{id}/cancel',  [\App\Http\Controllers\Klien\KlienOrderController::class, 'cancel']);
-        Route::get('order/active',           [\App\Http\Controllers\Klien\KlienOrderController::class, 'activeOrders']);
         Route::patch('profile', [KlienProfileController::class, 'update']);
-        Route::get('pasien', [KlienLayananController::class, 'indexPasien']);
+        Route::get('dashboard', [$deal, 'dashboard']);
+        Route::get('layanan', [$deal, 'index']);
+        Route::post('layanan', [$deal, 'store']);
+        Route::get('layanan/{id}', [$deal, 'show']);
+        Route::post('layanan/{id}/feedback', [$deal, 'feedback']);
+        Route::get('pasien', [$deal, 'indexPasien']);
         Route::post('pasien', [KlienLayananController::class, 'storePasien']);
         Route::patch('pasien/{id}', [KlienLayananController::class, 'updatePasien']);
-        Route::get('layanan', [KlienLayananController::class, 'index']);
-        Route::post('layanan', [KlienLayananController::class, 'store']);
-        Route::get('layanan/{id}', [KlienLayananController::class, 'show']);
         Route::get('tagihan', [KlienBillingController::class, 'index']);
         Route::get('tagihan/{id}', [KlienBillingController::class, 'show']);
         Route::post('tagihan/{id}/bayar', [KlienBillingController::class, 'bayar']);
-        Route::get('mitra', [KlienLayananController::class, 'indexMitra']);
-        Route::post('layanan/{orderId}/feedback', [KlienLayananController::class, 'submitFeedback']);
         Route::get('notifikasi', [NotifikasiController::class, 'index']);
     });
 

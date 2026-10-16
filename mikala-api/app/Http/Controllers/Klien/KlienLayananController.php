@@ -423,6 +423,10 @@ class KlienLayananController extends Controller
      */
     public function updatePasien(Request $request, $id)
     {
+        // pasien dari Deal (id "deal-<id>") datanya dikelola CC, bukan dari apps
+        if (!ctype_digit((string) $id)) {
+            return response()->json(['success' => false, 'message' => 'Data pasien ini tercatat di kontrak layanan. Untuk perubahan data, silakan hubungi Customer Care Mikala.'], 422);
+        }
         try {
             $klien = auth()->user()->klien;
             $pasien = Pasien::where('id', $id)->where('klien_id', $klien->id)->firstOrFail();

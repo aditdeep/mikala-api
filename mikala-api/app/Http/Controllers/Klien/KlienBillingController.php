@@ -44,6 +44,21 @@ class KlienBillingController extends Controller
 
             $tagihan = $query->paginate(15);
 
+            // Tagihan dari Deal (Biaya Admin) gak punya order -> lengkapi keterangan dari Deal-nya
+            $deal = \App\Models\Lead::with('layanan:id,nama')
+                ->whereIn('tagihan_admin_id', $tagihan->getCollection()->pluck('id'))->get()->keyBy('tagihan_admin_id');
+            $tagihan->getCollection()->transform(function ($t) use ($deal) {
+                $l = $deal->get($t->id);
+                $t->jatuh_tempo = $t->tanggal_jatuh_tempo?->toDateString();
+                if ($l) {
+                    $t->tipe_layanan = 'Biaya Administrasi' . ($l->layanan ? ' · ' . $l->layanan->nama : '');
+                    $t->keterangan = 'Pasien: ' . ($l->nama_pasien ?: '-') . ' · ' . ($l->nomor_deal ?: $l->nomor);
+                } elseif (!$t->keterangan) {
+                    $t->keterangan = $t->catatan;
+                }
+                return $t;
+            });
+
             return response()->json([
                 'success' => true,
                 'data' => $tagihan

@@ -14,6 +14,7 @@ class Feedback extends Model
 
     protected $fillable = [
         'order_id',
+        'lead_id',
         'klien_id',
         'mitra_id',
         'rating_kualitas',
