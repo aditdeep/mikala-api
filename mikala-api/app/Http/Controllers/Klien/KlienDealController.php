@@ -253,7 +253,9 @@ class KlienDealController extends Controller
             'rating_komunikasi'      => $request->rating_komunikasi ?? $r,
             'komentar'               => $request->komentar ?? $request->catatan,
             'saran'                  => $request->saran,
-            'is_published'           => true,
+            // is_published tidak di-set: default kolom = true. PDO Postgres di server mengirim
+            // boolean PHP sbg angka -> 'datatype mismatch' utk kolom boolean (lihat migrasi
+            // fix_notifikasi_table_pgsql_types).
         ]);
         $lead->mitra?->updateRating();
 
