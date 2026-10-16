@@ -17,6 +17,7 @@ use Illuminate\Support\Facades\Hash;
  *   php artisan klien:buat-akun              DRY RUN: laporan, tidak mengubah data
  *   php artisan klien:buat-akun --jalankan   eksekusi + tulis CSV daftar PIN utk CC kirim via WA
  *   --semua                                  ikut buatkan akun PJ yg semua Deal-nya sudah Stop
+ *   --hp=0812xxxx                            proses 1 nomor saja (tes login dulu sebelum semua)
  *
  * - Deal dikelompokkan per No HP Cust/PJ (kolom kontak): 1 nomor = 1 akun, semua Deal-nya
  *   (aktif & stop) ditautkan ke akun itu lewat klien_id.
@@ -26,7 +27,7 @@ use Illuminate\Support\Facades\Hash;
  */
 class BuatAkunKlien extends Command
 {
-    protected $signature = 'klien:buat-akun {--jalankan} {--semua}';
+    protected $signature = 'klien:buat-akun {--jalankan} {--semua} {--hp= : proses 1 nomor HP PJ saja (buat tes)}';
     protected $description = 'Buat akun apps Klien (login No HP + PIN acak) dari Deal tanpa akun (default dry-run)';
 
     public function handle()
@@ -43,9 +44,15 @@ class BuatAkunKlien extends Command
         $lewat = [];
         $grup = [];
         foreach ($leads as $l) {
-            $hp = NomorHp::normal($l->kontak) ?? NomorHp::normal($l->no_wa_klien);
+            $hp = $this->hpPertama($l->kontak) ?? $this->hpPertama($l->no_wa_klien);
             if (!$hp) { $lewat[] = $this->label($l) . ' -- No HP PJ kosong/tidak valid (' . ($l->kontak ?: '-') . ')'; continue; }
             $grup[$hp][] = $l;
+        }
+        if ($this->option('hp')) {
+            $target = NomorHp::normal($this->option('hp'));
+            $grup = array_intersect_key($grup, [$target => 1]);
+            $lewat = [];
+            $this->line('Mode 1 nomor: ' . ($target ?: 'nomor tidak valid') . ' -- ' . ($grup ? count($grup[$target]) . ' Deal' : 'tidak ada Deal dgn nomor ini'));
         }
 
         $baru = []; $tautLama = []; $flag = []; $nStop = 0;
@@ -117,6 +124,15 @@ class BuatAkunKlien extends Command
         }
         $this->info('Selesai: ' . count($baris) . ' akun baru, ' . count($tautLama) . ' ditautkan ke akun lama.');
         return 0;
+    }
+
+    /** Kolom kontak kadang berisi >1 nomor ("0215xxx/0812xxx") -> ambil nomor HP valid pertama. */
+    private function hpPertama(?string $kontak): ?string
+    {
+        foreach (preg_split('#[/,;]|\s{2,}#', (string) $kontak) as $bagian) {
+            if ($n = NomorHp::normal($bagian)) return $n;
+        }
+        return null;
     }
 
     private function label(Lead $l): string
