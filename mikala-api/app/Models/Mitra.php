@@ -81,6 +81,31 @@ class Mitra extends Model
 
     // Generate NIM baru: {kode}.{bulan}.{tahun2digit}-{urutan berjalan bulan ini utk kode ini}.
     // $tipePekerjaan boleh salah satu value TIPE_KODE_MAP, atau null/lainnya -> pakai kode "MTR".
+    /**
+     * Alamat mitra disimpan gabungan "jalan, kelurahan, kecamatan, kota, provinsi" (format form
+     * Edit Mitra di admin). Pecah balik jadi bagian2nya supaya apps mitra & admin bisa mengedit
+     * kelurahan/kecamatan terpisah tanpa merusak format. Alamat lama yg bukan format ini (mis.
+     * hasil migrasi, teks bebas) dianggap jalan seluruhnya.
+     */
+    public static function pecahAlamat(?string $alamat, ?string $kota, ?string $provinsi): array
+    {
+        $parts = array_map('trim', explode(',', (string) $alamat));
+        $sama = fn ($a, $b) => $b !== null && $b !== '' && mb_strtolower(trim($a)) === mb_strtolower(trim($b));
+        $n = count($parts);
+        if ($n >= 5 && ($sama($parts[$n - 1], $provinsi) || $sama($parts[$n - 2], $kota))) {
+            $parts = array_slice($parts, 0, $n - 2); // buang kota, provinsi di ujung
+            $kec = array_pop($parts);
+            $kel = array_pop($parts);
+            return ['alamat_jalan' => implode(', ', $parts), 'kelurahan' => $kel, 'kecamatan' => $kec];
+        }
+        return ['alamat_jalan' => trim((string) $alamat), 'kelurahan' => '', 'kecamatan' => ''];
+    }
+
+    public static function gabungAlamat(?string $jalan, ?string $kel, ?string $kec, ?string $kota, ?string $provinsi): string
+    {
+        return implode(', ', array_map(fn ($v) => trim((string) $v), [$jalan, $kel, $kec, $kota, $provinsi]));
+    }
+
     public static function generateNim(?string $tipePekerjaan): string
     {
         $now = now();

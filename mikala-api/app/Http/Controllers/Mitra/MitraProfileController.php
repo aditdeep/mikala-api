@@ -24,6 +24,9 @@ class MitraProfileController extends Controller
                 ], 404);
             }
 
+            // kelurahan/kecamatan dipecah dari alamat gabungan -> field terpisah di apps mitra
+            $mitra->setAttribute('alamat_parts', \App\Models\Mitra::pecahAlamat($mitra->alamat, $mitra->kota, $mitra->provinsi));
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -58,6 +61,10 @@ class MitraProfileController extends Controller
             'jenis_kelamin' => 'nullable|in:L,P',
             'pendidikan_terakhir' => 'nullable|string',
             'pengalaman' => 'nullable|string',
+            'alamat_jalan'      => 'nullable|string',
+            'kelurahan'         => 'nullable|string|max:100',
+            'kecamatan'         => 'nullable|string|max:100',
+            'vaksin'            => 'nullable|string|max:255',
             'kota'              => 'nullable|string|max:100',
             'provinsi'          => 'nullable|string|max:100',
             'bank_name'         => 'nullable|string|max:100',
@@ -91,18 +98,34 @@ class MitraProfileController extends Controller
             }
 
             // Update mitra profile
-            $mitra->update($request->only([
+            $data = $request->only([
                 'alamat', 'kota', 'provinsi', 'tanggal_lahir', 'jenis_kelamin',
-                'pendidikan_terakhir', 'pengalaman',
+                'pendidikan_terakhir', 'pengalaman', 'vaksin',
                 'bank_name', 'bank_account', 'bank_account_name', 'foto_url', 'cv_file'
-            ]));
+            ]);
+            // Apps versi baru kirim jalan/kelurahan/kecamatan terpisah -> susun ulang alamat
+            // gabungan dgn format yg sama spt form Edit Mitra di admin (supaya tetap sinkron).
+            // Apps versi lama masih kirim `alamat` utuh -> disimpan apa adanya.
+            if ($request->hasAny(['alamat_jalan', 'kelurahan', 'kecamatan'])) {
+                $lama = \App\Models\Mitra::pecahAlamat($mitra->alamat, $mitra->kota, $mitra->provinsi);
+                $data['alamat'] = \App\Models\Mitra::gabungAlamat(
+                    $request->input('alamat_jalan', $lama['alamat_jalan']),
+                    $request->input('kelurahan', $lama['kelurahan']),
+                    $request->input('kecamatan', $lama['kecamatan']),
+                    $request->input('kota', $mitra->kota),
+                    $request->input('provinsi', $mitra->provinsi),
+                );
+            }
+            $mitra->update($data);
+            $mitra = $mitra->fresh();
+            $mitra->setAttribute('alamat_parts', \App\Models\Mitra::pecahAlamat($mitra->alamat, $mitra->kota, $mitra->provinsi));
 
             return response()->json([
                 'success' => true,
                 'message' => 'Profile updated successfully',
                 'data' => [
                     'user' => $user->fresh(),
-                    'mitra' => $mitra->fresh()
+                    'mitra' => $mitra
                 ]
             ], 200);
         } catch (\Exception $e) {

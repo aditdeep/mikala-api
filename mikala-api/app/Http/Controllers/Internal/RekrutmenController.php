@@ -172,8 +172,22 @@ class RekrutmenController extends Controller
         DB::beginTransaction();
         try {
             $mitra = Mitra::with('user')->findOrFail($id);
-            if ($request->has('name') || $request->has('email') || $request->has('phone'))
-                $mitra->user->update($request->only(['name','email','phone']));
+            // Email bisa dikoreksi admin (banyak mitra migrasi dapat email asal-asalan). Cek
+            // format & tidak dipakai akun lain -- dulu bentrok unique langsung error database.
+            if ($request->filled('email')) {
+                $email = strtolower(trim($request->email));
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                    DB::rollBack();
+                    return response()->json(['success'=>false,'message'=>'Format email tidak valid'],422);
+                }
+                if (\App\Models\User::whereRaw('LOWER(email) = ?', [$email])->where('id', '!=', $mitra->user_id)->exists()) {
+                    DB::rollBack();
+                    return response()->json(['success'=>false,'message'=>"Email {$email} sudah dipakai akun lain"],422);
+                }
+                $request->merge(['email' => $email]);
+            }
+            if ($request->has('name') || $request->filled('email') || $request->has('phone'))
+                $mitra->user->update(array_filter($request->only(['name','email','phone']), fn ($v) => $v !== null && $v !== ''));
             $updateData = array_filter([
                 // FIX (Edit Mitra tidak tersimpan): nik/kota/provinsi/nama_lengkap dan seluruh
                 // field Sumber Referral (sumber_tipe/sumber_detail/lembaga_id/referrer_mitra_id)
