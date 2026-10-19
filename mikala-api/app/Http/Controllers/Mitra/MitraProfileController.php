@@ -70,8 +70,6 @@ class MitraProfileController extends Controller
             'bank_name'         => 'nullable|string|max:100',
             'bank_account'      => 'nullable|string|max:50',
             'bank_account_name' => 'nullable|string|max:255',
-            'foto_url'          => 'nullable|string',
-            'cv_file'           => 'nullable|string',
             'current_password' => 'required_with:new_password',
             'new_password' => 'nullable|min:8|confirmed',
         ]);
@@ -101,7 +99,9 @@ class MitraProfileController extends Controller
             $data = $request->only([
                 'alamat', 'kota', 'provinsi', 'tanggal_lahir', 'jenis_kelamin',
                 'pendidikan_terakhir', 'pengalaman', 'vaksin',
-                'bank_name', 'bank_account', 'bank_account_name', 'foto_url', 'cv_file'
+                'bank_name', 'bank_account', 'bank_account_name',
+                // foto_url & cv_file sengaja tidak diterima: foto/CV dipakai di CV & ID card,
+                // hanya admin yg boleh mengubah (lewat menu Rekrutmen)
             ]);
             // Apps versi baru kirim jalan/kelurahan/kecamatan terpisah -> susun ulang alamat
             // gabungan dgn format yg sama spt form Edit Mitra di admin (supaya tetap sinkron).
