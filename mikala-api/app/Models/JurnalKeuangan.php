@@ -28,7 +28,7 @@ class JurnalKeuangan extends Model
     ];
 
     protected $casts = [
-        'tanggal' => 'date',
+        'tanggal' => 'date:Y-m-d',
         'jumlah' => 'decimal:2',
         'approved_at' => 'datetime',
     ];

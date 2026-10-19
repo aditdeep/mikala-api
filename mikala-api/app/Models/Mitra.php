@@ -47,8 +47,8 @@ class Mitra extends Model
     ];
 
     protected $casts = [
-        'tanggal_lahir'         => 'date',
-        'training_completed_at' => 'date',
+        'tanggal_lahir'         => 'date:Y-m-d',
+        'training_completed_at' => 'date:Y-m-d',
         'is_verified'           => 'boolean',
         'rating'                => 'decimal:2',
         'contract_agreed_at'    => 'datetime',

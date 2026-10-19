@@ -33,8 +33,8 @@ class Tagihan extends Model
     ];
 
     protected $casts = [
-        'tanggal_invoice' => 'date',
-        'tanggal_jatuh_tempo' => 'date',
+        'tanggal_invoice' => 'date:Y-m-d',
+        'tanggal_jatuh_tempo' => 'date:Y-m-d',
         'subtotal' => 'decimal:2',
         'pajak' => 'decimal:2',
         'diskon' => 'decimal:2',

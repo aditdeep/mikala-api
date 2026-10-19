@@ -37,8 +37,8 @@ class Order extends Model
     ];
 
     protected $casts = [
-        'tanggal_mulai' => 'date',
-        'tanggal_selesai' => 'date',
+        'tanggal_mulai' => 'date:Y-m-d',
+        'tanggal_selesai' => 'date:Y-m-d',
         'harga_per_hari' => 'decimal:2',
         'subtotal' => 'decimal:2',
         'pajak' => 'decimal:2',

@@ -46,8 +46,8 @@ class Payroll extends Model
     ];
 
     protected $casts = [
-        'periode_mulai' => 'date',
-        'periode_selesai' => 'date',
+        'periode_mulai' => 'date:Y-m-d',
+        'periode_selesai' => 'date:Y-m-d',
         'tarif_per_hari' => 'decimal:2',
         'gaji_pokok' => 'decimal:2',
         'hari_cuti' => 'integer',

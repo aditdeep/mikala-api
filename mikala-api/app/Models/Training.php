@@ -32,8 +32,8 @@ class Training extends Model
     ];
 
     protected $casts = [
-        'tanggal_mulai' => 'date',
-        'tanggal_selesai' => 'date',
+        'tanggal_mulai' => 'date:Y-m-d',
+        'tanggal_selesai' => 'date:Y-m-d',
         'biaya' => 'decimal:2',
         'checklist' => 'array',
         'completed_at' => 'datetime',

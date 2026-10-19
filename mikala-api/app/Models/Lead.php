@@ -104,7 +104,7 @@ class Lead extends Model
         'deal_at' => 'datetime',
         'batal_at' => 'datetime',
         'stop_at' => 'datetime',
-        'tanggal_lahir_klien' => 'date',
+        'tanggal_lahir_klien' => 'date:Y-m-d',
         'invoice_admin_ditagih_at' => 'datetime',
         'biaya_admin' => 'decimal:2',
         'honor_mitra' => 'decimal:2',
