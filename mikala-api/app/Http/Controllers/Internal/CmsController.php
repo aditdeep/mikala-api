@@ -140,16 +140,46 @@ class CmsController extends Controller
 
     // Testimoni
     public function indexTestimoni() {
+        // publik (website): hanya yg sudah disetujui
         return response()->json(['success'=>true,'data'=>\App\Models\CmsTestimoni::where('status','approved')->orderBy('created_at','desc')->get()]);
     }
+    private function validasiTestimoni(Request $request, bool $wajib = true): array {
+        $r = $wajib ? 'required' : 'sometimes';
+        return $request->validate([
+            'nama'     => "$r|string|max:100",
+            'layanan'  => 'nullable|string|max:100',
+            'rating'   => 'nullable|integer|min:1|max:5',
+            'komentar' => "$r|string|max:1000",
+            'foto'     => 'nullable|string|max:500',
+        ]);
+    }
     public function storeTestimoni(Request $request) {
-        $t = \App\Models\CmsTestimoni::create($request->all() + ['status'=>'pending']);
+        // publik: kirim testimoni dari website -> selalu pending, menunggu persetujuan admin.
+        // (dulu $request->all() + status -> pengunjung bisa kirim status=approved sendiri)
+        $t = \App\Models\CmsTestimoni::create($this->validasiTestimoni($request) + ['status'=>'pending']);
+        return response()->json(['success'=>true,'data'=>$t],201);
+    }
+    // ── Admin CMS (menu Website > Testimoni) ──
+    public function indexTestimoniAdmin() {
+        return response()->json(['success'=>true,'data'=>\App\Models\CmsTestimoni::orderByRaw("CASE WHEN status = 'pending' THEN 0 ELSE 1 END")->orderBy('created_at','desc')->get()]);
+    }
+    public function storeTestimoniAdmin(Request $request) {
+        $data = $this->validasiTestimoni($request);
+        $request->validate(['status'=>'nullable|in:approved,pending']);
+        $t = \App\Models\CmsTestimoni::create($data + ['rating'=>5, 'status'=>$request->status ?: 'approved']);
         return response()->json(['success'=>true,'data'=>$t],201);
     }
     public function updateTestimoni(Request $request, $id) {
         $t = \App\Models\CmsTestimoni::findOrFail($id);
-        $t->update($request->all());
+        $data = $this->validasiTestimoni($request, false);
+        $request->validate(['status'=>'nullable|in:approved,pending']);
+        if ($request->filled('status')) $data['status'] = $request->status;
+        $t->update($data);
         return response()->json(['success'=>true,'data'=>$t]);
+    }
+    public function deleteTestimoni($id) {
+        \App\Models\CmsTestimoni::findOrFail($id)->delete();
+        return response()->json(['success'=>true]);
     }
 
     // Settings

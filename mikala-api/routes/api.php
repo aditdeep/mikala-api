@@ -49,7 +49,8 @@ Route::prefix('cms')->group(function () {
     Route::get('galeri', [CmsController::class, 'indexGaleri']);
     Route::get('testimoni', [CmsController::class, 'indexTestimoni']);
     Route::get('settings', [CmsController::class, 'getSettings']);
-    Route::post('testimoni', [CmsController::class, 'storeTestimoni']);
+    // form testimoni publik: dibatasi 5 kiriman/menit per IP (anti spam)
+    Route::post('testimoni', [CmsController::class, 'storeTestimoni'])->middleware('throttle:5,1');
 });
 
 // Public auth — login (TANPA middleware, user belum punya token)
@@ -250,8 +251,10 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('galeri', [CmsController::class, 'indexGaleri']);
             Route::post('galeri', [CmsController::class, 'storeGaleri']);
             Route::delete('galeri/{id}', [CmsController::class, 'deleteGaleri']);
-            Route::get('testimoni', [CmsController::class, 'indexTestimoni']);
+            Route::get('testimoni', [CmsController::class, 'indexTestimoniAdmin']);
+            Route::post('testimoni', [CmsController::class, 'storeTestimoniAdmin']);
             Route::patch('testimoni/{id}', [CmsController::class, 'updateTestimoni']);
+            Route::delete('testimoni/{id}', [CmsController::class, 'deleteTestimoni']);
             Route::get('settings', [CmsController::class, 'getSettings']);
             Route::post('settings', [CmsController::class, 'updateSettings']);
         });
