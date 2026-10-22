@@ -452,7 +452,7 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')
         ->whereIn('kategori', $relevantKat)->orderBy('kategori')->orderBy('urutan')->get();
     $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)
-        ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+        ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
         ->get()->keyBy('materi_id');
     $total   = $materi->count();
     $selesai = $checks->count();

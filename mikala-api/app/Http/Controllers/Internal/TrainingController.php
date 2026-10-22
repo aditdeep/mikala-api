@@ -477,7 +477,7 @@ class TrainingController extends Controller
         $materi = \DB::table('training_materi')->whereRaw('is_active = true')
             ->whereIn('kategori', $relevantKat)->orderBy('urutan')->get();
         $checks = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)
-            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
             ->with('checker:id,name')->get()->keyBy('materi_id');
 
         $total   = $materi->count();
@@ -583,7 +583,7 @@ class TrainingController extends Controller
         // buat mitra ini (CG-only mitra tidak boleh kena pengaruh materi PHC, dan sebaliknya).
         $relevantKat = $this->relevantKategoriFor(\DB::table('mitra')->find($mitraId));
         $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)
-            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
+            ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
             ->get();
         $avgRating = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
         $totalMateri = \App\Models\TrainingMateri::whereRaw('is_active = true')

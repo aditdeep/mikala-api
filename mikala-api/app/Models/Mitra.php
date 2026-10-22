@@ -41,6 +41,7 @@ class Mitra extends Model
         'kemampuan',
         // tahun lulus pendidikan terakhir & tahun pelatihan non-formal (form/CV mitra)
         'tahun_lulus','tahun_pelatihan',
+        'hijab', // Hijab / Tidak Hijab / Flexible
         // FIX: data_tambahan (dipakai command migrasi:mitra-update utk nim_lama/status_lama/dst)
         // ketinggalan gak masuk fillable, jadi Mitra::create()/update() diam2 BUANG field ini --
         // akibatnya status_lama gak pernah kesimpan, --fix-status gak nemu apa2, dan idempotency

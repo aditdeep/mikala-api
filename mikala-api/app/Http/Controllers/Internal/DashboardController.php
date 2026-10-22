@@ -48,6 +48,7 @@ class DashboardController extends Controller
                     ->orderBy('created_at','desc')->limit(5)->get(),
                 'recent_applications' => Mitra::with('user')
                     ->orderBy('created_at','desc')->limit(5)->get(),
+                'mitra_per_tipe'      => $this->mitraPerTipe(),
                 'mitra_on_job'        => \App\Models\Order::whereIn('status', ['confirmed','in_progress'])->whereNotNull('mitra_id')->distinct('mitra_id')->count('mitra_id'),
             ];
 
@@ -62,6 +63,33 @@ class DashboardController extends Controller
                 'message' => 'Failed to retrieve dashboard summary: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Jumlah mitra per kelompok tipe (PHC / CG / BS) x status (on training / available /
+     * on job) utk kartu Dashboard. Kelompok mengikuti tipe_pekerjaan (lihat Mitra::TIPE_KODE_MAP).
+     */
+    private function mitraPerTipe(): array
+    {
+        $grup = [
+            'PHC' => ['Perawat Homecare'],
+            'CG'  => ['Perawat Lansia / Caregiver', 'Caregiver / Kaigo (Jepang)'],
+            'BS'  => ['Babysitter', 'Babysitter New Born Care'],
+        ];
+        $status = ['training' => ['training', 're_training'], 'available' => ['available'], 'on_job' => ['on_job']];
+        $baris = Mitra::select('tipe_pekerjaan', 'status', DB::raw('count(*) as n'))
+            ->where('status_rekrutmen', 'verified')
+            ->groupBy('tipe_pekerjaan', 'status')->get();
+        $hasil = [];
+        foreach ($grup as $kode => $tipe) {
+            $hasil[$kode] = ['total' => 0];
+            foreach ($status as $s => $nilai) {
+                $n = (int) $baris->filter(fn ($r) => in_array($r->tipe_pekerjaan, $tipe, true) && in_array($r->status, $nilai, true))->sum('n');
+                $hasil[$kode][$s] = $n;
+                $hasil[$kode]['total'] += $n;
+            }
+        }
+        return $hasil;
     }
 
     /**
