@@ -34,7 +34,7 @@ class RapikanMateriTraining extends Command
     // kata sambung tetap huruf kecil (kecuali di awal)
     private const KECIL = ['dan', 'atau', 'pada', 'di', 'ke', 'dari', 'yang', 'untuk', 'dengan', 'serta', 'bagi', 'oleh', 'dalam', 'tentang', 'terhadap', 'antara', 'per'];
     // singkatan yg tetap huruf besar
-    private const SINGKATAN = ['ADL', 'TTV', 'BAB', 'BAK', 'NGT', 'P3K', 'APD', 'RJP', 'CPR', 'DM', 'HIV', 'AIDS', 'TBC', 'TB', 'ASI', 'MPASI', 'K3', 'PHBS', 'KDRT', 'ROM', 'O2', 'BHD', 'BLS', 'PPI', 'ICU', 'IGD', 'UGD', 'RS', 'COVID', 'COVID-19', 'DBD', 'ISPA', 'PHC', 'CG', 'BS', 'MGM', 'SOP', 'TT'];
+    private const SINGKATAN = ['ADL', 'TTV', 'BAB', 'BAK', 'NGT', 'P3K', 'APD', 'RJP', 'CPR', 'DM', 'HIV', 'AIDS', 'TBC', 'TB', 'ASI', 'MPASI', 'K3', 'PHBS', 'KDRT', 'ROM', 'O2', 'BHD', 'BLS', 'PPI', 'ICU', 'IGD', 'UGD', 'RS', 'COVID', 'COVID-19', 'DBD', 'ISPA', 'PHC', 'CG', 'BS', 'MGM', 'SOP', 'TT', 'BB', 'GDS', 'CVP', 'PEG', 'GCS', 'EKG', 'ECG', 'IM'];
 
     public static function hurufAwalKapital(string $teks): string
     {
@@ -47,7 +47,8 @@ class RapikanMateriTraining extends Command
             if (preg_match('/^[IVXLC]+$/', $up) && mb_strlen($up) <= 5) return $up; // angka romawi
             $low = mb_strtolower($kata);
             if (!$pertama && in_array($low, self::KECIL, true)) return $low;
-            return mb_strtoupper(mb_substr($low, 0, 1)) . mb_substr($low, 1);
+            // kata bertanda hubung: tiap bagian diawali huruf besar (Sehat-Sakit)
+            return implode('-', array_map(fn ($b) => mb_strtoupper(mb_substr($b, 0, 1)) . mb_substr($b, 1), explode('-', $low)));
         }, trim(preg_replace('/\s+/', ' ', $teks)));
     }
 
