@@ -88,6 +88,7 @@ class RekrutmenController extends Controller
                 'tipe_pekerjaan'=>$request->tipe_pekerjaan,
                 'suku'=>$request->suku,
                 'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
+                'tahun_lulus'=>$request->tahun_lulus,'tahun_pelatihan'=>$request->tahun_pelatihan,
                 // Kemampuan (list bebas) -- dikirim frontend sbg array, disimpan JSON string
                 'kemampuan'=>$request->has('kemampuan') ? json_encode(array_values(array_filter((array) $request->kemampuan))) : null,
             ]);
@@ -212,6 +213,7 @@ class RekrutmenController extends Controller
                 'takut_hewan'=>$request->takut_hewan,'bisa_memasak'=>$request->bisa_memasak,
                 'tipe_pekerjaan'=>$request->tipe_pekerjaan,'suku'=>$request->suku,
                 'pengalaman_pelatihan'=>$request->pengalaman_pelatihan,
+                'tahun_lulus'=>$request->tahun_lulus,'tahun_pelatihan'=>$request->tahun_pelatihan,
                 'kemampuan'=>$request->has('kemampuan') ? json_encode(array_values(array_filter((array) $request->kemampuan))) : null,
             ], fn($v) => !is_null($v));
             $mitra->update($updateData);
@@ -293,7 +295,7 @@ class RekrutmenController extends Controller
         $fieldsMitra = [
             'nama_lengkap','nik','jenis_kelamin','tempat_lahir','tanggal_lahir','tipe_pekerjaan',
             'kota','provinsi','pendidikan_terakhir','suku','tinggi_badan','berat_badan','agama',
-            'status_nikah','status','status_rekrutmen',
+            'status_nikah','status','status_rekrutmen','tahun_lulus','tahun_pelatihan',
         ];
 
         $updated = 0; $notFound = []; $errors = [];

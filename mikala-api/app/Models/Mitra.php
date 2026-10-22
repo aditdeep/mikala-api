@@ -39,6 +39,8 @@ class Mitra extends Model
         'takut_hewan','bisa_memasak','tipe_pekerjaan','suku','pengalaman_pelatihan',
         // Kemampuan (list bebas, diisi mitra sendiri saat daftar) -- ditampilkan di CV
         'kemampuan',
+        // tahun lulus pendidikan terakhir & tahun pelatihan non-formal (form/CV mitra)
+        'tahun_lulus','tahun_pelatihan',
         // FIX: data_tambahan (dipakai command migrasi:mitra-update utk nim_lama/status_lama/dst)
         // ketinggalan gak masuk fillable, jadi Mitra::create()/update() diam2 BUANG field ini --
         // akibatnya status_lama gak pernah kesimpan, --fix-status gak nemu apa2, dan idempotency
@@ -87,6 +89,27 @@ class Mitra extends Model
      * kelurahan/kecamatan terpisah tanpa merusak format. Alamat lama yg bukan format ini (mis.
      * hasil migrasi, teks bebas) dianggap jalan seluruhnya.
      */
+    /**
+     * Kategori materi checklist Training yg berlaku utk mitra, berdasar tipe pekerjaan:
+     *  - CG (Caregiver & lainnya)       -> Dasar
+     *  - BS (Babysitter / New Born Care) -> Dasar + BS (materi Dasar IV-XI, lihat training:pisah-bs)
+     *  - PHC (Perawat Homecare)          -> Dasar + PHC
+     * Tipe kosong dianggap Perawat Homecare (default lama form rekrutmen).
+     */
+    public static function kategoriTraining($mitra): array
+    {
+        $tipe = is_object($mitra) ? ($mitra->tipe_pekerjaan ?? null) : null;
+        if (!$tipe) {
+            // data lama: tipe_pekerjaan dulu ikut di-encode di blob `pengalaman`
+            $pengalaman = is_object($mitra) ? ($mitra->pengalaman ?? '') : '';
+            if ($pengalaman && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $pengalaman, $m)) $tipe = trim($m[1]);
+        }
+        $tipe = $tipe ?: 'Perawat Homecare';
+        if ($tipe === 'Perawat Homecare') return ['Dasar', 'PHC'];
+        if (str_starts_with($tipe, 'Babysitter')) return ['Dasar', 'BS'];
+        return ['Dasar'];
+    }
+
     public static function pecahAlamat(?string $alamat, ?string $kota, ?string $provinsi): array
     {
         $parts = array_map('trim', explode(',', (string) $alamat));

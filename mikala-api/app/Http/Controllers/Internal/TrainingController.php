@@ -456,39 +456,16 @@ class TrainingController extends Controller
         return response()->json(['success'=>true,'data'=>$materi]);
     }
 
-    /**
-     * tipe_pekerjaan tidak punya kolom sendiri di tabel mitra -- di-encode di dalam
-     * kolom `pengalaman` (lihat rekrutmen/page.tsx parsePengalamanBlob() / handleSubmit()).
-     * Helper ini parse balik nilainya utk menentukan apakah mitra tsb PHC (Perawat Homecare)
-     * atau Caregiver kategori lain (Babysitter, Perawat Lansia, dll -- non-PHC).
-     */
+    // Aturan kategori materi per tipe pekerjaan ada di Mitra::kategoriTraining()
+    // (dipakai juga oleh halaman Pelatihan di apps mitra, supaya selalu sama).
     private function isMitraPhc($mitra): bool
     {
-        // FIX regresi: tipe_pekerjaan dulu di-encode di dalam blob `pengalaman`, tapi sejak
-        // migration split_pengalaman_blob_fields_on_mitra field ini sudah jadi kolom asli
-        // sendiri (`mitra.tipe_pekerjaan`) dan `pengalaman` sudah dirapikan jadi cuma teks
-        // pengalaman kerja -- jadi regex lama di sini tidak akan pernah nemu apa2 lagi dan
-        // selalu jatuh ke default (PHC), bikin filter materi CG/PHC balik rusak. Utamakan
-        // kolom asli; fallback ke blob HANYA kalau kolomnya kosong (record lama blm ke-backfill).
-        $tipe = is_object($mitra) ? ($mitra->tipe_pekerjaan ?? null) : null;
-        if (!$tipe) {
-            $pengalaman = is_object($mitra) ? ($mitra->pengalaman ?? '') : '';
-            if ($pengalaman && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $pengalaman, $m)) {
-                $tipe = trim($m[1]);
-            }
-        }
-        $tipe = $tipe ?: 'Perawat Homecare'; // default, samakan dgn default frontend
-        return $tipe === 'Perawat Homecare';
+        return in_array('PHC', \App\Models\Mitra::kategoriTraining($mitra), true);
     }
 
-    /**
-     * Kategori materi yang relevan utk mitra tsb:
-     * - Caregiver non-PHC -> hanya kategori "Dasar" (materi CG)
-     * - PHC (Perawat Homecare) -> kategori "Dasar" + "PHC"
-     */
     private function relevantKategoriFor($mitra): array
     {
-        return $this->isMitraPhc($mitra) ? ['Dasar', 'PHC'] : ['Dasar'];
+        return \App\Models\Mitra::kategoriTraining($mitra);
     }
 
     public function mitraProgress($mitraId)
@@ -584,8 +561,27 @@ class TrainingController extends Controller
             ]);
         }
 
+        ['avg' => $avgRating, 'status_lulus' => $statusLulus, 'training_status' => $trainingStatus] = $this->hitungUlangStatus($mitraId);
+
+        return response()->json([
+            'success' => true,
+            'nilai_rata' => $avgRating,
+            'status_lulus' => $statusLulus,
+            'training_status' => $trainingStatus,
+        ]);
+    }
+
+
+    /**
+     * Hitung ulang nilai rata2, status_lulus & training_status mitra dari checklist materi
+     * yg relevan utk tipe pekerjaannya. Dipakai tiap ceklis berubah, dan oleh command
+     * training:pisah-bs (jumlah materi per tipe berubah).
+     */
+    public function hitungUlangStatus($mitraId): array
+    {
         // Recalculate rata-rata + status lulus -- hanya dari materi kategori yg relevan
         // buat mitra ini (CG-only mitra tidak boleh kena pengaruh materi PHC, dan sebaliknya).
+        $relevantKat = $this->relevantKategoriFor(\DB::table('mitra')->find($mitraId));
         $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)
             ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat))
             ->get();
@@ -623,14 +619,8 @@ class TrainingController extends Controller
 
         \DB::table('mitra')->where('id', $mitraId)->update($updateData);
 
-        return response()->json([
-            'success' => true,
-            'nilai_rata' => $avgRating,
-            'status_lulus' => $statusLulus,
-            'training_status' => $trainingStatus,
-        ]);
+        return ['avg' => $avgRating, 'status_lulus' => $statusLulus, 'training_status' => $trainingStatus];
     }
-
 
     public function terbitkanSertifikat(Request $request, $mitraId)
     {

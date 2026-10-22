@@ -445,12 +445,9 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     // (dulu di-encode di blob `pengalaman`, sudah dipindah, lihat migration
     // split_pengalaman_blob_fields_on_mitra + TrainingController::isMitraPhc()). CG-only mitra
     // cuma lihat/dinilai materi Dasar; PHC lihat/dinilai Dasar+PHC.
-    $tipePekerjaan = $mitra->tipe_pekerjaan ?: null;
-    if (!$tipePekerjaan && !empty($mitra->pengalaman) && preg_match('/Tipe Pekerjaan:\s*([^,]*)/', $mitra->pengalaman, $tpMatch)) {
-        $tipePekerjaan = trim($tpMatch[1]);
-    }
-    $isPhc = ($tipePekerjaan ?: 'Perawat Homecare') === 'Perawat Homecare';
-    $relevantKat = $isPhc ? ['Dasar', 'PHC'] : ['Dasar'];
+    // aturan CG / BS / PHC -> Mitra::kategoriTraining()
+    $relevantKat = \App\Models\Mitra::kategoriTraining($mitra);
+    $isPhc = in_array('PHC', $relevantKat, true);
 
     $materi  = \App\Models\TrainingMateri::whereRaw('is_active = true')
         ->whereIn('kategori', $relevantKat)->orderBy('kategori')->orderBy('urutan')->get();
