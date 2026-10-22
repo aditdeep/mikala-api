@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
  *  - XXV   -> "Pendampingan Pasien Menjelang Ajal/Paliatif Care"
  *  - XXVI  -> "Perawatan Pasien Diabetes Melitus"
  *  - Semua nama materi: HURUF KAPITAL SEMUA -> Huruf Awal Kapital (tampil juga di CV)
+ *  - Ejaan dibakukan: Clapping, Kolostomi, Dekubitus, Genitalia, Trakeostomi, Praktik
  *
  *   php artisan training:rapikan-materi              DRY RUN
  *   php artisan training:rapikan-materi --jalankan   eksekusi + hitung ulang status mitra yg masih training
@@ -36,6 +37,18 @@ class RapikanMateriTraining extends Command
     // singkatan yg tetap huruf besar
     private const SINGKATAN = ['ADL', 'TTV', 'BAB', 'BAK', 'NGT', 'P3K', 'APD', 'RJP', 'CPR', 'DM', 'HIV', 'AIDS', 'TBC', 'TB', 'ASI', 'MPASI', 'K3', 'PHBS', 'KDRT', 'ROM', 'O2', 'BHD', 'BLS', 'PPI', 'ICU', 'IGD', 'UGD', 'RS', 'COVID', 'COVID-19', 'DBD', 'ISPA', 'PHC', 'CG', 'BS', 'MGM', 'SOP', 'TT', 'BB', 'GDS', 'CVP', 'PEG', 'GCS', 'EKG', 'ECG', 'IM'];
 
+    // perbaikan ejaan (kata baku KBBI / istilah medis); kunci huruf kecil
+    private const EJAAN = [
+        'claping' => 'clapping',
+        'kolostomy' => 'kolostomi',
+        'decubitus' => 'dekubitus',
+        'genetalia' => 'genitalia',
+        'tracheostomy' => 'trakeostomi',
+        'tracheostomi' => 'trakeostomi',
+        'trakheostomi' => 'trakeostomi',
+        'praktek' => 'praktik',
+    ];
+
     public static function hurufAwalKapital(string $teks): string
     {
         $i = 0;
@@ -46,6 +59,7 @@ class RapikanMateriTraining extends Command
             if (in_array($up, self::SINGKATAN, true)) return $up;
             if (preg_match('/^[IVXLC]+$/', $up) && mb_strlen($up) <= 5) return $up; // angka romawi
             $low = mb_strtolower($kata);
+            $low = self::EJAAN[$low] ?? $low;
             if (!$pertama && in_array($low, self::KECIL, true)) return $low;
             // kata bertanda hubung: tiap bagian diawali huruf besar (Sehat-Sakit)
             return implode('-', array_map(fn ($b) => mb_strtoupper(mb_substr($b, 0, 1)) . mb_substr($b, 1), explode('-', $low)));
