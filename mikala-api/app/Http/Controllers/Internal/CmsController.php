@@ -199,6 +199,8 @@ class CmsController extends Controller
             // Ads di atas) -- ditambah krn sebelumnya cuma ada slot Google Ads, GTM beneran gak
             // pernah kesimpen/kepakai sama sekali.
             'gtm_id',
+            // Meta Pixel ID (angka) utk iklan Facebook/Instagram
+            'meta_pixel_id',
             // Halaman Perusahaan
             'prsh_hero_images','prsh_hero_title','prsh_hero_text',
             'prsh_direktur_nama','prsh_direktur_jabatan','prsh_direktur_foto',
