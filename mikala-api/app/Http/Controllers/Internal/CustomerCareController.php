@@ -1042,6 +1042,8 @@ class CustomerCareController extends Controller
             'tier_nama'        => 'nullable|string|max:100',
             'pembantu'         => 'nullable|string|max:255',
             'cara_mencuci_baju' => 'nullable|string|max:255',
+            // tgl mitra mulai kerja (sering sudah jalan sebelum Deal diinput) -- dasar hitungan gaji
+            'tanggal_mulai'    => 'nullable|date',
         ]);
 
         try {
@@ -1074,7 +1076,9 @@ class CustomerCareController extends Controller
                 'jasa_disetujui' => $request->jasa_disetujui ?? $lead->jasa_disetujui,
                 'pembantu' => $request->pembantu ?? $lead->pembantu,
                 'cara_mencuci_baju' => $request->cara_mencuci_baju ?? $lead->cara_mencuci_baju,
-                'deal_at'  => $lead->deal_at ?: now(),
+                'deal_at'  => $request->filled('tanggal_mulai')
+                    ? \Carbon\Carbon::parse($request->tanggal_mulai, 'Asia/Jakarta')->startOfDay()
+                    : ($lead->deal_at ?: now()),
             ]);
 
             $this->prosesRekomFeeLog($lead->fresh());
