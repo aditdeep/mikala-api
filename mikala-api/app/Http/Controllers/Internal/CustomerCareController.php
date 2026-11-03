@@ -998,11 +998,14 @@ class CustomerCareController extends Controller
             'cms_layanan_id' => 'nullable|exists:cms_layanan,id',
             'tier_nama'      => 'nullable|string|max:100',
             'jasa_disetujui' => 'nullable|string|max:255',
+            'tanggal_mulai'  => 'nullable|date',
         ]);
 
         try {
             $lead = \App\Models\Lead::findOrFail($id);
             $lead->update([
+                // koreksi tgl mulai kerja Deal yg sudah jalan (dasar hitungan gaji)
+                'deal_at'        => $request->filled('tanggal_mulai') ? \Carbon\Carbon::parse($request->tanggal_mulai, 'Asia/Jakarta')->startOfDay() : $lead->deal_at,
                 'cms_layanan_id' => $request->has('cms_layanan_id') ? $request->cms_layanan_id : $lead->cms_layanan_id,
                 'tier_nama'      => $request->has('tier_nama') ? ($request->tier_nama ?: null) : $lead->tier_nama,
                 'jasa_disetujui' => $request->has('jasa_disetujui') ? $request->jasa_disetujui : $lead->jasa_disetujui,
