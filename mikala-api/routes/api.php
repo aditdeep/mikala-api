@@ -111,6 +111,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::middleware('role:manajemen,rekrutmen,training_center,customer_care')->prefix('akun')->group(function () {
             Route::get('search', [\App\Http\Controllers\Internal\AkunController::class, 'search']);
             Route::post('{userId}/reset-password', [\App\Http\Controllers\Internal\AkunController::class, 'resetPassword']);
+            Route::post('klien-dari-lead/{leadId}', [\App\Http\Controllers\Internal\AkunController::class, 'buatAkunKlienDariLead']);
         });
 
         // Rekrutmen

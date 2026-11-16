@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Klien;
 use App\Models\Lead;
 use App\Models\User;
+use App\Support\AkunKlien;
 use App\Support\NomorHp;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -44,7 +45,7 @@ class BuatAkunKlien extends Command
         $lewat = [];
         $grup = [];
         foreach ($leads as $l) {
-            $hp = $this->hpPertama($l->kontak) ?? $this->hpPertama($l->no_wa_klien);
+            $hp = AkunKlien::hpLead($l);
             if (!$hp) { $lewat[] = $this->label($l) . ' -- No HP PJ kosong/tidak valid (' . ($l->kontak ?: '-') . ')'; continue; }
             $grup[$hp][] = $l;
         }
@@ -89,7 +90,7 @@ class BuatAkunKlien extends Command
             foreach ($tautLama as [$k, $list]) Lead::whereIn('id', collect($list)->pluck('id'))->update(['klien_id' => $k->id]);
 
             foreach ($baru as $b) {
-                $pin = $this->pin();
+                $pin = AkunKlien::pin();
                 $l0 = $b['list'][0];
                 $user = User::create([
                     'name' => $b['nama'], 'email' => null, 'phone' => $b['hp'],
@@ -126,26 +127,10 @@ class BuatAkunKlien extends Command
         return 0;
     }
 
-    /** Kolom kontak kadang berisi >1 nomor ("0215xxx/0812xxx") -> ambil nomor HP valid pertama. */
-    private function hpPertama(?string $kontak): ?string
-    {
-        foreach (preg_split('#[/,;]|\s{2,}#', (string) $kontak) as $bagian) {
-            if ($n = NomorHp::normal($bagian)) return $n;
-        }
-        return null;
-    }
 
     private function label(Lead $l): string
     {
         return '#' . ($l->nomor_deal ?: $l->nomor ?: $l->id) . ' ' . ($l->nama_leads ?: '-') . ' / pasien ' . ($l->nama_pasien ?: '-');
     }
 
-    /** PIN 6 angka acak, hindari yg gampang ditebak (angka kembar semua / urut). */
-    private function pin(): string
-    {
-        do {
-            $p = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        } while (count(array_unique(str_split($p))) < 3 || str_contains('0123456789', $p) || str_contains('9876543210', $p));
-        return $p;
-    }
 }

@@ -1058,7 +1058,9 @@ class CustomerCareController extends Controller
                 'nik'       => $lead->nik ?: \App\Models\Lead::generateNik(),
                 'nomor_deal' => $lead->nomor_deal ?: \App\Models\Lead::generateNomorDeal(),
                 'mitra_id'  => $request->filled('mitra_id') ? $request->mitra_id : $lead->mitra_id,
-                'mitra_nim' => $request->filled('mitra_nim') ? $request->mitra_nim : $lead->mitra_nim,
+                // NIM ikut data mitra (nomor_induk); input manual cuma fallback kalau mitra belum punya NIM
+                'mitra_nim' => ($request->filled('mitra_id') ? \App\Models\Mitra::whereKey($request->mitra_id)->value('nomor_induk') : null)
+                    ?: ($request->filled('mitra_nim') ? $request->mitra_nim : $lead->mitra_nim),
                 // Jasa Disetujui (Jenis Layanan + Tier) -- disinkronkan ke cms_layanan_id/tier_nama
                 // supaya konsisten dgn field yg dipakai tabel ringkasan Layanan (hitungan Deal per
                 // layanan/tier). Sebelumnya field ini terpisah sehingga leads yg baru "match" saat
