@@ -239,6 +239,50 @@ class RekrutmenController extends Controller
         }
     }
 
+    /**
+     * Hapus PERMANEN mitra + akun login-nya (beda dgn destroy() yg cuma menonaktifkan). Untuk data
+     * salah input / pendaftar dobel. Ditolak kalau mitra sudah punya jejak kerja/keuangan.
+     */
+    public function hapusPermanen($id)
+    {
+        $mitra = Mitra::withTrashed()->findOrFail($id);
+        $milikSendiri = ['mitra_jadwal_interview', 'mitra_kredit_pelatihan', 'mitra_kredit_potongan', 'trainings'];
+        $kolom = DB::getDriverName() === 'pgsql'
+            ? array_map(fn ($r) => [$r->table_name, $r->column_name], DB::select("SELECT c.table_name, c.column_name FROM information_schema.columns c
+                JOIN information_schema.tables t ON t.table_name = c.table_name AND t.table_schema = c.table_schema
+                WHERE c.table_schema = current_schema() AND t.table_type = 'BASE TABLE' AND c.column_name LIKE '%mitra_id'"))
+            : [];
+
+        $dipakai = [];
+        foreach ($kolom as [$t, $c]) {
+            if (in_array($t, $milikSendiri, true) || preg_match('/^(referensi|referrer)_/', $c)) continue;
+            if ($n = DB::table($t)->where($c, $mitra->id)->count()) $dipakai[] = "{$t} ({$n})";
+        }
+        if (\Illuminate\Support\Facades\Schema::hasTable('fee_log')
+            && ($n = DB::table('fee_log')->where('penerima_tipe', 'mitra')->where('penerima_id', $mitra->id)->count())) $dipakai[] = "fee_log ({$n})";
+        if ($dipakai) {
+            return response()->json(['success' => false, 'message' => 'Mitra ini sudah punya data kerja/keuangan: ' . implode(', ', $dipakai)
+                . '. Tidak bisa dihapus permanen, pakai Nonaktifkan saja.'], 422);
+        }
+
+        DB::transaction(function () use ($mitra, $kolom, $milikSendiri) {
+            foreach ($kolom as [$t, $c]) {
+                if (in_array($t, $milikSendiri, true)) DB::table($t)->where($c, $mitra->id)->delete();
+                elseif (preg_match('/^(referensi|referrer)_/', $c)) DB::table($t)->where($c, $mitra->id)->update([$c => null]);
+            }
+            $userId = $mitra->user_id;
+            $mitra->forceDelete();
+            // akun login ikut dihapus kalau tidak dipakai mitra lain
+            if ($userId && !Mitra::withTrashed()->where('user_id', $userId)->exists()) {
+                DB::table('personal_access_tokens')->where('tokenable_type', \App\Models\User::class)->where('tokenable_id', $userId)->delete();
+                \App\Models\User::withTrashed()->whereKey($userId)->forceDelete();
+            }
+        });
+        \Log::info('HAPUS PERMANEN MITRA', ['by' => request()->user()?->id, 'mitra_id' => $mitra->id, 'nama' => $mitra->nama_lengkap, 'nim' => $mitra->nomor_induk]);
+
+        return response()->json(['success' => true, 'message' => "Mitra {$mitra->nama_lengkap} dihapus permanen"]);
+    }
+
     public function terima(Request $request, $id)
     {
         $request->validate(['price_rate'=>'required|numeric|min:0']);

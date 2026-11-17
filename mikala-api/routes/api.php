@@ -117,6 +117,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Rekrutmen
         Route::middleware('role:manajemen,rekrutmen')->prefix('rekrutmen')->group(function () {
             Route::apiResource('mitra', RekrutmenController::class);
+            Route::delete('mitra/{id}/permanen', [RekrutmenController::class, 'hapusPermanen']);
             Route::post('mitra-import', [RekrutmenController::class, 'importXlsx']);
             Route::get('mitra/{id}/riwayat', [RekrutmenController::class, 'riwayat']);
             Route::get('report', [RekrutmenController::class, 'report']);
