@@ -215,6 +215,8 @@ class CmsController extends Controller
             'layanan_hero_images',
             // Footer
             'footer_social_icons',
+            // Halaman /linktree/{slug} di web MGM -- JSON {slug: {nama, bio, foto, links:[{label,url,ikon}]}}
+            'linktree',
         ])->pluck('value','key');
         return response()->json(['success'=>true,'data'=>$settings]);
     }
