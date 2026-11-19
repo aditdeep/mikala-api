@@ -480,39 +480,45 @@ class TrainingController extends Controller
             ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
             ->with('checker:id,name')->get()->keyBy('materi_id');
 
-        $total   = $materi->count();
+        // Materi induk (punya sub) tercentang otomatis kalau semua sub-nya tercentang; yg
+        // dihitung progress & nilai hanya materi tanpa sub. Baris ceklis lama di materi induk diabaikan.
+        $pohon = \App\Models\TrainingMateri::pohon($materi, $checks->keys()->all());
+        $induk = array_flip($pohon['induk']);
+        $checks = $checks->only($pohon['daun']);
+
+        $total   = count($pohon['daun']);
         $selesai = $checks->count();
         $persen  = $total > 0 ? round(($selesai/$total)*100) : 0;
         $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
 
-        // Semua materi yg sudah diceklis (dipakai utk auto-populate list CV nanti;
-        // layout CV menyusul, di sini cukup sediakan datanya).
-        $cvMateri = $checks->values()->map(function($c) use ($materi) {
-            $m = $materi->firstWhere('id', $c->materi_id);
-            return [
-                'materi_id' => $c->materi_id,
-                'nama'      => $m->nama ?? null,
-                'kategori'  => $m->kategori ?? null,
-                'rating'    => $c->rating,
-            ];
-        })->values();
+        // CV cuma menampilkan materi besar (tanpa induk) yg sudah selesai -- materi besar yg
+        // sub-nya belum keceklis semua tidak muncul.
+        $cvMateri = $materi->filter(fn($m) => \App\Models\TrainingMateri::normKode($m->parent_kode) === '' && $pohon['checked'][$m->id])
+            ->map(fn($m) => [
+                'materi_id' => $m->id,
+                'nama'      => $m->nama,
+                'kategori'  => $m->kategori,
+                'rating'    => $checks->get($m->id)?->rating,
+            ])->values();
 
-        $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks) {
-            $selesai = $items->filter(fn($m)=>$checks->has($m->id))->count();
-            $checkedItems = $items->filter(fn($m)=>$checks->has($m->id));
+        $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks, $pohon, $induk) {
+            $daun = $items->reject(fn($m) => isset($induk[$m->id]));
+            $checkedItems = $daun->filter(fn($m)=>$checks->has($m->id));
+            $selesai = $checkedItems->count();
             $avgRating = $checkedItems->count() > 0
                 ? round($checkedItems->avg(fn($m)=>$checks->get($m->id)->rating ?? 0), 2)
                 : 0;
             return [
                 'kategori' => $kat,
-                'total'    => $items->count(),
+                'total'    => $daun->count(),
                 'selesai'  => $selesai,
-                'persen'   => $items->count()>0 ? round($selesai/$items->count()*100) : 0,
+                'persen'   => $daun->count()>0 ? round($selesai/$daun->count()*100) : 0,
                 'rating_rata' => $avgRating,
                 'materi'   => $items->map(fn($m)=>[
                     'id' => $m->id, 'kode' => $m->kode, 'nama' => $m->nama,
                     'kategori' => $m->kategori, 'parent_kode' => $m->parent_kode, 'urutan' => $m->urutan,
-                    'checked' => $checks->has($m->id),
+                    'is_induk' => isset($induk[$m->id]),
+                    'checked' => $pohon['checked'][$m->id],
                     'rating' => $checks->get($m->id)?->rating ?? 0,
                     'tanggal_dapat' => $checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
                     'pengajar' => $checks->get($m->id)?->pengajar,
@@ -546,6 +552,13 @@ class TrainingController extends Controller
                 'success' => false,
                 'message' => 'Materi kategori "'.$materiObj->kategori.'" tidak berlaku utk tipe pekerjaan mitra ini.',
             ], 422);
+        }
+
+        if ($materiObj) {
+            $semua = \App\Models\TrainingMateri::whereRaw('is_active = true')->where('kategori', $materiObj->kategori)->get(['id','kode','kategori','parent_kode']);
+            if (in_array($materiObj->id, \App\Models\TrainingMateri::pohon($semua, [])['induk'], true)) {
+                return response()->json(['success' => false, 'message' => 'Materi besar tercentang otomatis kalau semua sub materinya sudah diceklis.'], 422);
+            }
         }
 
         $existing = \App\Models\TrainingChecklist::where('mitra_id',$mitraId)->where('materi_id',$materiId)->first();
@@ -585,9 +598,12 @@ class TrainingController extends Controller
         $checks = \App\Models\TrainingChecklist::where('mitra_id', $mitraId)
             ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
             ->get();
+        $materi = \App\Models\TrainingMateri::whereRaw('is_active = true')
+            ->whereIn('kategori', $relevantKat)->get(['id','kode','kategori','parent_kode']);
+        $daun = \App\Models\TrainingMateri::pohon($materi, [])['daun']; // materi induk tidak dihitung
+        $checks = $checks->whereIn('materi_id', $daun);
         $avgRating = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
-        $totalMateri = \App\Models\TrainingMateri::whereRaw('is_active = true')
-            ->whereIn('kategori', $relevantKat)->count();
+        $totalMateri = count($daun);
 
         $statusLulus = 'training';
         if ($checks->count() >= $totalMateri && $avgRating >= 4.5) $statusLulus = 'lulus';

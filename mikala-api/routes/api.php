@@ -456,26 +456,32 @@ Route::middleware(['auth:sanctum','role:mitra'])->get('/mitra/pelatihan-saya', f
     $checks  = \App\Models\TrainingChecklist::where('mitra_id',$mitra->id)
         ->whereHas('materi', fn($q) => $q->whereIn('kategori', $relevantKat)->whereRaw('is_active = true')) // materi nonaktif (dihapus dari daftar) tidak dihitung
         ->get()->keyBy('materi_id');
-    $total   = $materi->count();
+    // materi induk tercentang otomatis kalau semua sub-nya tercentang (TrainingMateri::pohon)
+    $pohon = \App\Models\TrainingMateri::pohon($materi, $checks->keys()->all());
+    $induk = array_flip($pohon['induk']);
+    $checks = $checks->only($pohon['daun']);
+    $total   = count($pohon['daun']);
     $selesai = $checks->count();
     $nilaiRata = $checks->count() > 0 ? round($checks->avg('rating'), 2) : 0;
 
-    $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks) {
-        $selesai = $items->filter(fn($m)=>$checks->has($m->id))->count();
-        $checkedItems = $items->filter(fn($m)=>$checks->has($m->id));
+    $byKat = $materi->groupBy('kategori')->map(function($items, $kat) use ($checks, $pohon, $induk) {
+        $daun = $items->reject(fn($m) => isset($induk[$m->id]));
+        $checkedItems = $daun->filter(fn($m)=>$checks->has($m->id));
+        $selesai = $checkedItems->count();
         $avgRating = $checkedItems->count() > 0
             ? round($checkedItems->avg(fn($m)=>$checks->get($m->id)->rating ?? 0), 2)
             : 0;
         return [
             'kategori' => $kat,
-            'total'    => $items->count(),
+            'total'    => $daun->count(),
             'selesai'  => $selesai,
-            'persen'   => $items->count()>0 ? round($selesai/$items->count()*100) : 0,
+            'persen'   => $daun->count()>0 ? round($selesai/$daun->count()*100) : 0,
             'rating_rata' => $avgRating,
             'materi'   => $items->map(fn($m)=>[
                 'id' => $m->id, 'kode' => $m->kode, 'nama' => $m->nama,
                 'parent_kode' => $m->parent_kode,
-                'checked' => $checks->has($m->id),
+                'is_induk' => isset($induk[$m->id]),
+                'checked' => $pohon['checked'][$m->id],
                 'rating' => $checks->get($m->id)?->rating ?? 0,
                 'tanggal_dapat' => $checks->get($m->id)?->tanggal_dapat?->format('Y-m-d'),
                 'pengajar' => $checks->get($m->id)?->pengajar,
