@@ -155,7 +155,7 @@ class GantiMateriDasar extends Command
             if ($i === false || !$lama->has((int) $id)) { $this->error("--pasang={$p} tidak valid (kode baru / ID materi Dasar aktif tidak ditemukan)."); return 1; }
             $manual[$i] = [(int) $id, 'manual'];
         }
-        $sisaLama = $lama->except(array_column($manual, 0))->map->nama->all();
+        $sisaLama = array_diff_key($lama->pluck('nama', 'id')->all(), array_flip(array_column($manual, 0)));
         $cocok = $manual + self::cocokkan($sisaLama, array_diff_key(array_column($baris, 1), $manual));
         $jml = fn ($id) => DB::table('training_checklist')->where('materi_id', $id)->count();
 
