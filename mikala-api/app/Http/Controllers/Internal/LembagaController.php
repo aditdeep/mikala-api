@@ -13,7 +13,7 @@ class LembagaController extends Controller
     public function index(Request $request)
     {
         $data = Lembaga::withCount('mitra')
-            ->when($request->search, fn($q) => $q->where(fn($w) => $w->where('nama','ilike',"%{$request->search}%")->orWhere('kota','ilike',"%{$request->search}%")))
+            ->when($request->search, fn($q) => $q->where(fn($w) => $w->where('nama','ilike',"%{$request->search}%")->orWhere('kota','ilike',"%{$request->search}%")->orWhere('kode','ilike',"%{$request->search}%")))
             ->when($request->status, fn($q) => $q->where('status',$request->status))
             ->when($request->tipe,   fn($q) => $q->where('tipe',$request->tipe))
             ->orderBy('created_at','desc')
@@ -50,7 +50,7 @@ class LembagaController extends Controller
     }
 
     public function listPublic() {
-        $data = Lembaga::where('status','aktif')->select('id','nama','tipe','kota')->orderBy('nama')->get();
+        $data = Lembaga::where('status','aktif')->select('id','kode','nama','tipe','kota')->orderBy('nama')->get();
         return response()->json(['success'=>true,'data'=>$data]);
     }
 
