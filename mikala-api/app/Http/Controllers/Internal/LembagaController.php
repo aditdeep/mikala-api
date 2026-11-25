@@ -13,11 +13,11 @@ class LembagaController extends Controller
     public function index(Request $request)
     {
         $data = Lembaga::withCount('mitra')
-            ->when($request->search, fn($q) => $q->where('nama','like',"%{$request->search}%")->orWhere('kota','like',"%{$request->search}%"))
+            ->when($request->search, fn($q) => $q->where(fn($w) => $w->where('nama','ilike',"%{$request->search}%")->orWhere('kota','ilike',"%{$request->search}%")))
             ->when($request->status, fn($q) => $q->where('status',$request->status))
             ->when($request->tipe,   fn($q) => $q->where('tipe',$request->tipe))
             ->orderBy('created_at','desc')
-            ->paginate(15);
+            ->paginate(min((int) $request->get('per_page', 15), 1000));
         return response()->json(['success'=>true,'data'=>$data->items(),'pagination'=>['total'=>$data->total(),'last_page'=>$data->lastPage(),'current_page'=>$data->currentPage()]]);
     }
 
@@ -28,7 +28,7 @@ class LembagaController extends Controller
             'tipe'         => 'required|in:lpk,sekolah,universitas,komunitas,perusahaan,lainnya',
             'fee_per_mitra'=> 'nullable|numeric|min:0',
         ]);
-        $lembaga = Lembaga::create([...$request->only(['nama','tipe','kontak_nama','kontak_hp','kontak_email','alamat','kota','provinsi','fee_per_mitra','catatan']),'status'=>'aktif','created_by'=>auth()->id()]);
+        $lembaga = Lembaga::create([...$request->only(['nama','tipe','kontak_nama','kontak_hp','kontak_email','alamat','kota','provinsi','fee_per_mitra','catatan','rekening_bank','rekening_nomor','rekening_atas_nama']),'status'=>'aktif','created_by'=>auth()->id()]);
         return response()->json(['success'=>true,'data'=>$lembaga],201);
     }
 
@@ -39,7 +39,7 @@ class LembagaController extends Controller
 
     public function update(Request $request, $id) {
         $lembaga = Lembaga::findOrFail($id);
-        $lembaga->update($request->only(['nama','tipe','kontak_nama','kontak_hp','kontak_email','alamat','kota','provinsi','fee_per_mitra','status','catatan']));
+        $lembaga->update($request->only(['nama','tipe','kontak_nama','kontak_hp','kontak_email','alamat','kota','provinsi','fee_per_mitra','status','catatan','rekening_bank','rekening_nomor','rekening_atas_nama']));
         return response()->json(['success'=>true,'data'=>$lembaga]);
     }
 

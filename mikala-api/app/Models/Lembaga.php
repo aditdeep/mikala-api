@@ -7,6 +7,7 @@ class Lembaga extends Model {
     protected $fillable = [
         'nama','tipe','kontak_nama','kontak_hp','kontak_email',
         'alamat','kota','provinsi','fee_per_mitra','status','catatan','created_by',
+        'rekening_bank','rekening_nomor','rekening_atas_nama',
     ];
     protected $casts = ['fee_per_mitra' => 'decimal:2'];
 
